@@ -12,4 +12,5 @@ urlpatterns = [
     path('fetch_observations', views.fetch_observations, name='fetch_observations'),
     path('plot_data', views.plot_data, name='plot_data'),
     path('plot_gti', views.plot_gti, name='plot_gti'),
+    path('fetch_sources', views.fetch_sources, name='fetch_sources'),
 ]

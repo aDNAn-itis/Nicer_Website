@@ -37,7 +37,7 @@ function addObservation(obsID) {
  * Creates buttons for each observation ID that matches the search field.
  * @param {String} obsID Partial or complete observation ID
  */
-function fetchOptions(obsID) {
+function fetchObsOptions(obsID) {
   fetch(`/plots/fetch_observations?obs_id=${obsID}`)
     .then((response) => response.json())
     .then((data) => {
@@ -47,6 +47,49 @@ function fetchOptions(obsID) {
     });
 }
 
+/**
+ * Searches for source names that match the search field.
+ *
+ * Creates buttons for each source name that matches the search field.
+ * @param {String} sourceName Partial or complete source name
+ */
+function fetchSourceOptions(sourceName) {
+  fetch(`/plots/fetch_observations?source=${sourceName}`)
+    .then((response) => response.json())
+    .then((data) => {
+      // Generates buttons for each source name that matches the search field
+      document.querySelector('#source-options').innerHTML = '';
+      data.dir_suggestions.forEach(addSourceObservation);
+    });
+}
+
+/**
+ * Generates a button for a suggested source name
+ * that the user can click to autocomplete.
+ * @param {String} sourceName Source name
+ */
+function addSourceObservation(sourceName) {
+  const OPTION = document.createElement('button');
+
+  OPTION.setAttribute('type', 'button');
+  OPTION.innerHTML = sourceName;
+
+  // If button is clicked, set the search field to the
+  // source name of the clicked button
+  OPTION.addEventListener('click', () => {
+    document.querySelector('#source-search').value = sourceName;
+  });
+
+  document.querySelector('#source-options').append(OPTION);
+}
+
+
+/**
+ * Displays information for each GTI in a dropdown table.
+ * @param {Array.<Object>} info List of information for all GTI
+ * @returns {HTMLDivElement}
+ * Container containing the expandable table of GTIs
+ */
 /**
  * Displays information for each GTI in a dropdown table.
  * @param {Array.<Object>} info List of information for all GTI
@@ -96,27 +139,33 @@ function displayInfo(info) {
 
   $TABLE.append($HEADER_ROW);
 
-  // Add each row of data to the table
-  for (const [J, GTI] of info.entries()) {
-    const $DATA_ROW = $('<tr>');
+  // Check if the info parameter is defined and not empty
+  if (info && info.length > 0) {
+    // Add each row of data to the table
+    for (const [J, GTI] of info.entries()) {
+      const $DATA_ROW = $('<tr>');
 
-    // Add each table cell to the row
-    for (let i = 0; i < TABLE_INFO.headers.length; i++) {
-      let data = GTI[TABLE_INFO.keys[i]].replace('_', ' ');
+      // Add each table cell to the row
+      for (let i = 0; i < TABLE_INFO.headers.length; i++) {
+        let data = GTI[TABLE_INFO.keys[i]].replace('_', ' ');
 
-      if (TABLE_INFO.precision[i] != null) {
-        data = (+data).toFixed(TABLE_INFO.precision[i]);
+        if (TABLE_INFO.precision[i] != null) {
+          data = (+data).toFixed(TABLE_INFO.precision[i]);
+        }
+
+        $DATA_ROW.append($(`<td>${data}</td>`));
       }
 
-      $DATA_ROW.append($(`<td>${data}</td>`));
-    }
+      // Hide all but the first row
+      if (J !== 0) {
+        $DATA_ROW.addClass('hide');
+      }
 
-    // Hide all but the first row
-    if (J !== 0) {
-      $DATA_ROW.addClass('hide');
+      $TABLE.append($DATA_ROW);
     }
-
-    $TABLE.append($DATA_ROW);
+  } else {
+    // If the info parameter is undefined or empty, display a message
+    $TABLE.append($('<tr><td colspan="10">No observation data available.</td></tr>'));
   }
 
   $CONTAINER.append($TABLE);
@@ -261,7 +310,11 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchGraphPlots();
 
   $('#observation-search').keyup(function () {
-    fetchOptions(this.value);
+    fetchObsOptions(this.value);
+  });
+
+  $('#source-search').keyup(function () {
+    fetchSourceOptions(this.value);
   });
 
   $('.change-quality').click(function () {

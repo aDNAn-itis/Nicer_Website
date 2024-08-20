@@ -26,9 +26,22 @@
     {% csrf_token %}
     <div class="row">
         <div class="column">
-            <div class="dropdown">
+            <label for="search-type">Search by:</label>
+            <select id="search-type" name="search_type" class="dropdown-field">
+                <option value="obs_id" selected>Observation ID</option>
+                <option value="source_name">Source Name</option>
+            </select>
+        </div>
+
+        <div class="column">
+            <div class="dropdown" id="obs-id-dropdown">
                 <input id="observation-search" class="dropdown-field" name="obs_id" type="text" value="{{ obsID }}" placeholder="Observation ID...">
                 <div id="observation-options" class="dropdown-content"></div>
+            </div>
+            
+            <div class="dropdown" id="source-name-dropdown" style="display: none;">
+                <input id="source-search" class="dropdown-field" name="source_name" type="text" value="{{ sourceName }}" placeholder="Source Name...">
+                <div id="source-options" class="dropdown-content"></div>
             </div>
         </div>
 
@@ -60,9 +73,53 @@
             <button type="submit">Submit</button>
         </div>
     </div>
+
+    <button type="button" id="advance-search-btn">Advance Search</button>
+
+    <div id="advance-search" style="display: none;">
+        <div class="row">
+            <div class="column">
+                <label for="ra">RA:</label>
+                <input id="ra" class="dropdown-field" name="ra" type="text" placeholder="Right Ascension...">
+            </div>
+
+            <div class="column">
+                <label for="dec">DEC:</label>
+                <input id="dec" class="dropdown-field" name="dec" type="text" placeholder="Declination...">
+            </div>
+
+            <div class="column">
+                <label for="time">Time:</label>
+                <input id="time" class="dropdown-field" name="time" type="text" placeholder="Time...">
+            </div>
+
+            <!-- Add more advanced search fields as needed -->
+        </div>
+    </div>
 </form>
 
 <div id="obs-info"></div>
 
 <div id="plots"></div>
+
+<script>
+    document.getElementById('search-type').addEventListener('change', function() {
+        if (this.value === 'obs_id') {
+            document.getElementById('obs-id-dropdown').style.display = 'block';
+            document.getElementById('source-name-dropdown').style.display = 'none';
+        } else {
+            document.getElementById('obs-id-dropdown').style.display = 'none';
+            document.getElementById('source-name-dropdown').style.display = 'block';
+        }
+    });
+
+    document.getElementById('advance-search-btn').addEventListener('click', function() {
+        const advanceSearchDiv = document.getElementById('advance-search');
+        if (advanceSearchDiv.style.display === 'none' || advanceSearchDiv.style.display === '') {
+            advanceSearchDiv.style.display = 'block';
+        } else {
+            advanceSearchDiv.style.display = 'none';
+        }
+    });
+</script>
 {% endblock %}
