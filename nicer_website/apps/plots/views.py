@@ -120,8 +120,25 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     plot_divs = PLOTS[plot_type]['function'](min_value, file_names, gti_list)
     return JsonResponse({'plotDivs': [plot_divs]})
 
-
 def plot_data(request: HttpRequest) -> JsonResponse:
+    """
+    Tries to plot the specified data, matching the correct plot type
+
+    Supports energy spectrum, light curve, and power density
+
+    Parameters
+    ----------
+    request : HttpRequest
+        POST request containing the variables observation ID (obs_id) or source name (source_name),
+        pipeline (quality), and file types to be plotted (.jsgrp, .lc.gz)
+
+    Returns
+    -------
+    JsonResponse
+        Json response containing the plots as a list of HTML elements (plotDivs),
+        observation ID (obsID), quality (quality), if spectrum is plotted (spectrum),
+        and if light curve is plotted (lightCurve)
+    """
     file_name: str
     obs_id: str = request.POST.get('obs_id')
     source_name: str = request.POST.get('source_name')
@@ -138,7 +155,6 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     files: QuerySet
 
     if obs_id:
-        # Existing obs_id search logic
         dir_path = f'{obs_id}/jspipe/'
         files = Item.objects.filter(
             name__contains=quality,
@@ -146,7 +162,6 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             type=Item.item_type[1][0],
         ).order_by('name')
     elif source_name:
-        # New source name search logic
         files = Item.objects.filter(
             name__contains=quality,
             source_name__icontains=source_name,
@@ -164,23 +179,43 @@ def plot_data(request: HttpRequest) -> JsonResponse:
 
     # Try to get data for specified plots
     try:
+        print(f'Filtered files: {list(files)}')
+
         # Get summary files for each GTI
         file_names = np.array(
             files.filter(name__contains='BGDATA.summary').values_list('name', flat=True)
         )
+
+        print(f'File names: {file_names}')
+
+        if file_names.size == 0:
+            return JsonResponse({'error': 'No summary files found for the given source name'})
 
         # Sort by GTI number
         indices = np.argsort(
             [int(re.search(r'GTI(\d+)', file_name).group(1)) for file_name in file_names]
         )
 
+        print(f'Indices: {indices}')
+
         # Get GTI info
         found_source_name = None
+        available_gti = set()
         for file_name in file_names[indices]:
+            gti_number = int(re.search(r'GTI(\d+)', file_name).group(1))
+            available_gti.add(gti_number)
+
+        if not available_gti:
+            return JsonResponse({'error': 'No GTI data available'})
+
+        for gti in range(max(available_gti) + 1):
+            if gti not in available_gti:
+                break
+            file_name = re.sub(r'js_\d+_', f'js_{obs_id}_', file_names[indices][gti])
             file_name = dir_path + file_name
             info = np.char.replace(np.loadtxt(file_name, dtype=str, unpack=True), "'", '')
             info_dict = dict(zip(*info))
-            infos.append(info_dict | {'GTI': re.search(r'GTI\d+', file_name).group(0)})
+            infos.append(info_dict | {'GTI': f'GTI{gti}'})
 
             if 'OBJECT' in info_dict and not found_source_name:
                 found_source_name = info_dict['OBJECT']
@@ -229,38 +264,6 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         'info': infos,
         'source_name': found_source_name or source_name,
     })
-
-
-# def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
-#     """
-#     Queries the data base with a provided path to return the first 5 items
-#     that contain the path and item name sorted by type first, then name
-#
-#     Parameters
-#     ----------
-#     request : HttpRequest
-#         Request containing the variable 'path' which contains the path and item name
-#     count : int, default = 5
-#         Number of items to return
-#
-#     Returns
-#     -------
-#     JsonResponse
-#         Json response containing a dictionary with 5 items matching the query
-#     """
-#     # Get the queried observation ID from the request and root path
-#     root: str = Item._meta.get_field('path').get_default()  # pylint: disable=protected-access # get source name field
-#     obs_id: str = request.GET.get('obs_id')
-#     suggested_obs: QuerySet
-#
-#     # Query the database for the first 5 observation IDs that match the query
-#     suggested_obs = Item.objects.filter(
-#         name__startswith=obs_id,
-#         path=root,
-#         type=Item.item_type[0][0],
-#     ).order_by('name')[:count]
-#
-#     return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('name', flat=True))})
 
 def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
     """
