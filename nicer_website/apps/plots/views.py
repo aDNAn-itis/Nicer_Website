@@ -1,6 +1,7 @@
 """
 Main functions for backend functionality of the interactive plot page
 """
+import os
 import re
 import logging as log
 from typing import Any
@@ -155,7 +156,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     files: QuerySet
 
     if obs_id:
-        dir_path = f'{obs_id}/jspipe/'
+        dir_path = f'/{obs_id}/jspipe/'
         files = Item.objects.filter(
             name__contains=quality,
             path__startswith=dir_path,
@@ -163,10 +164,12 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         ).order_by('name')
     elif source_name:
         files = Item.objects.filter(
-            name__contains=quality,
+            # name__contains=quality,
             source_name__icontains=source_name,
-            type=Item.item_type[1][0],
+            # type=Item.item_type[1][0],
         ).order_by('name')
+        print('files: ',files)
+        print('source_name: ',source_name)
         if files:
             obs_id = files.first().path.split('/')[0]
             dir_path = f'{obs_id}/jspipe/'
@@ -175,11 +178,19 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     else:
         return JsonResponse({'error': 'No observation ID or source name provided'})
 
+    print(Item.objects.filter(path__startswith=dir_path))
+    print('dir_path: ',dir_path)
     dir_path = f'{settings.DATA_DIR}/{dir_path}'
+
+
+    # print('os: ',os.listdir(dir_path))
+
+    print('files', files)
+    print('obsid: ',obs_id)
 
     # Try to get data for specified plots
     try:
-        print(f'Filtered files: {list(files)}')
+        # print(f'Filtered files: {list(files)}')
 
         # Get summary files for each GTI
         file_names = np.array(
