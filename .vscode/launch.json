@@ -5,6 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Django Server",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "manage.py",
+            "console": "integratedTerminal",
+            "args": [
+                "runserver",
+                "0.0.0.0:8000"
+            ]
+        },
+        {
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",

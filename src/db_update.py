@@ -33,7 +33,7 @@ def progress_bar(i: int, total: int):
         print()
 
 
-def table_insert(data: list[tuple[str, str, str, str]], batch_size: int = 50):
+def table_insert(data: list[tuple[str, str, str, str]], batch_size: int = 100):
     """
     Add folder and file data to the database
 
@@ -44,7 +44,7 @@ def table_insert(data: list[tuple[str, str, str, str]], batch_size: int = 50):
     batch_size : integer, default = 50
         How many entries to insert into the database per execution
     """
-    update = 'INSERT OR REPLACE INTO file_mgr_item (name, path, type, source_name) VALUES (?,?,?,?)'
+    update = 'INSERT OR REPLACE INTO file_mgr_item (name, path, type, source) VALUES (?,?,?,?)'
     batches = np.array_split(data, len(data) / batch_size)
 
     # Connect to the database
@@ -99,7 +99,7 @@ def universal_count(directory: str) -> int:
         Number of files and folders in the given directory
     """
     count = 0
-    for root, dirs, files in os.walk(directory):
+    for _, dirs, files in os.walk(directory):
         count += len(files) + len(dirs)
         print(f'\rCount: {count}', end='', flush=True)
     print()  # Print a newline after counting is complete
@@ -131,34 +131,25 @@ def main():
 
     print(f'Total number of files and folders: {total}')
 
-    # Dictionary to store source names for each observation ID
-    obs_source_map = {}
-
     # Loop through each folder and file in the data directory
-    for root, dirs, files in os.walk(data_dir):
+    for root, _, files in os.walk(data_dir):
+        source = ''
+        files = np.array(files, dtype=str)
         relative_root = root.replace(data_dir, '')
         dir_name = os.path.basename(relative_root)
         parent_dir = os.path.dirname(relative_root) + '/'
         relative_root += '/'
 
-        # Extract observation ID from the path
-        obs_id = relative_root.split('/')[1] if len(relative_root.split('/')) > 1 else ''
+        summaries = files[np.char.endswith(files, '.summary')]
 
-        # If we haven't found the source name for this observation yet, look for it
-        if obs_id and obs_id not in obs_source_map:
-            for file in files:
-                if file.endswith('.summary'):
-                    with open(os.path.join(root, file), 'r') as summary_file:
-                        for line in summary_file:
-                            if line.startswith('OBJECT'):
-                                obs_source_map[obs_id] = line.split("'")[1].strip()
-                                break
-                    if obs_id in obs_source_map:
-                        break
+        # Find source name if in a destination that contains source information
+        if len(summaries):
+            file = np.loadtxt(f'{root}/{summaries[0]}', dtype=str)
+            source = file[:, 1][file[:, 0] == 'OBJECT'][0].strip("'")
 
-        source_name = obs_source_map.get(obs_id, '')
-
-        if files:
+        # Remove ARF and RMF files from the list of files and decrement the total count as these
+        # aren't needed for now
+        if len(files):
             total -= np.count_nonzero(np.char.find(files, '.arf') != -1)
             total -= np.count_nonzero(np.char.find(files, '.rmf') != -1)
             files = np.delete(np.array(files), np.char.find(files, '.arf') != -1)
@@ -166,13 +157,13 @@ def main():
 
         # If not top level directory, add folder to the database
         if dir_name:
-            data.append((dir_name, parent_dir, 'dir', source_name))
+            data.append((dir_name, parent_dir, 'dir', source))
             count += 1
             progress_bar(count, total)
 
         # Add file to the database
         for file in files:
-            data.append((file, relative_root, 'file', source_name))
+            data.append((file, relative_root, 'file', source))
             count += 1
             progress_bar(count, total)
 

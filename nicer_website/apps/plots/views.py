@@ -130,7 +130,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     Parameters
     ----------
     request : HttpRequest
-        POST request containing the variables observation ID (obs_id) or source name (source_name),
+        POST request containing the variables observation ID (obs_id) or source name (source),
         pipeline (quality), and file types to be plotted (.jsgrp, .lc.gz)
 
     Returns
@@ -142,7 +142,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     """
     file_name: str
     obs_id: str = request.POST.get('obs_id')
-    source_name: str = request.POST.get('source_name')
+    source: str = request.POST.get('source')
     quality: str = request.POST['quality']
     dir_path: str
     max_gti: list[int] = []
@@ -156,20 +156,19 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     files: QuerySet
 
     if obs_id:
-        dir_path = f'/{obs_id}/jspipe/'
+        dir_path = f'{obs_id}/jspipe/'
         files = Item.objects.filter(
             name__contains=quality,
             path__startswith=dir_path,
             type=Item.item_type[1][0],
         ).order_by('name')
-    elif source_name:
+    elif source:
         files = Item.objects.filter(
-            # name__contains=quality,
-            source_name__icontains=source_name,
-            # type=Item.item_type[1][0],
+            name__contains=quality,
+            source__icontains=source,
+            type=Item.item_type[1][0],
         ).order_by('name')
-        print('files: ',files)
-        print('source_name: ',source_name)
+
         if files:
             obs_id = files.first().path.split('/')[0]
             dir_path = f'{obs_id}/jspipe/'
@@ -178,26 +177,14 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     else:
         return JsonResponse({'error': 'No observation ID or source name provided'})
 
-    print(Item.objects.filter(path__startswith=dir_path))
-    print('dir_path: ',dir_path)
-    dir_path = f'{settings.DATA_DIR}/{dir_path}'
-
-
-    # print('os: ',os.listdir(dir_path))
-
-    print('files', files)
-    print('obsid: ',obs_id)
+    dir_path = f'{settings.DATA_DIR}{dir_path}'
 
     # Try to get data for specified plots
     try:
-        # print(f'Filtered files: {list(files)}')
-
         # Get summary files for each GTI
         file_names = np.array(
             files.filter(name__contains='BGDATA.summary').values_list('name', flat=True)
         )
-
-        print(f'File names: {file_names}')
 
         if file_names.size == 0:
             return JsonResponse({'error': 'No summary files found for the given source name'})
@@ -207,10 +194,8 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             [int(re.search(r'GTI(\d+)', file_name).group(1)) for file_name in file_names]
         )
 
-        print(f'Indices: {indices}')
-
         # Get GTI info
-        found_source_name = None
+        found_source = None
         available_gti = set()
         for file_name in file_names[indices]:
             gti_number = int(re.search(r'GTI(\d+)', file_name).group(1))
@@ -228,8 +213,8 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             info_dict = dict(zip(*info))
             infos.append(info_dict | {'GTI': f'GTI{gti}'})
 
-            if 'OBJECT' in info_dict and not found_source_name:
-                found_source_name = info_dict['OBJECT']
+            if 'OBJECT' in info_dict and not found_source:
+                found_source = info_dict['OBJECT']
 
         # Plot depending on the data type
         for plot_type, plot_info in PLOTS.items():
@@ -273,7 +258,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         'hardnessIntensity': PLOTS['hardness_intensity_diagram']['exists'],
         'maxGTI': max_gti,
         'info': infos,
-        'source_name': found_source_name or source_name,
+        'source': found_source or source,
     })
 
 def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
@@ -295,7 +280,7 @@ def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
     """
     root: str = Item._meta.get_field('path').get_default()
     obs_id: str = request.GET.get('obs_id')
-    source_name: str = request.GET.get('source')
+    source: str = request.GET.get('source')
     suggested_obs: QuerySet
 
     if obs_id:
@@ -305,12 +290,12 @@ def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
             path=root,
             type=Item.item_type[0][0],
         ).order_by('name')[:count]
-    elif source_name:
+    elif source:
         # Query the database for the first 5 source names that contain the query
         suggested_obs = Item.objects.filter(
-            source_name__icontains=source_name,
+            source__icontains=source,
             type=Item.item_type[1][0],
-        ).values('source_name').distinct().order_by('source_name')[:count]
+        ).values('source').distinct().order_by('source')[:count]
     else:
         return JsonResponse({'error': 'No observation ID or source name provided'})
 
@@ -318,11 +303,11 @@ def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
     if not suggested_obs.exists():
         return JsonResponse({'error': 'Observational data not found'})
 
-    # Return the relevant data based on whether obs_id or source_name was searched
+    # Return the relevant data based on whether obs_id or source was searched
     if obs_id:
         return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('name', flat=True))})
     else:
-        return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('source_name', flat=True))})
+        return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('source', flat=True))})
 
 
 
@@ -333,8 +318,8 @@ def fetch_sources(request: HttpRequest, count: int = 5) -> JsonResponse:
     """
     source_query = request.GET.get('source')
     suggested_sources = Item.objects.filter(
-        source_name__icontains=source_query
-    ).values('source_name').distinct().order_by('source_name')[:count]
+        source__icontains=source_query
+    ).values('source').distinct().order_by('source')[:count]
 
     return JsonResponse({'source_suggestions': list(suggested_sources)})
 

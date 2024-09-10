@@ -1,4 +1,4 @@
-/* global PLOT_GRAPH_URL PLOT_GTI_URL MathJax quality */
+/* global PLOT_GRAPH_URL PLOT_GTI_URL MathJax quality:writable */
 
 import { columnLayout, dropdowns } from '../utils/utils.js';
 
@@ -83,7 +83,6 @@ function addSourceObservation(sourceName) {
   document.querySelector('#source-options').append(OPTION);
 }
 
-
 /**
  * Displays information for each GTI in a dropdown table.
  * @param {Array.<Object>} info List of information for all GTI
@@ -165,7 +164,9 @@ function displayInfo(info) {
     }
   } else {
     // If the info parameter is undefined or empty, display a message
-    $TABLE.append($('<tr><td colspan="10">No observation data available.</td></tr>'));
+    $TABLE.append($(
+      '<tr><td colspan="10">No observation data available.</td></tr>',
+    ));
   }
 
   $CONTAINER.append($TABLE);

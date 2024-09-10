@@ -15,7 +15,7 @@ class Item(models.Model):
     name = models.CharField(max_length=64)
     path = models.CharField(max_length=100, default='/')
     type = models.CharField(max_length=4, choices=item_type, default=dir)
-    source_name = models.CharField(max_length=100, null=True, blank=True)
+    source = models.CharField(max_length=100, blank=True)
 
     class Meta:
         """

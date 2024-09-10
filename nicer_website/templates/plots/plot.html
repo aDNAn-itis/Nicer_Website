@@ -29,7 +29,7 @@
             <label for="search-type">Search by:</label>
             <select id="search-type" name="search_type" class="dropdown-field">
                 <option value="obs_id" selected>Observation ID</option>
-                <option value="source_name">Source Name</option>
+                <option value="source">Source Name</option>
             </select>
         </div>
 
@@ -38,9 +38,9 @@
                 <input id="observation-search" class="dropdown-field" name="obs_id" type="text" value="{{ obsID }}" placeholder="Observation ID...">
                 <div id="observation-options" class="dropdown-content"></div>
             </div>
-            
+
             <div class="dropdown" id="source-name-dropdown" style="display: none;">
-                <input id="source-search" class="dropdown-field" name="source_name" type="text" value="{{ sourceName }}" placeholder="Source Name...">
+                <input id="source-search" class="dropdown-field" name="source" type="text" value="{{ sourceName }}" placeholder="Source Name...">
                 <div id="source-options" class="dropdown-content"></div>
             </div>
         </div>
