@@ -17,6 +17,12 @@ class Item(models.Model):
     type = models.CharField(max_length=4, choices=item_type, default=dir)
     source = models.CharField(max_length=100, blank=True)
 
+    tstart_tt = models.FloatField(null=True, blank=True)
+    tstop_tt = models.FloatField(null=True, blank=True)
+    ra = models.FloatField(null=True, blank=True)
+    dec = models.FloatField(null=True, blank=True)
+
+
     class Meta:
         """
         Metadata for the file manager model to prevent duplicate entries with the same name, path,

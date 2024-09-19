@@ -89,13 +89,9 @@ function addSourceObservation(sourceName) {
  * @returns {HTMLDivElement}
  * Container containing the expandable table of GTIs
  */
-/**
- * Displays information for each GTI in a dropdown table.
- * @param {Array.<Object>} info List of information for all GTI
- * @returns {HTMLDivElement}
- * Container containing the expandable table of GTIs
- */
 function displayInfo(info) {
+  console.log("displayInfo called with:", info); // Log the input for debugging
+
   // Information types to display in the table
   const TABLE_INFO = {
     headers: [
@@ -140,16 +136,22 @@ function displayInfo(info) {
 
   // Check if the info parameter is defined and not empty
   if (info && info.length > 0) {
+    console.log("Info is valid, creating table rows");
     // Add each row of data to the table
     for (const [J, GTI] of info.entries()) {
       const $DATA_ROW = $('<tr>');
 
       // Add each table cell to the row
       for (let i = 0; i < TABLE_INFO.headers.length; i++) {
-        let data = GTI[TABLE_INFO.keys[i]].replace('_', ' ');
-
-        if (TABLE_INFO.precision[i] != null) {
-          data = (+data).toFixed(TABLE_INFO.precision[i]);
+        let data = GTI[TABLE_INFO.keys[i]];
+        if (data === undefined) {
+          console.warn(`Missing data for key: ${TABLE_INFO.keys[i]}`);
+          data = 'N/A';
+        } else {
+          data = data.replace('_', ' ');
+          if (TABLE_INFO.precision[i] != null) {
+            data = (+data).toFixed(TABLE_INFO.precision[i]);
+          }
         }
 
         $DATA_ROW.append($(`<td>${data}</td>`));
@@ -163,6 +165,7 @@ function displayInfo(info) {
       $TABLE.append($DATA_ROW);
     }
   } else {
+    console.log("Info is undefined or empty, displaying message");
     // If the info parameter is undefined or empty, display a message
     $TABLE.append($(
       '<tr><td colspan="10">No observation data available.</td></tr>',
@@ -279,30 +282,104 @@ function fetchGraphPlots() {
       url: PLOT_GRAPH_URL,
       data: SERIALIZED_DATA,
       success: function (response) {
-        // Recreate info table
-        $('#obs-info').empty();
-        $('#obs-info').append(displayInfo(response.info));
-        MathJax.typeset();
+        console.log("Received response:", response);  // Log the entire response
 
-        // Clears current plots
+        // Clear both obs-info and plots divs at the start
+        $('#obs-info').empty();
         $('#plots').empty();
 
-        // Displays each selected plot type
-        for (let i = 0; i < response.plotDivs.length; i++) {
-          // Gets information on the plot type
-          const TYPE = TYPE_REGEX.exec(response.plotDivs[i])[1]
-            .toLowerCase()
-            .replaceAll(' ', '_');
-          const PLOT_DIV = $(response.plotDivs[i]).attr('id', TYPE);
+        if (response.error) {
+          console.error("Error received:", response.error);
+          $('#plots').html(`<p class="error">${response.error}</p>`);
+        } else if (response.info && response.plotDivs) {
+          console.log("Single observation, displaying info and plots");
 
-          // Displays the plot and GTI selection field
-          $('#plots').append(PLOT_DIV);
-          $('#plots').append(GTISelection(response.maxGTI[i], TYPE));
-          fetchGTIPlot(response.obsID, TYPE);
+          // Display info table for single observation
+          $('#obs-info').append(displayInfo(response.info));
+          MathJax.typeset();
+
+          // Display plots
+          if (response.plotDivs.length > 0) {
+            for (let i = 0; i < response.plotDivs.length; i++) {
+              const TYPE = TYPE_REGEX.exec(response.plotDivs[i])[1]
+                .toLowerCase()
+                .replaceAll(' ', '_');
+              const PLOT_DIV = $(response.plotDivs[i]).attr('id', TYPE);
+
+              $('#plots').append(PLOT_DIV);
+              $('#plots').append(GTISelection(response.maxGTI[i], TYPE));
+              fetchGTIPlot(response.obsID, TYPE);
+            }
+          } else {
+            $('#plots').html('<p class="error">No plots available for this observation.</p>');
+          }
+        } else if (Array.isArray(response.dir_suggestions) && response.dir_suggestions.length > 1) {
+          console.log("Multiple observations found, displaying table");
+          handleMultipleObservations(response.dir_suggestions);
         }
-      },
+      }
+      //   else {
+      //     $('#plots').html('<p class="error">No data available for this query.</p>');
+      //   }
+      // },
+      // error: function (jqXHR, textStatus, errorThrown) {
+      //   console.error("AJAX error:", textStatus, errorThrown);
+      //   $('#plots').html('<p class="error">An error occurred while fetching data. Please try again.</p>');
+      // }
     });
   });
+}
+
+function handleMultipleObservations(observations) {
+    console.log("Handling multiple observations:", observations);
+
+    const tableContainer = document.createElement('div');
+    tableContainer.className = 'multiple-observations-table';
+
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const tbody = document.createElement('tbody');
+
+    // Create table header
+    const headerRow = document.createElement('tr');
+    ['Observation ID', 'Action'].forEach(headerText => {
+        const th = document.createElement('th');
+        th.textContent = headerText;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+
+    // Create table body
+    observations.forEach(obsId => {
+        const row = document.createElement('tr');
+
+        const obsIdCell = document.createElement('td');
+        obsIdCell.textContent = obsId;
+        row.appendChild(obsIdCell);
+
+        const actionCell = document.createElement('td');
+        const selectButton = document.createElement('button');
+        selectButton.textContent = 'Select';
+        selectButton.addEventListener('click', () => {
+            document.querySelector('#observation-search').value = obsId;
+            tableContainer.remove();
+            fetchGraphPlots();
+        });
+        actionCell.appendChild(selectButton);
+        row.appendChild(actionCell);
+
+        tbody.appendChild(row);
+    });
+
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    tableContainer.appendChild(table);
+
+    const plotsContainer = document.querySelector('#plots');
+    plotsContainer.innerHTML = '';
+    plotsContainer.appendChild(tableContainer);
+
+    console.log("Table created and appended to #plots");
 }
 
 // When the page loads add event listeners for different input fields

@@ -163,21 +163,50 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             type=Item.item_type[1][0],
         ).order_by('name')
     elif source:
-        files = Item.objects.filter(
-            name__contains=quality,
+        # Find all unique observation IDs for the given source
+        obs_items = Item.objects.filter(
             source__icontains=source,
             type=Item.item_type[1][0],
-        ).order_by('name')
+        ).values('path', 'source').distinct()
 
-        if files:
-            obs_id = files.first().path.split('/')[0]
-            dir_path = f'{obs_id}/jspipe/'
+        # Extract the observation IDs from the paths
+        obs_ids = []
+        for item in obs_items:
+            path_parts = item['path'].split('/')
+            if len(path_parts) > 0:
+                obs_ids.append({'obs_id': path_parts[0], 'source': item['source']})
+
+        print(f"Extracted observation IDs: {obs_ids}")
+
+        if obs_ids:
+            if len(obs_ids) > 1:
+                print(f"Multiple observations found for source {source}: {obs_ids}")
+                return JsonResponse({
+                    'multiple_observations': True,
+                    'obs_ids': obs_ids,
+                    'source': source
+                })
+            else:
+                print(f"Single observation found for source {source}: {obs_ids[0]}")
+                # If only one observation is found, proceed with that
+                obs_id = obs_ids[0]['obs_id']
+                dir_path = f'{obs_id}/jspipe/'
+                files = Item.objects.filter(
+                    name__contains=quality,
+                    path__startswith=dir_path,
+                    type=Item.item_type[1][0],
+                ).order_by('name')
+                print(f"Found {files.count()} files for obs_id {obs_id}")
         else:
             return JsonResponse({'error': 'No files found for the given source name'})
+
     else:
         return JsonResponse({'error': 'No observation ID or source name provided'})
 
-    dir_path = f'{settings.DATA_DIR}{dir_path}'
+    if not files.exists():
+        return JsonResponse({'error': 'No observable data found for the given criteria'})
+
+    dir_path = f'{settings.DATA_DIR}/{obs_id}/jspipe/'
 
     # Try to get data for specified plots
     try:
