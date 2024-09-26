@@ -163,13 +163,11 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             type=Item.item_type[1][0],
         ).order_by('name')
     elif source:
-        # Find all unique observation IDs for the given source
         obs_items = Item.objects.filter(
             source__icontains=source,
             type=Item.item_type[1][0],
         ).values('path', 'source').distinct()
 
-        # Extract the observation IDs from the paths
         obs_ids = []
         for item in obs_items:
             path_parts = item['path'].split('/')
@@ -201,10 +199,10 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             return JsonResponse({'error': 'No files found for the given source name'})
 
     else:
-        return JsonResponse({'error': 'No observation ID or source name provided'})
+            return JsonResponse({'error': 'No observation ID or source name provided'})
 
     if not files.exists():
-        return JsonResponse({'error': 'No observable data found for the given criteria'})
+            return JsonResponse({'error': 'No observable data found for the given criteria'})
 
     dir_path = f'{settings.DATA_DIR}/{obs_id}/jspipe/'
 

@@ -271,19 +271,26 @@ function GTISelection(maxGTI, plotType) {
 function fetchGraphPlots() {
   $('#plot-graph').submit(function (e) {
     // Constants
-    const SERIALIZED_DATA = $(this).serialize();
+    let SERIALIZED_DATA = $(this).serialize();
     const TYPE_REGEX = /"title":\{"text":"(.+?)"\}/;
 
     // Prevents reloading the page
     e.preventDefault();
 
+    console.log("Submitting data:", SERIALIZED_DATA);
+
+    // Adds information and security token to the request
+    SERIALIZED_DATA += `&csrfmiddlewaretoken=${$(
+      "input[name='csrfmiddlewaretoken']",
+    ).val()}`;
+    SERIALIZED_DATA += `&quality=${quality}`;
+
+    // Sends an asynchronous request to generate a plot with multiple GTIs
     $.ajax({
       type: 'POST',
       url: PLOT_GRAPH_URL,
       data: SERIALIZED_DATA,
       success: function (response) {
-        console.log("Received response:", response);  // Log the entire response
-
         // Clear both obs-info and plots divs at the start
         $('#obs-info').empty();
         $('#plots').empty();
@@ -291,9 +298,9 @@ function fetchGraphPlots() {
         if (response.error) {
           console.error("Error received:", response.error);
           $('#plots').html(`<p class="error">${response.error}</p>`);
+        } else if (response.multiple_observations) {
+          handleMultipleObservations(response.obs_ids, response.source);
         } else if (response.info && response.plotDivs) {
-          console.log("Single observation, displaying info and plots");
-
           // Display info table for single observation
           $('#obs-info').append(displayInfo(response.info));
           MathJax.typeset();
@@ -311,28 +318,23 @@ function fetchGraphPlots() {
               fetchGTIPlot(response.obsID, TYPE);
             }
           } else {
+            console.log("Error")
             $('#plots').html('<p class="error">No plots available for this observation.</p>');
           }
-        } else if (Array.isArray(response.dir_suggestions) && response.dir_suggestions.length > 1) {
-          console.log("Multiple observations found, displaying table");
-          handleMultipleObservations(response.dir_suggestions);
+        } else {
+          console.error("Unexpected response format:", response);
+          $('#plots').html('<p class="error">Unexpected response from server.</p>');
         }
+      },
+      error: function (jqXHR, textStatus, errorThrown) {
+        console.error("AJAX error:", textStatus, errorThrown);
+        $('#plots').html('<p class="error">An error occurred while fetching data. Please try again.</p>');
       }
-      //   else {
-      //     $('#plots').html('<p class="error">No data available for this query.</p>');
-      //   }
-      // },
-      // error: function (jqXHR, textStatus, errorThrown) {
-      //   console.error("AJAX error:", textStatus, errorThrown);
-      //   $('#plots').html('<p class="error">An error occurred while fetching data. Please try again.</p>');
-      // }
     });
   });
 }
 
-function handleMultipleObservations(observations) {
-    console.log("Handling multiple observations:", observations);
-
+function handleMultipleObservations(observations, sourceName) {
     const tableContainer = document.createElement('div');
     tableContainer.className = 'multiple-observations-table';
 
@@ -340,28 +342,30 @@ function handleMultipleObservations(observations) {
     const thead = document.createElement('thead');
     const tbody = document.createElement('tbody');
 
-    // Create table header
     const headerRow = document.createElement('tr');
-    ['Observation ID', 'Action'].forEach(headerText => {
+    ['Observation ID', 'Source', 'Action'].forEach(headerText => {
         const th = document.createElement('th');
         th.textContent = headerText;
         headerRow.appendChild(th);
     });
     thead.appendChild(headerRow);
 
-    // Create table body
-    observations.forEach(obsId => {
+    observations.forEach(obs => {
         const row = document.createElement('tr');
 
         const obsIdCell = document.createElement('td');
-        obsIdCell.textContent = obsId;
+        obsIdCell.textContent = obs.obs_id;
         row.appendChild(obsIdCell);
+
+        const sourceCell = document.createElement('td');
+        sourceCell.textContent = obs.source;
+        row.appendChild(sourceCell);
 
         const actionCell = document.createElement('td');
         const selectButton = document.createElement('button');
         selectButton.textContent = 'Select';
         selectButton.addEventListener('click', () => {
-            document.querySelector('#observation-search').value = obsId;
+            document.querySelector('#observation-search').value = obs.obs_id;
             tableContainer.remove();
             fetchGraphPlots();
         });
@@ -379,7 +383,9 @@ function handleMultipleObservations(observations) {
     plotsContainer.innerHTML = '';
     plotsContainer.appendChild(tableContainer);
 
-    console.log("Table created and appended to #plots");
+    const sourceMessage = document.createElement('p');
+    sourceMessage.textContent = `Multiple observations found for source: ${sourceName}`;
+    plotsContainer.insertBefore(sourceMessage, tableContainer);
 }
 
 // When the page loads add event listeners for different input fields
