@@ -174,18 +174,14 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             if len(path_parts) > 0:
                 obs_ids.append({'obs_id': path_parts[0], 'source': item['source']})
 
-        print(f"Extracted observation IDs: {obs_ids}")
-
         if obs_ids:
             if len(obs_ids) > 1:
-                print(f"Multiple observations found for source {source}: {obs_ids}")
                 return JsonResponse({
                     'multiple_observations': True,
                     'obs_ids': obs_ids,
                     'source': source
                 })
             else:
-                print(f"Single observation found for source {source}: {obs_ids[0]}")
                 # If only one observation is found, proceed with that
                 obs_id = obs_ids[0]['obs_id']
                 dir_path = f'{obs_id}/jspipe/'
@@ -199,10 +195,22 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             return JsonResponse({'error': 'No files found for the given source name'})
 
     else:
-            return JsonResponse({'error': 'No observation ID or source name provided'})
+        return JsonResponse({'error': 'No observation ID or source name provided'})
 
     if not files.exists():
-            return JsonResponse({'error': 'No observable data found for the given criteria'})
+        return JsonResponse({'error': 'No observable data found for the given criteria'})
+
+    item = files.first()
+    obs_info = {
+        'ra': item.ra,
+        'dec': item.dec,
+        'tstart_tt': item.tstart_tt,
+        'tstop_tt': item.tstop_tt,
+        'obs_id': obs_id,
+        'source': source or item.source,
+        'npm_fpm_on': item.npm_fpm_on,
+        'ndets_used': item.ndets_used,
+    }
 
     dir_path = f'{settings.DATA_DIR}/{obs_id}/jspipe/'
 
@@ -286,6 +294,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         'maxGTI': max_gti,
         'info': infos,
         'source': found_source or source,
+        'obs_info': obs_info,
     })
 
 def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:

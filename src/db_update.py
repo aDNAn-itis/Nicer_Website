@@ -8,6 +8,7 @@ import sqlite3
 import subprocess
 
 import numpy as np
+import ast
 
 
 def progress_bar(i: int, total: int):
@@ -33,7 +34,7 @@ def progress_bar(i: int, total: int):
         print()
 
 
-def table_insert(data: list[tuple[str, str, str, str, float, float, float, float]], batch_size: int = 100):
+def table_insert(data: list[tuple[str, str, str, str, float, float, float, float, float, float]], batch_size: int = 100):
     """
     Add folder and file data to the database, including additional metadata fields.
 
@@ -45,8 +46,8 @@ def table_insert(data: list[tuple[str, str, str, str, float, float, float, float
         How many entries to insert into the database per execution
     """
     update = '''INSERT OR REPLACE INTO file_mgr_item 
-                (name, path, type, source, tstart_tt, tstop_tt, ra, dec) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)'''
+                (name, path, type, source, tstart_tt, tstop_tt, ra, dec, npm_fpm_on, ndets_used) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ? )'''
 
     batches = np.array_split(data, len(data) / batch_size)
 
@@ -150,17 +151,21 @@ def main():
             file = np.loadtxt(f'{root}/{summaries[0]}', dtype=str)
             source = file[:, 1][file[:, 0] == 'OBJECT'][0].strip("'")
 
-            # Extract additional metadata (TSTART_TT, TSTOP_TT, RA, DEC)
             tstart_tt = float(file[:, 1][file[:, 0] == 'TSTART_TT'][0].strip())
             tstop_tt = float(file[:, 1][file[:, 0] == 'TSTOP_TT'][0].strip())
             ra = float(file[:, 1][file[:, 0] == 'RA'][0].strip())
             dec = float(file[:, 1][file[:, 0] == 'DEC'][0].strip())
+            npm_fpm_on = float(file[:, 1][file[:, 0] == 'NUM_FPM_ON'][0].strip())
+            ndets_used = float(file[:, 1][file[:, 0] == 'NDETS_USED'][0].strip())
+
         else:
             # Default values for additional metadata if not available
             tstart_tt = None
             tstop_tt = None
             ra = None
             dec = None
+            npm_fpm_on = None
+            ndets_used = None
 
         # Remove ARF and RMF files from the list of files and decrement the total count as these
         # aren't needed for now
@@ -172,13 +177,13 @@ def main():
 
         # If not top-level directory, add folder to the database
         if dir_name:
-            data.append((dir_name, parent_dir, 'dir', source, tstart_tt, tstop_tt, ra, dec))
+            data.append((dir_name, parent_dir, 'dir', source, tstart_tt, tstop_tt, ra, dec, npm_fpm_on, ndets_used))
             count += 1
             progress_bar(count, total)
 
         # Add file to the database
         for file in files:
-            data.append((file, relative_root, 'file', source, tstart_tt, tstop_tt, ra, dec))
+            data.append((file, relative_root, 'file', source, tstart_tt, tstop_tt, ra, dec, npm_fpm_on, ndets_used))
             count += 1
             progress_bar(count, total)
 

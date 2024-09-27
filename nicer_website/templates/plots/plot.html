@@ -74,10 +74,10 @@
         </div>
     </div>
 
-    <button type="button" id="advance-search-btn">Advance Search</button>
+{#    <button type="button" id="advance-search-btn">Advance Search</button>#}
 
-    <div id="advance-search" style="display: none;">
-        <div class="row">
+{#    <div id="advance-search" style="display: none;">#}
+{#        <div class="row">#}
             <div class="column">
                 <label for="ra">RA:</label>
                 <input id="ra" class="dropdown-field" name="ra" type="text" placeholder="Right Ascension...">
@@ -89,13 +89,27 @@
             </div>
 
             <div class="column">
-                <label for="time">Time:</label>
-                <input id="time" class="dropdown-field" name="time" type="text" placeholder="Time...">
+                <label for="tstart_tt">TStart_TT:</label>
+                <input id="tstart_tt" class="dropdown-field" name="tstart_tt" type="text" placeholder="Tstart_tt...">
+            </div>
+          
+          <div class="column">
+                <label for="tstop_tt">TStop_TT:</label>
+                <input id="tstop_tt" class="dropdown-field" name="tstop_tt" type="text" placeholder="Tstop_tt...">
             </div>
 
-            <!-- Add more advanced search fields as needed -->
-        </div>
-    </div>
+          <div class="column">
+                  <label for="npm_fpm_on">ovenpm_fpm_onrshoot</label>
+                  <input id="npm_fpm_on" class="dropdown-field" name="ovenpm_fpm_onrshoot" type="text" placeholder="ovenpm_fpm_onrshoot...">
+              </div>
+
+          <div class="column">
+                        <label for="ndets_used">ndets_used</label>
+                        <input id="ndets_used" class="dropdown-field" name="ndets_used" type="text" placeholder="ndets_used...">
+                    </div>
+
+{#        </div>#}
+{#    </div>#}
 </form>
 
 <div id="obs-info"></div>

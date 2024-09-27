@@ -277,8 +277,6 @@ function fetchGraphPlots() {
     // Prevents reloading the page
     e.preventDefault();
 
-    console.log("Submitting data:", SERIALIZED_DATA);
-
     // Adds information and security token to the request
     SERIALIZED_DATA += `&csrfmiddlewaretoken=${$(
       "input[name='csrfmiddlewaretoken']",
@@ -304,6 +302,17 @@ function fetchGraphPlots() {
           // Display info table for single observation
           $('#obs-info').append(displayInfo(response.info));
           MathJax.typeset();
+
+          if (response.obs_info) {
+            $('#ra').val(response.obs_info.ra);
+            $('#dec').val(response.obs_info.dec);
+            $('#tstart_tt').val(response.obs_info.tstart_tt);
+            $('#tstop_tt').val(response.obs_info.tstop_tt);
+            $('#npm_fpm_on').val(response.obs_info.npm_fpm_on);
+            $('#ndets_used').val(response.obs_info.ndets_used);
+
+          }
+
 
           // Display plots
           if (response.plotDivs.length > 0) {
