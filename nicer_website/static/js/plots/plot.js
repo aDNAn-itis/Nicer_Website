@@ -2,6 +2,97 @@
 
 import { columnLayout, dropdowns } from '../utils/utils.js';
 
+let currentObservations = new Set();
+
+function createAddObservationButton() {
+  const addButton = document.createElement('button');
+  addButton.textContent = 'Add Another Observation';
+  addButton.className = 'add-observation-btn';
+  addButton.type = 'button';
+
+  const addForm = document.createElement('div');
+  addForm.className = 'add-observation-form';
+  addForm.style.display = 'none';
+  addForm.innerHTML = `
+    <div class="row">
+      <div class="column">
+        <input type="text" class="additional-obs-input dropdown-field" placeholder="Enter Observation ID...">
+        <div class="dropdown-content additional-obs-suggestions"></div>
+      </div>
+      <div class="column">
+        <button type="button" class="add-obs-submit">Add</button>
+      </div>
+    </div>
+  `;
+
+  return { addButton, addForm };
+}
+
+async function addNewObservation(obsID) {
+  if (currentObservations.has(obsID)) {
+    alert('This observation is already displayed');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('obs_id', obsID);
+  formData.append('quality', quality);
+  formData.append('csrfmiddlewaretoken', $("input[name='csrfmiddlewaretoken']").val());
+
+  try {
+    const response = await fetch(PLOT_GRAPH_URL, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await response.json();
+
+    if (data.error) {
+      console.error("Error:", data.error);
+      return;
+    }
+
+    currentObservations.add(obsID);
+
+    // Create a new section for this observation
+    const section = document.createElement('div');
+    section.className = 'observation-section';
+    section.dataset.obsId = obsID;
+
+    // Add observation info
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'obs-info-section';
+    infoDiv.appendChild(displayInfo(data.info));
+    section.appendChild(infoDiv);
+
+    // Add plots if available
+    if (data.plotDivs && data.plotDivs.length > 0) {
+      const plotsDiv = document.createElement('div');
+      plotsDiv.className = 'plots-section';
+
+      data.plotDivs.forEach((plotDiv, i) => {
+        const type = /"title":\{"text":"(.+?)"\}/.exec(plotDiv)[1]
+          .toLowerCase()
+          .replaceAll(' ', '_');
+        const $plotDiv = $(plotDiv).attr('id', `${type}_${obsID}`);
+        plotsDiv.appendChild($plotDiv[0]);
+
+        const gtiSelection = GTISelection(data.maxGTI[i], `${type}_${obsID}`);
+        plotsDiv.appendChild(gtiSelection[0]);
+      });
+
+      section.appendChild(plotsDiv);
+    }
+
+
+    // Add the new section to the display
+    document.getElementById('plots').appendChild(section);
+    MathJax.typeset();
+
+  } catch (error) {
+    console.error("Error fetching new observation:", error);
+  }
+}
+
 /**
  * Updates the quality setting when the user activates a quality button.
  * @param {String} buttonQuality Pipeline quality value of the activated
@@ -83,23 +174,38 @@ function addSourceObservation(sourceName) {
   document.querySelector('#source-options').append(OPTION);
 }
 
-/**
- * Displays information for each GTI in a dropdown table.
- * @param {Array.<Object>} info List of information for all GTI
- * @returns {HTMLDivElement}
- * Container containing the expandable table of GTIs
- */
-function displayInfo(info) {
-  console.log("displayInfo called with:", info); // Log the input for debugging
 
-  // Information types to display in the table
-  const TABLE_INFO = {
+function displayInfo(info) {
+  console.log("displayInfo called with:", info);
+
+  // Define parameter sets for ObsID and GTI levels
+  const SHARED_INFO = {
+    headers: ['Source'],
+    keys: ['OBJECT'],
+    precision: [null]
+  };
+
+  const OBSID_INFO = {
     headers: [
-      'GTI',
-      'Source',
-      'MJD',
+      'ObsID',
+      'Total GTIs',
       String.raw`RA \((^\circ)\)`,
       String.raw`DEC \((^\circ)\)`,
+    ],
+    keys: [
+      'OBSID',
+      'GTI_COUNT',
+      'RA',
+      'DEC',
+    ],
+    precision: [null, 0, 2, 2]
+  };
+
+  const GTI_INFO = {
+    headers: [
+      'Select',  // New checkbox column
+      'GTI',
+      'MJD',
       String.raw`Exposure Time \((s)\)`,
       'Detectors',
       String.raw`Undershoot Rate \((s^{-1})\)`,
@@ -107,78 +213,172 @@ function displayInfo(info) {
       String.raw`COR SAX \((GeV\ c^{-1})\)`,
     ],
     keys: [
+      null,  // For checkbox
       'GTI',
-      'OBJECT',
       'TSTART_MJD_UTC',
-      'RA',
-      'DEC',
       'EXPTIME',
       'NDETS_USED',
       'USHOOT_NET_RATE',
       'OSHOOT_NET_RATE',
       'COR_SAX',
     ],
-    precision: [null, null, 5, 2, 2, 2, 0, 2, 4, 3],
+    precision: [null, null, 5, 2, 0, 2, 4, 3]
   };
 
-  // Constants
-  const $CONTAINER = $('<div>');
-  const $TABLE = $('<table>');
-  const $HEADER_ROW = $('<tr>');
-  const $BUTTON = $('<button type="button">&#x2304</button>');
+  const $CONTAINER = $('<div class="info-container">');
 
-  // Add headers to the table
-  for (const HEADER of TABLE_INFO.headers) {
-    $HEADER_ROW.append($(`<th>${HEADER}</th>`));
+  // Get the existing observation table or create a new one if it doesn't exist
+  let $OBSID_TABLE = $('.obsid-table');
+  if ($OBSID_TABLE.length === 0) {
+    $OBSID_TABLE = $('<table class="info-table obsid-table">');
+    const $OBSID_HEADER = $('<tr>');
+    [...OBSID_INFO.headers, ...SHARED_INFO.headers, 'Details'].forEach(header => {
+      $OBSID_HEADER.append($(`<th>${header}</th>`));
+    });
+    $OBSID_TABLE.append($OBSID_HEADER);
+    $CONTAINER.append($OBSID_TABLE);
   }
 
-  $TABLE.append($HEADER_ROW);
-
-  // Check if the info parameter is defined and not empty
   if (info && info.length > 0) {
-    console.log("Info is valid, creating table rows");
-    // Add each row of data to the table
-    for (const [J, GTI] of info.entries()) {
-      const $DATA_ROW = $('<tr>');
+    // Group by ObsID
+    const obsByObsId = info.reduce((acc, row) => {
+      const obsId = row.OBSID || '';
+      if (!acc[obsId]) {
+        acc[obsId] = [];
+      }
+      acc[obsId].push(row);
+      return acc;
+    }, {});
 
-      // Add each table cell to the row
-      for (let i = 0; i < TABLE_INFO.headers.length; i++) {
-        let data = GTI[TABLE_INFO.keys[i]];
-        if (data === undefined) {
-          console.warn(`Missing data for key: ${TABLE_INFO.keys[i]}`);
-          data = 'N/A';
-        } else {
-          data = data.replace('_', ' ');
-          if (TABLE_INFO.precision[i] != null) {
-            data = (+data).toFixed(TABLE_INFO.precision[i]);
-          }
+    // Process each observation
+    Object.entries(obsByObsId).forEach(([obsId, rows], index) => {
+      const mainRow = rows[0];
+
+      // Create ObsID row group
+      const $ROW_GROUP = $('<tbody class="obs-group">');
+      const $OBSID_ROW = $('<tr class="obs-row">');
+      $OBSID_ROW.attr('data-obs-id', obsId);
+
+      // Add ObsID-specific data
+      OBSID_INFO.keys.forEach((key, idx) => {
+        let value = key === 'GTI_COUNT'
+          ? rows.filter(r => r.GTI !== undefined).length
+          : mainRow[key];
+        if (OBSID_INFO.precision[idx] !== null && value !== undefined) {
+          value = Number(value).toFixed(OBSID_INFO.precision[idx]);
         }
+        $OBSID_ROW.append($(`<td>${value || '-'}</td>`));
+      });
 
-        $DATA_ROW.append($(`<td>${data}</td>`));
+      // Add shared data
+      SHARED_INFO.keys.forEach((key, idx) => {
+        let value = mainRow[key];
+        if (SHARED_INFO.precision[idx] !== null && value !== undefined) {
+          value = Number(value).toFixed(SHARED_INFO.precision[idx]);
+        }
+        $OBSID_ROW.append($(`<td>${value || '-'}</td>`));
+      });
+
+      // Add toggle button
+      $OBSID_ROW.append($(`<td><button class="toggle-details">Show GTIs</button></td>`));
+
+      // Check if the observation row already exists
+      const existingRow = $OBSID_TABLE.find(`tr.obs-row[data-obs-id="${obsId}"]`);
+      if (existingRow.length > 0) {
+        // Replace the existing row
+        existingRow.replaceWith($OBSID_ROW);
+      } else {
+        // Append a new row
+        $ROW_GROUP.append($OBSID_ROW);
+        $OBSID_TABLE.append($ROW_GROUP);
       }
 
-      // Hide all but the first row
-      if (J !== 0) {
-        $DATA_ROW.addClass('hide');
-      }
+      // Create GTI details table (initially hidden)
+      const $DETAILS_ROW = $('<tr class="details-row" style="display: none;">');
+      const $DETAILS_CELL = $('<td colspan="' + (OBSID_INFO.headers.length + SHARED_INFO.headers.length + 1) + '">');
 
-      $TABLE.append($DATA_ROW);
-    }
+      const $GTI_TABLE = $('<table class="gti-table">');
+      const $GTI_HEADER = $('<tr>');
+
+      // Add GTI-specific headers
+      GTI_INFO.headers.forEach(header => {
+        $GTI_HEADER.append($(`<th>${header}</th>`));
+      });
+      $GTI_TABLE.append($GTI_HEADER);
+
+      // Create container for Graph Selected GTIs button
+      const $GRAPH_BUTTON_CONTAINER = $('<div class="graph-button-container" style="display: none; margin: 10px 0;">');
+      const $GRAPH_BUTTON = $('<button class="graph-selected-gtis" style="display: none;">Graph Selected GTIs</button>');
+      $GRAPH_BUTTON_CONTAINER.append($GRAPH_BUTTON);
+      $DETAILS_CELL.append($GRAPH_BUTTON_CONTAINER);
+
+      // Add GTI rows
+      rows.forEach((gti, idx) => {
+        if (gti.GTI !== undefined) {
+          const $GTI_ROW = $('<tr class="gti-row">');
+          $GTI_ROW.attr('data-gti', gti.GTI);
+
+          // Add checkbox as first column
+          const $CHECKBOX_CELL = $('<td>');
+          const $CHECKBOX = $('<input type="checkbox" class="gti-checkbox">');
+          $CHECKBOX_CELL.append($CHECKBOX);
+          $GTI_ROW.append($CHECKBOX_CELL);
+
+          // Add other GTI data
+          GTI_INFO.keys.slice(1).forEach((key, keyIdx) => {
+            let value = gti[key];
+            if (GTI_INFO.precision[keyIdx + 1] !== null && value !== undefined) {
+              value = Number(value).toFixed(GTI_INFO.precision[keyIdx + 1]);
+            }
+            $GTI_ROW.append($(`<td>${value || '-'}</td>`));
+          });
+
+          $GTI_TABLE.append($GTI_ROW);
+        }
+      });
+
+      $DETAILS_CELL.append($GTI_TABLE);
+      $DETAILS_ROW.append($DETAILS_CELL);
+      $ROW_GROUP.append($DETAILS_ROW);
+      $OBSID_TABLE.append($ROW_GROUP);
+
+      // Add event handlers for checkboxes
+      $GTI_TABLE.on('change', '.gti-checkbox', function() {
+        const $graphButton = $(this).closest('.details-row').find('.graph-selected-gtis');
+        const hasCheckedBoxes = $(this).closest('.gti-table').find('.gti-checkbox:checked').length > 0;
+        $graphButton.toggle(hasCheckedBoxes);
+        $graphButton.closest('.graph-button-container').toggle(hasCheckedBoxes);
+      });
+
+      // Add event handler for Graph Selected GTIs button
+      $GRAPH_BUTTON.on('click', function() {
+        const $table = $(this).closest('.details-row').find('.gti-table');
+        const selectedGTIs = [];
+        $table.find('.gti-checkbox:checked').each(function() {
+          selectedGTIs.push($(this).closest('tr').attr('data-gti'));
+        });
+
+        if (selectedGTIs.length > 0) {
+          const gtiString = selectedGTIs.join(',');
+          // Find the closest GTI selection form and update its input
+          const $gtiForm = $(this).closest('.observation-container').find('.fetch-gti');
+          $gtiForm.find('input[name="gti-search"]').val(gtiString);
+          $gtiForm.submit();
+        }
+      });
+    });
   } else {
-    console.log("Info is undefined or empty, displaying message");
-    // If the info parameter is undefined or empty, display a message
-    $TABLE.append($(
-      '<tr><td colspan="10">No observation data available.</td></tr>',
-    ));
+    $OBSID_TABLE.append($('<tr><td colspan="' + (OBSID_INFO.headers.length + SHARED_INFO.headers.length + 1) + '">No data available.</td></tr>'));
   }
 
-  $CONTAINER.append($TABLE);
-  $CONTAINER.append($BUTTON);
+  // Add click handler for toggling details
+  $CONTAINER.on('click', '.toggle-details', function(e) {
+    e.preventDefault();
+    const $detailsRow = $(this).closest('tr').next('.details-row');
+    const isVisible = $detailsRow.is(':visible');
 
-  // Add button to expand the table
-  $BUTTON.click(() => {
-    $TABLE.children().slice(2).toggleClass('hide');
-    $BUTTON.html(/\u2304/.test($BUTTON.html()) ? '&#x2303' : '&#x2304');
+    $(this).text(isVisible ? 'Show GTIs' : 'Hide GTIs');
+    $detailsRow.toggle();
   });
 
   return $CONTAINER;
@@ -269,7 +469,7 @@ function GTISelection(maxGTI, plotType) {
  * pipeline quality, and plot types.
  */
 function fetchGraphPlots() {
-  $('#plot-graph').submit(function (e) {
+  $('#plot-graph').submit(function(e) {
     // Constants
     let SERIALIZED_DATA = $(this).serialize();
     const TYPE_REGEX = /"title":\{"text":"(.+?)"\}/;
@@ -288,7 +488,7 @@ function fetchGraphPlots() {
       type: 'POST',
       url: PLOT_GRAPH_URL,
       data: SERIALIZED_DATA,
-      success: function (response) {
+      success: function(response) {
         // Clear both obs-info and plots divs at the start
         $('#obs-info').empty();
         $('#plots').empty();
@@ -296,52 +496,199 @@ function fetchGraphPlots() {
         if (response.error) {
           console.error("Error received:", response.error);
           $('#plots').html(`<p class="error">${response.error}</p>`);
-        } else if (response.multiple_observations) {
-          handleMultipleObservations(response.obs_ids, response.source);
-        } else if (response.info && response.plotDivs) {
-          // Display info table for single observation
-          $('#obs-info').append(displayInfo(response.info));
-          MathJax.typeset();
+          return;
+        }
 
+        if (response.multiple_observations) {
+          handleMultipleObservations(response.obs_ids, response.source);
+          return;
+        }
+
+        if (response.info && response.plotDivs) {
+          // Create a container for this observation
+          const obsContainer = $('<div class="observation-container"></div>');
+
+          // Add observation info
+          const infoSection = $('<div class="info-section"></div>');
+          infoSection.append(displayInfo(response.info));
+          obsContainer.append(infoSection);
+
+          // Update form fields if obs_info exists
           if (response.obs_info) {
             $('#ra').val(response.obs_info.ra);
             $('#dec').val(response.obs_info.dec);
             $('#tstart_tt').val(response.obs_info.tstart_tt);
             $('#tstop_tt').val(response.obs_info.tstop_tt);
-            $('#npm_fpm_on').val(response.obs_info.npm_fpm_on);
             $('#ndets_used').val(response.obs_info.ndets_used);
-
+            $('#ushoot_net_rate').val(response.obs_info.ushoot_net_rate);
+            $('#oshoot_net_rate').val(response.obs_info.oshoot_net_rate);
           }
 
+          // Create plots section
+          const plotsSection = $('<div class="plots-section"></div>');
 
-          // Display plots
           if (response.plotDivs.length > 0) {
-            for (let i = 0; i < response.plotDivs.length; i++) {
-              const TYPE = TYPE_REGEX.exec(response.plotDivs[i])[1]
+            response.plotDivs.forEach((plotDiv, i) => {
+              const TYPE = TYPE_REGEX.exec(plotDiv)[1]
                 .toLowerCase()
                 .replaceAll(' ', '_');
-              const PLOT_DIV = $(response.plotDivs[i]).attr('id', TYPE);
+              const PLOT_DIV = $(plotDiv).attr('id', TYPE);
 
-              $('#plots').append(PLOT_DIV);
-              $('#plots').append(GTISelection(response.maxGTI[i], TYPE));
+              plotsSection.append(PLOT_DIV);
+              plotsSection.append(GTISelection(response.maxGTI[i], TYPE));
               fetchGTIPlot(response.obsID, TYPE);
-            }
+            });
           } else {
-            console.log("Error")
-            $('#plots').html('<p class="error">No plots available for this observation.</p>');
+            plotsSection.html('<p class="error">No plots available for this observation.</p>');
           }
+
+          obsContainer.append(plotsSection);
+
+
+          // Add the container to the plots div
+          $('#plots').append(obsContainer);
+
+          // Add "Add Another Observation" button if it doesn't exist
+          if (!$('.add-observation-section').length) {
+            const addSection = $(`
+          <div class="add-observation-section">
+            <button class="add-observation-btn">Add Another Observation</button>
+            <div class="add-observation-form" style="display: none;">
+              <div class="input-group">
+                <input type="text" class="additional-obs-input" placeholder="Enter Observation ID...">
+                <div class="dropdown-content additional-obs-suggestions"></div>
+                <button type="button" class="add-obs-submit">Add</button>
+              </div>
+            </div>
+          </div>
+        `);
+
+            // Set up event listeners for the add section
+            addSection.find('.add-observation-btn').click(function() {
+              addSection.find('.add-observation-form').toggle();
+            });
+
+            addSection.find('.additional-obs-input').on('keyup', function() {
+              fetchObsOptions($(this).val());
+            });
+
+            addSection.find('.add-obs-submit').click(function() {
+              const newObsId = addSection.find('.additional-obs-input').val();
+              if (newObsId) {
+                // Create a new form data with the additional observation
+                let newData = new FormData();
+                newData.append('obs_id', newObsId);
+                newData.append('quality', quality);
+                newData.append('csrfmiddlewaretoken', $("input[name='csrfmiddlewaretoken']").val());
+
+                // Make a new request for the additional observation
+                $.ajax({
+                  type: 'POST',
+                  url: PLOT_GRAPH_URL,
+                  data: newData,
+                  processData: false,
+                  contentType: false,
+                  success: function(additionalResponse) {
+                    if (!additionalResponse.error) {
+                      // Process the new observation similarly to the first one
+                      const newObsContainer = $('<div class="observation-container"></div>');
+                      newObsContainer.append(displayInfo(additionalResponse.info));
+
+                      if (additionalResponse.plotDivs && additionalResponse.plotDivs.length > 0) {
+                        additionalResponse.plotDivs.forEach((plotDiv, i) => {
+                          const type = TYPE_REGEX.exec(plotDiv)[1].toLowerCase().replaceAll(' ', '_');
+                          const plotDivElement = $(plotDiv).attr('id', `${type}_${newObsId}`);
+                          newObsContainer.append(plotDivElement);
+                          newObsContainer.append(GTISelection(additionalResponse.maxGTI[i], `${type}_${newObsId}`));
+                          fetchGTIPlot(newObsId, type);
+                        });
+                      }
+
+
+
+                      $('#plots').append(newObsContainer);
+                      addSection.find('.additional-obs-input').val('');
+                      addSection.find('.add-observation-form').hide();
+                      MathJax.typeset();
+                    } else {
+                      console.error("Error adding observation:", additionalResponse.error);
+                      alert("Error adding observation: " + additionalResponse.error);
+                    }
+                  }
+                });
+              }
+            });
+
+            $('#plots').append(addSection);
+          }
+
+          MathJax.typeset();
         } else {
           console.error("Unexpected response format:", response);
           $('#plots').html('<p class="error">Unexpected response from server.</p>');
         }
       },
-      error: function (jqXHR, textStatus, errorThrown) {
+      error: function(jqXHR, textStatus, errorThrown) {
         console.error("AJAX error:", textStatus, errorThrown);
         $('#plots').html('<p class="error">An error occurred while fetching data. Please try again.</p>');
       }
     });
   });
 }
+
+// function handleMultipleObservations(observations, sourceName) {
+//     const tableContainer = document.createElement('div');
+//     tableContainer.className = 'multiple-observations-table';
+//
+//     const table = document.createElement('table');
+//     const thead = document.createElement('thead');
+//     const tbody = document.createElement('tbody');
+//
+//     const headerRow = document.createElement('tr');
+//     ['Observation ID', 'Source', 'Action'].forEach(headerText => {
+//         const th = document.createElement('th');
+//         th.textContent = headerText;
+//         headerRow.appendChild(th);
+//     });
+//     thead.appendChild(headerRow);
+//
+//     observations.forEach(obs => {
+//         const row = document.createElement('tr');
+//
+//         const obsIdCell = document.createElement('td');
+//         obsIdCell.textContent = obs.obs_id;
+//         row.appendChild(obsIdCell);
+//
+//         const sourceCell = document.createElement('td');
+//         sourceCell.textContent = obs.source;
+//         row.appendChild(sourceCell);
+//
+//         const actionCell = document.createElement('td');
+//         const selectButton = document.createElement('button');
+//         selectButton.textContent = 'Select';
+//         selectButton.addEventListener('click', () => {
+//             document.querySelector('#observation-search').value = obs.obs_id;
+//             tableContainer.remove();
+//             fetchGraphPlots();
+//         });
+//         actionCell.appendChild(selectButton);
+//         row.appendChild(actionCell);
+//
+//         tbody.appendChild(row);
+//     });
+//
+//     table.appendChild(thead);
+//     table.appendChild(tbody);
+//     tableContainer.appendChild(table);
+//
+//     const plotsContainer = document.querySelector('#plots');
+//     plotsContainer.innerHTML = '';
+//     plotsContainer.appendChild(tableContainer);
+//
+//     const sourceMessage = document.createElement('p');
+//     sourceMessage.textContent = `Multiple observations found for source: ${sourceName}`;
+//     plotsContainer.insertBefore(sourceMessage, tableContainer);
+// }
 
 function handleMultipleObservations(observations, sourceName) {
     const tableContainer = document.createElement('div');
@@ -373,10 +720,101 @@ function handleMultipleObservations(observations, sourceName) {
         const actionCell = document.createElement('td');
         const selectButton = document.createElement('button');
         selectButton.textContent = 'Select';
-        selectButton.addEventListener('click', () => {
-            document.querySelector('#observation-search').value = obs.obs_id;
+        selectButton.addEventListener('click', async () => {
+            // Update the search field
+            const searchField = document.querySelector('#observation-search');
+            searchField.value = obs.obs_id;
+
+            // Remove the table
             tableContainer.remove();
-            fetchGraphPlots();
+
+            // Create FormData for the request
+            const formData = new FormData();
+            formData.append('obs_id', obs.obs_id);
+            formData.append('quality', quality);
+            formData.append('csrfmiddlewaretoken', document.querySelector("input[name='csrfmiddlewaretoken']").value);
+
+            try {
+                // Make the request directly instead of using the form
+                const response = await fetch(PLOT_GRAPH_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                // Clear existing content
+                document.getElementById('obs-info').innerHTML = '';
+                document.getElementById('plots').innerHTML = '';
+
+                if (data.error) {
+                    console.error("Error:", data.error);
+                    document.getElementById('plots').innerHTML = `<p class="error">${data.error}</p>`;
+                    return;
+                }
+
+                // Create container for the observation
+                const obsContainer = document.createElement('div');
+                obsContainer.className = 'observation-container';
+
+                // Add observation info
+                const infoSection = document.createElement('div');
+                infoSection.className = 'info-section';
+                // Convert jQuery object to DOM node
+                const infoContent = displayInfo(data.info);
+                if (infoContent instanceof jQuery) {
+                    infoSection.appendChild(infoContent[0]);
+                } else {
+                    infoSection.appendChild(infoContent);
+                }
+                obsContainer.appendChild(infoSection);
+
+                // Create plots section if plots are available
+                if (data.plotDivs && data.plotDivs.length > 0) {
+                    const plotsSection = document.createElement('div');
+                    plotsSection.className = 'plots-section';
+
+                    const TYPE_REGEX = /"title":\{"text":"(.+?)"\}/;
+
+                    data.plotDivs.forEach((plotDiv, i) => {
+                        const type = TYPE_REGEX.exec(plotDiv)[1]
+                            .toLowerCase()
+                            .replaceAll(' ', '_');
+
+                        // Convert jQuery plot div to DOM node
+                        const $plotDiv = $(plotDiv).attr('id', type);
+                        plotsSection.appendChild($plotDiv[0]);
+
+                        // Convert jQuery GTI selection to DOM node
+                        const gtiSelection = GTISelection(data.maxGTI[i], type);
+                        if (gtiSelection instanceof jQuery) {
+                            plotsSection.appendChild(gtiSelection[0]);
+                        } else {
+                            plotsSection.appendChild(gtiSelection);
+                        }
+
+                        // Set up GTI plot fetching
+                        fetchGTIPlot(obs.obs_id, type);
+                    });
+
+                    obsContainer.appendChild(plotsSection);
+                } else {
+                    const noPlots = document.createElement('p');
+                    noPlots.className = 'error';
+                    noPlots.textContent = 'No plots available for this observation.';
+                    obsContainer.appendChild(noPlots);
+                }
+
+                // Add the container to the plots div
+                document.getElementById('plots').appendChild(obsContainer);
+
+                // Update MathJax rendering
+                MathJax.typeset();
+
+            } catch (error) {
+                console.error("Error fetching observation data:", error);
+                document.getElementById('plots').innerHTML = '<p class="error">An error occurred while fetching the observation data.</p>';
+            }
         });
         actionCell.appendChild(selectButton);
         row.appendChild(actionCell);

@@ -21,8 +21,9 @@ class Item(models.Model):
     tstop_tt = models.FloatField(null=True, blank=True)
     ra = models.FloatField(null=True, blank=True)
     dec = models.FloatField(null=True, blank=True)
-    npm_fpm_on = models.FloatField(null=True, blank=True)
     ndets_used = models.FloatField(null=True, blank=True)
+    ushoot_net_rate = models.FloatField(null=True, blank=True)
+    oshoot_net_rate = models.FloatField(null=True, blank=True)
 
     class Meta:
         """

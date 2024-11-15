@@ -34,20 +34,20 @@ def progress_bar(i: int, total: int):
         print()
 
 
-def table_insert(data: list[tuple[str, str, str, str, float, float, float, float, float, float]], batch_size: int = 100):
+def table_insert(data: list[tuple[str, str, str, str, float, float, float, float, float, float, float]], batch_size: int = 100):
     """
     Add folder and file data to the database, including additional metadata fields.
 
     Parameters
     ----------
-    data : list[tuple[string, string, string, string, float, float, float, float]]
-        Data to be inserted into the database (name, path, type, source_name, tstart_tt, tstop_tt, ra, dec)
+    data : list[tuple[string, string, string, string, float, float, float, float, float]]
+        Data to be inserted into the database (name, path, type, source_name, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate)
     batch_size : integer, default = 100
         How many entries to insert into the database per execution
     """
     update = '''INSERT OR REPLACE INTO file_mgr_item 
-                (name, path, type, source, tstart_tt, tstop_tt, ra, dec, npm_fpm_on, ndets_used) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ? )'''
+                (name, path, type, source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate , oshoot_net_rate) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 
     batches = np.array_split(data, len(data) / batch_size)
 
@@ -155,8 +155,9 @@ def main():
             tstop_tt = float(file[:, 1][file[:, 0] == 'TSTOP_TT'][0].strip())
             ra = float(file[:, 1][file[:, 0] == 'RA'][0].strip())
             dec = float(file[:, 1][file[:, 0] == 'DEC'][0].strip())
-            npm_fpm_on = float(file[:, 1][file[:, 0] == 'NUM_FPM_ON'][0].strip())
             ndets_used = float(file[:, 1][file[:, 0] == 'NDETS_USED'][0].strip())
+            ushoot_net_rate = float(file[:, 1][file[:, 0] == 'USHOOT_NET_RATE'][0].strip())
+            oshoot_net_rate = float(file[:, 1][file[:, 0] == 'OSHOOT_NET_RATE'][0].strip())
 
         else:
             # Default values for additional metadata if not available
@@ -164,8 +165,9 @@ def main():
             tstop_tt = None
             ra = None
             dec = None
-            npm_fpm_on = None
             ndets_used = None
+            ushoot_net_rate = None
+            oshoot_net_rate = None
 
         # Remove ARF and RMF files from the list of files and decrement the total count as these
         # aren't needed for now
@@ -177,13 +179,13 @@ def main():
 
         # If not top-level directory, add folder to the database
         if dir_name:
-            data.append((dir_name, parent_dir, 'dir', source, tstart_tt, tstop_tt, ra, dec, npm_fpm_on, ndets_used))
+            data.append((dir_name, parent_dir, 'dir', source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate))
             count += 1
             progress_bar(count, total)
 
         # Add file to the database
         for file in files:
-            data.append((file, relative_root, 'file', source, tstart_tt, tstop_tt, ra, dec, npm_fpm_on, ndets_used))
+            data.append((file, relative_root, 'file', source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate))
             count += 1
             progress_bar(count, total)
 

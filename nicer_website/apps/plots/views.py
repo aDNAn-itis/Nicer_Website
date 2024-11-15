@@ -208,8 +208,9 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         'tstop_tt': item.tstop_tt,
         'obs_id': obs_id,
         'source': source or item.source,
-        'npm_fpm_on': item.npm_fpm_on,
         'ndets_used': item.ndets_used,
+        'ushoot_net_rate': item.ushoot_net_rate,
+        'oshoot_net_rate': item.oshoot_net_rate,
     }
 
     dir_path = f'{settings.DATA_DIR}/{obs_id}/jspipe/'
