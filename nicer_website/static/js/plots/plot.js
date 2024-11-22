@@ -53,18 +53,15 @@ async function addNewObservation(obsID) {
 
     currentObservations.add(obsID);
 
-    // Create a new section for this observation
     const section = document.createElement('div');
     section.className = 'observation-section';
     section.dataset.obsId = obsID;
 
-    // Add observation info
     const infoDiv = document.createElement('div');
     infoDiv.className = 'obs-info-section';
     infoDiv.appendChild(displayInfo(data.info));
     section.appendChild(infoDiv);
 
-    // Add plots if available
     if (data.plotDivs && data.plotDivs.length > 0) {
       const plotsDiv = document.createElement('div');
       plotsDiv.className = 'plots-section';
@@ -84,7 +81,6 @@ async function addNewObservation(obsID) {
     }
 
 
-    // Add the new section to the display
     document.getElementById('plots').appendChild(section);
     MathJax.typeset();
 
@@ -203,7 +199,7 @@ function displayInfo(info) {
 
   const GTI_INFO = {
     headers: [
-      'Select',  // New checkbox column
+      'Select',
       'GTI',
       'MJD',
       String.raw`Exposure Time \((s)\)`,
@@ -213,7 +209,7 @@ function displayInfo(info) {
       String.raw`COR SAX \((GeV\ c^{-1})\)`,
     ],
     keys: [
-      null,  // For checkbox
+      null,
       'GTI',
       'TSTART_MJD_UTC',
       'EXPTIME',
@@ -227,7 +223,6 @@ function displayInfo(info) {
 
   const $CONTAINER = $('<div class="info-container">');
 
-  // Get the existing observation table or create a new one if it doesn't exist
   let $OBSID_TABLE = $('.obsid-table');
   if ($OBSID_TABLE.length === 0) {
     $OBSID_TABLE = $('<table class="info-table obsid-table">');
@@ -240,7 +235,6 @@ function displayInfo(info) {
   }
 
   if (info && info.length > 0) {
-    // Group by ObsID
     const obsByObsId = info.reduce((acc, row) => {
       const obsId = row.OBSID || '';
       if (!acc[obsId]) {
@@ -250,16 +244,13 @@ function displayInfo(info) {
       return acc;
     }, {});
 
-    // Process each observation
     Object.entries(obsByObsId).forEach(([obsId, rows], index) => {
       const mainRow = rows[0];
 
-      // Create ObsID row group
       const $ROW_GROUP = $('<tbody class="obs-group">');
       const $OBSID_ROW = $('<tr class="obs-row">');
       $OBSID_ROW.attr('data-obs-id', obsId);
 
-      // Add ObsID-specific data
       OBSID_INFO.keys.forEach((key, idx) => {
         let value = key === 'GTI_COUNT'
           ? rows.filter(r => r.GTI !== undefined).length
@@ -270,7 +261,6 @@ function displayInfo(info) {
         $OBSID_ROW.append($(`<td>${value || '-'}</td>`));
       });
 
-      // Add shared data
       SHARED_INFO.keys.forEach((key, idx) => {
         let value = mainRow[key];
         if (SHARED_INFO.precision[idx] !== null && value !== undefined) {
@@ -279,52 +269,42 @@ function displayInfo(info) {
         $OBSID_ROW.append($(`<td>${value || '-'}</td>`));
       });
 
-      // Add toggle button
       $OBSID_ROW.append($(`<td><button class="toggle-details">Show GTIs</button></td>`));
 
-      // Check if the observation row already exists
       const existingRow = $OBSID_TABLE.find(`tr.obs-row[data-obs-id="${obsId}"]`);
       if (existingRow.length > 0) {
-        // Replace the existing row
         existingRow.replaceWith($OBSID_ROW);
       } else {
-        // Append a new row
         $ROW_GROUP.append($OBSID_ROW);
         $OBSID_TABLE.append($ROW_GROUP);
       }
 
-      // Create GTI details table (initially hidden)
       const $DETAILS_ROW = $('<tr class="details-row" style="display: none;">');
       const $DETAILS_CELL = $('<td colspan="' + (OBSID_INFO.headers.length + SHARED_INFO.headers.length + 1) + '">');
 
       const $GTI_TABLE = $('<table class="gti-table">');
       const $GTI_HEADER = $('<tr>');
 
-      // Add GTI-specific headers
       GTI_INFO.headers.forEach(header => {
         $GTI_HEADER.append($(`<th>${header}</th>`));
       });
       $GTI_TABLE.append($GTI_HEADER);
 
-      // Create container for Graph Selected GTIs button
       const $GRAPH_BUTTON_CONTAINER = $('<div class="graph-button-container" style="display: none; margin: 10px 0;">');
       const $GRAPH_BUTTON = $('<button class="graph-selected-gtis" style="display: none;">Graph Selected GTIs</button>');
       $GRAPH_BUTTON_CONTAINER.append($GRAPH_BUTTON);
       $DETAILS_CELL.append($GRAPH_BUTTON_CONTAINER);
 
-      // Add GTI rows
       rows.forEach((gti, idx) => {
         if (gti.GTI !== undefined) {
           const $GTI_ROW = $('<tr class="gti-row">');
           $GTI_ROW.attr('data-gti', gti.GTI);
 
-          // Add checkbox as first column
           const $CHECKBOX_CELL = $('<td>');
           const $CHECKBOX = $('<input type="checkbox" class="gti-checkbox">');
           $CHECKBOX_CELL.append($CHECKBOX);
           $GTI_ROW.append($CHECKBOX_CELL);
 
-          // Add other GTI data
           GTI_INFO.keys.slice(1).forEach((key, keyIdx) => {
             let value = gti[key];
             if (GTI_INFO.precision[keyIdx + 1] !== null && value !== undefined) {
@@ -342,7 +322,6 @@ function displayInfo(info) {
       $ROW_GROUP.append($DETAILS_ROW);
       $OBSID_TABLE.append($ROW_GROUP);
 
-      // Add event handlers for checkboxes
       $GTI_TABLE.on('change', '.gti-checkbox', function() {
         const $graphButton = $(this).closest('.details-row').find('.graph-selected-gtis');
         const hasCheckedBoxes = $(this).closest('.gti-table').find('.gti-checkbox:checked').length > 0;
@@ -350,7 +329,6 @@ function displayInfo(info) {
         $graphButton.closest('.graph-button-container').toggle(hasCheckedBoxes);
       });
 
-      // Add event handler for Graph Selected GTIs button
       $GRAPH_BUTTON.on('click', function() {
         const $table = $(this).closest('.details-row').find('.gti-table');
         const selectedGTIs = [];
@@ -360,7 +338,6 @@ function displayInfo(info) {
 
         if (selectedGTIs.length > 0) {
           const gtiString = selectedGTIs.join(',');
-          // Find the closest GTI selection form and update its input
           const $gtiForm = $(this).closest('.observation-container').find('.fetch-gti');
           $gtiForm.find('input[name="gti-search"]').val(gtiString);
           $gtiForm.submit();
@@ -371,7 +348,6 @@ function displayInfo(info) {
     $OBSID_TABLE.append($('<tr><td colspan="' + (OBSID_INFO.headers.length + SHARED_INFO.headers.length + 1) + '">No data available.</td></tr>'));
   }
 
-  // Add click handler for toggling details
   $CONTAINER.on('click', '.toggle-details', function(e) {
     e.preventDefault();
     const $detailsRow = $(this).closest('tr').next('.details-row');
@@ -397,7 +373,6 @@ function fetchGTIPlot(obsID) {
     // Prevents reloading the page
     e.preventDefault();
 
-    // Adds information and security token to the request
     serializedData += `&csrfmiddlewaretoken=${$(
       "input[name='csrfmiddlewaretoken']",
     ).val()}`;
@@ -505,15 +480,12 @@ function fetchGraphPlots() {
         }
 
         if (response.info && response.plotDivs) {
-          // Create a container for this observation
           const obsContainer = $('<div class="observation-container"></div>');
 
-          // Add observation info
           const infoSection = $('<div class="info-section"></div>');
           infoSection.append(displayInfo(response.info));
           obsContainer.append(infoSection);
 
-          // Update form fields if obs_info exists
           if (response.obs_info) {
             $('#ra').val(response.obs_info.ra);
             $('#dec').val(response.obs_info.dec);
@@ -524,7 +496,6 @@ function fetchGraphPlots() {
             $('#oshoot_net_rate').val(response.obs_info.oshoot_net_rate);
           }
 
-          // Create plots section
           const plotsSection = $('<div class="plots-section"></div>');
 
           if (response.plotDivs.length > 0) {
@@ -545,10 +516,8 @@ function fetchGraphPlots() {
           obsContainer.append(plotsSection);
 
 
-          // Add the container to the plots div
           $('#plots').append(obsContainer);
 
-          // Add "Add Another Observation" button if it doesn't exist
           if (!$('.add-observation-section').length) {
             const addSection = $(`
           <div class="add-observation-section">
@@ -563,7 +532,6 @@ function fetchGraphPlots() {
           </div>
         `);
 
-            // Set up event listeners for the add section
             addSection.find('.add-observation-btn').click(function() {
               addSection.find('.add-observation-form').toggle();
             });
@@ -575,13 +543,11 @@ function fetchGraphPlots() {
             addSection.find('.add-obs-submit').click(function() {
               const newObsId = addSection.find('.additional-obs-input').val();
               if (newObsId) {
-                // Create a new form data with the additional observation
                 let newData = new FormData();
                 newData.append('obs_id', newObsId);
                 newData.append('quality', quality);
                 newData.append('csrfmiddlewaretoken', $("input[name='csrfmiddlewaretoken']").val());
 
-                // Make a new request for the additional observation
                 $.ajax({
                   type: 'POST',
                   url: PLOT_GRAPH_URL,
@@ -636,203 +602,249 @@ function fetchGraphPlots() {
   });
 }
 
-// function handleMultipleObservations(observations, sourceName) {
-//     const tableContainer = document.createElement('div');
-//     tableContainer.className = 'multiple-observations-table';
-//
-//     const table = document.createElement('table');
-//     const thead = document.createElement('thead');
-//     const tbody = document.createElement('tbody');
-//
-//     const headerRow = document.createElement('tr');
-//     ['Observation ID', 'Source', 'Action'].forEach(headerText => {
-//         const th = document.createElement('th');
-//         th.textContent = headerText;
-//         headerRow.appendChild(th);
-//     });
-//     thead.appendChild(headerRow);
-//
-//     observations.forEach(obs => {
-//         const row = document.createElement('tr');
-//
-//         const obsIdCell = document.createElement('td');
-//         obsIdCell.textContent = obs.obs_id;
-//         row.appendChild(obsIdCell);
-//
-//         const sourceCell = document.createElement('td');
-//         sourceCell.textContent = obs.source;
-//         row.appendChild(sourceCell);
-//
-//         const actionCell = document.createElement('td');
-//         const selectButton = document.createElement('button');
-//         selectButton.textContent = 'Select';
-//         selectButton.addEventListener('click', () => {
-//             document.querySelector('#observation-search').value = obs.obs_id;
-//             tableContainer.remove();
-//             fetchGraphPlots();
-//         });
-//         actionCell.appendChild(selectButton);
-//         row.appendChild(actionCell);
-//
-//         tbody.appendChild(row);
-//     });
-//
-//     table.appendChild(thead);
-//     table.appendChild(tbody);
-//     tableContainer.appendChild(table);
-//
-//     const plotsContainer = document.querySelector('#plots');
-//     plotsContainer.innerHTML = '';
-//     plotsContainer.appendChild(tableContainer);
-//
-//     const sourceMessage = document.createElement('p');
-//     sourceMessage.textContent = `Multiple observations found for source: ${sourceName}`;
-//     plotsContainer.insertBefore(sourceMessage, tableContainer);
-// }
-
 function handleMultipleObservations(observations, sourceName) {
-    const tableContainer = document.createElement('div');
-    tableContainer.className = 'multiple-observations-table';
+    console.log("Handling multiple observations:", observations);
+
+    const container = document.createElement('div');
+    container.className = 'multiple-observations-container';
+
+    const sourceHeader = document.createElement('h2');
+    sourceHeader.className = 'source-name-header';
+    sourceHeader.textContent = `Source: ${sourceName}`;
+    container.appendChild(sourceHeader);
+
+    const tablesGrid = document.createElement('div');
+    tablesGrid.className = 'tables-grid';
+    tablesGrid.style.display = 'flex';
+    tablesGrid.style.flexDirection = 'column';
+    tablesGrid.style.gap = '20px';
+    tablesGrid.style.margin = '20px 0';
+
+    const sourceSummaryPlaceholder = document.createElement('div');
+    sourceSummaryPlaceholder.className = 'source-summary-placeholder';
+    sourceSummaryPlaceholder.textContent = 'Loading source summary...';
+    tablesGrid.appendChild(sourceSummaryPlaceholder);
+
+    const observationsTable = document.createElement('div');
+    observationsTable.className = 'info-table multiple-observations-table';
 
     const table = document.createElement('table');
+    table.className = 'info-table';
     const thead = document.createElement('thead');
     const tbody = document.createElement('tbody');
 
     const headerRow = document.createElement('tr');
-    ['Observation ID', 'Source', 'Action'].forEach(headerText => {
+    [
+        'Observation ID',
+        'MJD (UTC)',
+        'Exposure Time (s)',
+        'Undershoot Rate (s⁻¹)',
+        'Overshoot Rate (s⁻¹)',
+        'Action'
+    ].forEach(headerText => {
         const th = document.createElement('th');
         th.textContent = headerText;
+        th.style.padding = '8px 12px';
         headerRow.appendChild(th);
     });
     thead.appendChild(headerRow);
 
-    observations.forEach(obs => {
-        const row = document.createElement('tr');
-
-        const obsIdCell = document.createElement('td');
-        obsIdCell.textContent = obs.obs_id;
-        row.appendChild(obsIdCell);
-
-        const sourceCell = document.createElement('td');
-        sourceCell.textContent = obs.source;
-        row.appendChild(sourceCell);
-
-        const actionCell = document.createElement('td');
-        const selectButton = document.createElement('button');
-        selectButton.textContent = 'Select';
-        selectButton.addEventListener('click', async () => {
-            // Update the search field
-            const searchField = document.querySelector('#observation-search');
-            searchField.value = obs.obs_id;
-
-            // Remove the table
-            tableContainer.remove();
-
-            // Create FormData for the request
+    const processObservations = async () => {
+        for (const obs of observations) {
             const formData = new FormData();
             formData.append('obs_id', obs.obs_id);
             formData.append('quality', quality);
-            formData.append('csrfmiddlewaretoken', document.querySelector("input[name='csrfmiddlewaretoken']").value);
+            formData.append('csrfmiddlewaretoken', $("input[name='csrfmiddlewaretoken']").val());
 
             try {
-                // Make the request directly instead of using the form
                 const response = await fetch(PLOT_GRAPH_URL, {
                     method: 'POST',
                     body: formData
                 });
-
                 const data = await response.json();
 
-                // Clear existing content
-                document.getElementById('obs-info').innerHTML = '';
-                document.getElementById('plots').innerHTML = '';
+                if (data.info && data.info.length > 0) {
+                    const firstGTI = data.info[0];
+                    const row = document.createElement('tr');
+                    row.className = 'obs-row';
 
-                if (data.error) {
-                    console.error("Error:", data.error);
-                    document.getElementById('plots').innerHTML = `<p class="error">${data.error}</p>`;
-                    return;
-                }
-
-                // Create container for the observation
-                const obsContainer = document.createElement('div');
-                obsContainer.className = 'observation-container';
-
-                // Add observation info
-                const infoSection = document.createElement('div');
-                infoSection.className = 'info-section';
-                // Convert jQuery object to DOM node
-                const infoContent = displayInfo(data.info);
-                if (infoContent instanceof jQuery) {
-                    infoSection.appendChild(infoContent[0]);
-                } else {
-                    infoSection.appendChild(infoContent);
-                }
-                obsContainer.appendChild(infoSection);
-
-                // Create plots section if plots are available
-                if (data.plotDivs && data.plotDivs.length > 0) {
-                    const plotsSection = document.createElement('div');
-                    plotsSection.className = 'plots-section';
-
-                    const TYPE_REGEX = /"title":\{"text":"(.+?)"\}/;
-
-                    data.plotDivs.forEach((plotDiv, i) => {
-                        const type = TYPE_REGEX.exec(plotDiv)[1]
-                            .toLowerCase()
-                            .replaceAll(' ', '_');
-
-                        // Convert jQuery plot div to DOM node
-                        const $plotDiv = $(plotDiv).attr('id', type);
-                        plotsSection.appendChild($plotDiv[0]);
-
-                        // Convert jQuery GTI selection to DOM node
-                        const gtiSelection = GTISelection(data.maxGTI[i], type);
-                        if (gtiSelection instanceof jQuery) {
-                            plotsSection.appendChild(gtiSelection[0]);
+                    [
+                        [obs.obs_id || 'N/A', null],
+                        [firstGTI.TSTART_MJD_UTC, 5],
+                        [firstGTI.EXPTIME, 2],
+                        [firstGTI.USHOOT_NET_RATE, 4],
+                        [firstGTI.OSHOOT_NET_RATE, 4]
+                    ].forEach(([value, decimals]) => {
+                        const cell = document.createElement('td');
+                        cell.style.padding = '8px 12px';
+                        cell.style.borderBottom = '1px solid #ddd';
+                        if (value && decimals !== null) {
+                            const numValue = parseFloat(value);
+                            cell.textContent = isNaN(numValue) ? 'N/A' : numValue.toFixed(decimals);
                         } else {
-                            plotsSection.appendChild(gtiSelection);
+                            cell.textContent = value || 'N/A';
                         }
-
-                        // Set up GTI plot fetching
-                        fetchGTIPlot(obs.obs_id, type);
+                        row.appendChild(cell);
                     });
 
-                    obsContainer.appendChild(plotsSection);
-                } else {
-                    const noPlots = document.createElement('p');
-                    noPlots.className = 'error';
-                    noPlots.textContent = 'No plots available for this observation.';
-                    obsContainer.appendChild(noPlots);
+                    const actionCell = document.createElement('td');
+                    actionCell.style.padding = '8px 12px';
+                    actionCell.style.borderBottom = '1px solid #ddd';
+                    const selectButton = document.createElement('button');
+                    selectButton.textContent = 'Select';
+                    selectButton.className = 'select-observation-btn';
+                    selectButton.style.padding = '4px 8px';
+                    selectButton.style.borderRadius = '4px';
+                    selectButton.style.border = '1px solid #ccc';
+                    selectButton.style.cursor = 'pointer';
+                    selectButton.addEventListener('click', () => {
+                        document.querySelector('#observation-search').value = obs.obs_id;
+                        document.querySelector('#plot-graph').dispatchEvent(new Event('submit'));
+                        container.remove();
+                    });
+                    actionCell.appendChild(selectButton);
+                    row.appendChild(actionCell);
+
+                    tbody.appendChild(row);
                 }
-
-                // Add the container to the plots div
-                document.getElementById('plots').appendChild(obsContainer);
-
-                // Update MathJax rendering
-                MathJax.typeset();
-
             } catch (error) {
-                console.error("Error fetching observation data:", error);
-                document.getElementById('plots').innerHTML = '<p class="error">An error occurred while fetching the observation data.</p>';
+                console.error(`Error fetching details for observation ${obs.obs_id}:`, error);
+                const errorRow = document.createElement('tr');
+                errorRow.className = 'obs-row';
+                errorRow.innerHTML = `
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">${obs.obs_id}</td>
+                    <td colspan="4" style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Error loading observation details</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">
+                        <button class="select-observation-btn" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer;">Select</button>
+                    </td>
+                `;
+                tbody.appendChild(errorRow);
             }
-        });
-        actionCell.appendChild(selectButton);
-        row.appendChild(actionCell);
-
-        tbody.appendChild(row);
-    });
+        }
+    };
 
     table.appendChild(thead);
     table.appendChild(tbody);
-    tableContainer.appendChild(table);
+    observationsTable.appendChild(table);
+    tablesGrid.appendChild(observationsTable);
+    container.appendChild(tablesGrid);
 
     const plotsContainer = document.querySelector('#plots');
     plotsContainer.innerHTML = '';
-    plotsContainer.appendChild(tableContainer);
+    plotsContainer.appendChild(container);
 
-    const sourceMessage = document.createElement('p');
-    sourceMessage.textContent = `Multiple observations found for source: ${sourceName}`;
-    plotsContainer.insertBefore(sourceMessage, tableContainer);
+    Promise.all([
+        processObservations(),
+        fetchSourceSummary(observations).then(summaryElement => {
+            sourceSummaryPlaceholder.replaceWith(summaryElement);
+        })
+    ]).catch(error => {
+        console.error("Error processing observations:", error);
+    });
+}
+
+async function fetchSourceSummary(observations) {
+    console.log("Fetching source summary for observations:", observations);
+
+    const $container = $('<div class="source-summary-container">');
+    const $table = $('<table class="info-table source-summary-table">');
+
+    const $header = $('<tr>');
+    ['Property', 'Value'].forEach(text => {
+        const $th = $('<th>');
+        $th.text(text);
+        $header.append($th);
+    });
+    $table.append($header);
+
+    try {
+        const observationDetails = await Promise.all(observations.map(async (obs) => {
+            const formData = new FormData();
+            formData.append('obs_id', obs.obs_id);
+            formData.append('quality', quality);
+            formData.append('csrfmiddlewaretoken', $("input[name='csrfmiddlewaretoken']").val());
+
+            const response = await fetch(PLOT_GRAPH_URL, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            return data.info;
+        }));
+
+        const processedData = {
+            totalObservations: observations.length,
+            totalGTIs: 0,
+            stats: {
+                exposure: [],
+                undershoot: [],
+                overshoot: [],
+                mjd: [],
+                corsax: []
+            }
+        };
+
+        observationDetails.forEach(obsInfo => {
+            if (!Array.isArray(obsInfo)) return;
+
+            const gtiCount = obsInfo.filter(record => record.GTI !== undefined).length;
+            processedData.totalGTIs += gtiCount;
+
+            const uniqueObsValues = {
+                exposure: new Set(),
+                undershoot: new Set(),
+                overshoot: new Set(),
+                mjd: new Set(),
+                corsax: new Set()
+            };
+
+            obsInfo.forEach(record => {
+                if (record.EXPTIME) uniqueObsValues.exposure.add(parseFloat(record.EXPTIME));
+                if (record.USHOOT_NET_RATE) uniqueObsValues.undershoot.add(parseFloat(record.USHOOT_NET_RATE));
+                if (record.OSHOOT_NET_RATE) uniqueObsValues.overshoot.add(parseFloat(record.OSHOOT_NET_RATE));
+                if (record.TSTART_MJD_UTC) uniqueObsValues.mjd.add(parseFloat(record.TSTART_MJD_UTC));
+                if (record.COR_SAX) uniqueObsValues.corsax.add(parseFloat(record.COR_SAX));
+            });
+
+            Object.entries(uniqueObsValues).forEach(([key, valueSet]) => {
+                if (valueSet.size > 0) {
+                    const avg = Array.from(valueSet).reduce((a, b) => a + b, 0) / valueSet.size;
+                    processedData.stats[key].push(avg);
+                }
+            });
+        });
+
+        const getAverage = arr => arr.length ?
+            (arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+
+        const totalExposureTime = processedData.stats.exposure.reduce((a, b) => a + b, 0);
+
+        const summary = {
+            'Total Observations': processedData.totalObservations,
+            'Total GTIs': processedData.totalGTIs,
+            'Average Exposure Time per Observation (s)': getAverage(processedData.stats.exposure)?.toFixed(2) || '-',
+            'Total Exposure Time (s)': totalExposureTime?.toFixed(2) || '-',
+            'Average MJD': getAverage(processedData.stats.mjd)?.toFixed(5) || '-',
+            'Average Undershoot Rate (s⁻¹)': getAverage(processedData.stats.undershoot)?.toFixed(4) || '-',
+            'Average Overshoot Rate (s⁻¹)': getAverage(processedData.stats.overshoot)?.toFixed(4) || '-',
+            'Average COR_SAX (GeV c⁻¹)': getAverage(processedData.stats.corsax)?.toFixed(3) || '-'
+        };
+
+        Object.entries(summary).forEach(([property, value]) => {
+            const $row = $('<tr>');
+            $row.append($(`<td class="property-cell">${property}</td>`));
+            $row.append($(`<td class="value-cell">${value}</td>`));
+            $table.append($row);
+        });
+
+        $container.append($table);
+
+    } catch (error) {
+        console.error("Error fetching source summary data:", error);
+        $container.html('<div class="error">Error loading source summary. Please try again.</div>');
+    }
+
+    return $container[0];
 }
 
 // When the page loads add event listeners for different input fields
