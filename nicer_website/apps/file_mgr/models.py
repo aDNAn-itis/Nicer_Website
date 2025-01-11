@@ -24,6 +24,8 @@ class Item(models.Model):
     ndets_used = models.FloatField(null=True, blank=True)
     ushoot_net_rate = models.FloatField(null=True, blank=True)
     oshoot_net_rate = models.FloatField(null=True, blank=True)
+    changegoodx_5_12_rate = models.FloatField(null=True, blank=True)
+
 
     class Meta:
         """

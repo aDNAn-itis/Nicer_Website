@@ -34,20 +34,20 @@ def progress_bar(i: int, total: int):
         print()
 
 
-def table_insert(data: list[tuple[str, str, str, str, float, float, float, float, float, float, float]], batch_size: int = 100):
+def table_insert(data: list[tuple[str, str, str, str, float, float, float, float, float, float, float, float]], batch_size: int = 100):
     """
     Add folder and file data to the database, including additional metadata fields.
 
     Parameters
     ----------
-    data : list[tuple[string, string, string, string, float, float, float, float, float]]
-        Data to be inserted into the database (name, path, type, source_name, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate)
+    data : list[tuple[str, str, str, str, float, float, float, float, float, float, float, float]]
+        Data to be inserted into the database (name, path, type, source_name, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate, changegoodx_5_12_rate)
     batch_size : integer, default = 100
         How many entries to insert into the database per execution
     """
     update = '''INSERT OR REPLACE INTO file_mgr_item 
-                (name, path, type, source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate , oshoot_net_rate) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+                (name, path, type, source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate , oshoot_net_rate, changegoodx_5_12_rate) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
 
     batches = np.array_split(data, len(data) / batch_size)
 
@@ -158,6 +158,8 @@ def main():
             ndets_used = float(file[:, 1][file[:, 0] == 'NDETS_USED'][0].strip())
             ushoot_net_rate = float(file[:, 1][file[:, 0] == 'USHOOT_NET_RATE'][0].strip())
             oshoot_net_rate = float(file[:, 1][file[:, 0] == 'OSHOOT_NET_RATE'][0].strip())
+            changegoodx_5_12_rate = float(file[:, 1][file[:, 0] == 'GOODX_0p5_12_RATE'][0].strip()) 
+            changegoodx_5_12_rate *= 52
 
         else:
             # Default values for additional metadata if not available
@@ -168,6 +170,7 @@ def main():
             ndets_used = None
             ushoot_net_rate = None
             oshoot_net_rate = None
+            changegoodx_5_12_rate = None
 
         # Remove ARF and RMF files from the list of files and decrement the total count as these
         # aren't needed for now
@@ -179,15 +182,17 @@ def main():
 
         # If not top-level directory, add folder to the database
         if dir_name:
-            data.append((dir_name, parent_dir, 'dir', source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate))
+            data.append((dir_name, parent_dir, 'dir', source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate, changegoodx_5_12_rate))
             count += 1
             progress_bar(count, total)
 
         # Add file to the database
         for file in files:
-            data.append((file, relative_root, 'file', source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate))
+            data.append((file, relative_root, 'file', source, tstart_tt, tstop_tt, ra, dec, ndets_used, ushoot_net_rate, oshoot_net_rate, changegoodx_5_12_rate))                
             count += 1
             progress_bar(count, total)
+
+    print(f"next: {changegoodx_5_12_rate}")
 
     # Insert data into database
     table_insert(data)

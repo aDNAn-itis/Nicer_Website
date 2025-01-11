@@ -67,8 +67,17 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     JsonResponse
         Json response containing the plot as a list of the HTML element (plotDivs)
     """
+    required_params = ['plot_type', 'obs_id', 'gti-search']
+    missing_params = [param for param in required_params if param not in request.POST]
+    
+    if missing_params:
+        return JsonResponse({
+            'error': f'Missing required parameters: {", ".join(missing_params)}'
+        }, status=400)
+
     gti: int | str
-    min_value: int = int(request.POST['min_value'])
+    # min_value: int = int(request.POST['min_value'])
+    min_value: int | None = PLOTS[plot_type]['min_value']
     plot_divs: str
     obs_id: str = request.POST['obs_id']
     quality: str = request.POST['quality']
@@ -211,6 +220,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         'ndets_used': item.ndets_used,
         'ushoot_net_rate': item.ushoot_net_rate,
         'oshoot_net_rate': item.oshoot_net_rate,
+        'goodx_5_12_rate': item.changegoodx_5_12_rate,
     }
 
     dir_path = f'{settings.DATA_DIR}/{obs_id}/jspipe/'
