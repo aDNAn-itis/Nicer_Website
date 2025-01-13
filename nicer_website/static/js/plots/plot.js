@@ -789,57 +789,8 @@ function fetchGraphPlots() {
     $('.combine-gtis-btn').toggle(shouldShow);
   }
 
-  // Function to combine and plot GTIs from multiple observations
-  // function combineAndPlotGTIs(plotType, obsIDs) {
-  //   const formData = new FormData();
-  //   formData.append('plot_type', plotType);
-  //   formData.append('combined_obs_ids', obsIDs.join(','));
-  //   formData.append('quality', quality);
-  //   formData.append('csrfmiddlewaretoken', $("input[name='csrfmiddlewaretoken']").val());
-
-  //   // Show loading state
-  //   const loadingDiv = $('<div class="loading-message">Combining GTIs...</div>');
-  //   $(`#${plotType}-section`).prepend(loadingDiv);
-
-  //   fetch(PLOT_GTI_URL, {
-  //     method: 'POST',
-  //     body: formData
-  //   })
-  //     .then(response => response.json())
-  //     .then(data => {
-  //       if (data.error) {
-  //         throw new Error(data.error);
-  //       }
-
-  //       // Create or update combined plot container
-  //       const combinedPlotId = `${plotType}_combined`;
-  //       let combinedContainer = $(`#${combinedPlotId}-container`);
-
-  //       if (!combinedContainer.length) {
-  //         combinedContainer = $('<div>', {
-  //           id: `${combinedPlotId}-container`,
-  //           class: 'combined-plot-container'
-  //         });
-  //         combinedContainer.append('<h4>Combined GTIs Plot</h4>');
-  //         $(`#${plotType}-section`).append(combinedContainer);
-  //       }
-
-  //       // Update plot
-  //       if (data.plotDivs && data.plotDivs.length > 0) {
-  //         const $plotDiv = $(data.plotDivs[0]).attr('id', combinedPlotId);
-  //         combinedContainer.find('.plot-div').remove();
-  //         combinedContainer.append($plotDiv);
-  //       }
-  //     })
-  //     .catch(error => {
-  //       console.error('Error combining GTIs:', error);
-  //       alert('Error combining GTIs: ' + error.message);
-  //     })
-  //     .finally(() => {
-  //       loadingDiv.remove();
-  //     });
-  // }
   function combineAndPlotGTIs(plotType, obsIDs) {
+    // Create form data with the correct parameters
     const formData = new FormData();
     formData.append('plot_type', plotType);
     formData.append('combined_obs_ids', obsIDs.join(','));
@@ -850,50 +801,61 @@ function fetchGraphPlots() {
     const loadingDiv = $('<div class="loading-message">Combining GTIs...</div>');
     $(`#${plotType}-section`).prepend(loadingDiv);
 
+    // Make the AJAX request
     $.ajax({
-      type: 'POST',
-      url: PLOT_GTI_URL,
-      data: formData,
-      processData: false,
-      contentType: false,
-      success: function (data) {
-        if (data.error) {
-          console.error('Error:', data.error);
-          alert('Error combining GTIs: ' + data.error);
-          return;
-        }
+        type: 'POST',
+        url: PLOT_GTI_URL,
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(data) {
+            if (data.error) {
+                console.error('Error:', data.error);
+                alert('Error combining GTIs: ' + data.error);
+                return;
+            }
 
-        // Create or update combined plot container
-        const combinedPlotId = `${plotType}_combined`;
-        let combinedContainer = $(`#${combinedPlotId}-container`);
+            // Create or update combined plot container
+            const combinedPlotId = `${plotType}_combined`;
+            let combinedContainer = $(`#${combinedPlotId}-container`);
 
-        if (!combinedContainer.length) {
-          combinedContainer = $('<div>', {
-            id: `${combinedPlotId}-container`,
-            class: 'combined-plot-container'
-          });
-          combinedContainer.append('<h4>Combined GTIs Plot</h4>');
-          $(`#${plotType}-section`).append(combinedContainer);
-        }
+            if (!combinedContainer.length) {
+                combinedContainer = $('<div>', {
+                    id: `${combinedPlotId}-container`,
+                    class: 'combined-plot-container'
+                });
+                combinedContainer.append('<h4>Combined GTIs Plot</h4>');
 
-        // Update plot
-        if (data.plotDivs && data.plotDivs.length > 0) {
-          const $plotDiv = $(data.plotDivs[0]).attr('id', combinedPlotId);
-          combinedContainer.find('.plot-div').remove();
-          combinedContainer.append($plotDiv);
-          MathJax.typeset();
+                // Add remove button for combined plot
+                const removeButton = $('<button>', {
+                    class: 'remove-combined-plot-btn',
+                    text: 'Remove Combined Plot'
+                }).click(function() {
+                    combinedContainer.remove();
+                });
+
+                combinedContainer.append(removeButton);
+                $(`#${plotType}-section`).append(combinedContainer);
+            }
+
+            // Update plot
+            if (data.plotDivs && data.plotDivs.length > 0) {
+                const $plotDiv = $(data.plotDivs[0]).attr('id', combinedPlotId);
+                combinedContainer.find('.plot-div').remove();
+                combinedContainer.append($plotDiv);
+                MathJax.typeset();
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error combining GTIs:', error);
+            console.error('Server response:', xhr.responseText);
+            alert('Error combining GTIs: ' + (xhr.responseJSON?.error || 'Please try again.'));
+        },
+        complete: function() {
+            loadingDiv.remove();
         }
-      },
-      error: function (xhr, status, error) {
-        console.error('Error combining GTIs:', error);
-        console.error('Server response:', xhr.responseText);
-        alert('Error combining GTIs. Please try again.');
-      },
-      complete: function () {
-        loadingDiv.remove();
-      }
     });
-  }
+}
 }
 
 
