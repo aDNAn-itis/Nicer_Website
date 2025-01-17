@@ -20,7 +20,8 @@ def data_plot(
         background_list: Optional[List[ndarray]] = None,
         color_data: Optional[ndarray] = None,
         plot_kwargs: Optional[dict] = None,
-        layout_kwargs: Optional[dict] = None) -> str:
+        layout_kwargs: Optional[dict] = None,
+        gti_labels: Optional[List[str]] = None) -> str:
     """
     Plots data with uncertainties and background if provided.
 
@@ -67,7 +68,11 @@ def data_plot(
     data_lists = [x_data_list, y_data_list, x_errors, y_uncertainties, x_background_list, background_list]
     data_lists = [lst if lst is not None else [None] * len(gti_numbers) for lst in data_lists]
 
-    for number, x_data, y_data, x_error, y_uncertainty, x_background, background, color in zip(
+    if gti_labels is None:
+        gti_labels = [f'GTI{number}' for number in gti_numbers]
+
+    for label, number, x_data, y_data, x_error, y_uncertainty, x_background, background, color in zip(
+            gti_labels,
             gti_numbers,
             *data_lists,
             qualitative.Plotly * (len(gti_numbers) // len(qualitative.Plotly) + 1),
@@ -80,7 +85,8 @@ def data_plot(
             'x': x_data,
             'y': y_data,
             'mode': plot_type,
-            'name': f'GTI{number}',
+            # 'name': f'GTI{number}',
+            'name': label,
             'opacity': 0.8,
             'line': {'color': color},
             'legendgroup': number,
@@ -115,7 +121,8 @@ def data_plot(
                 x=x_background,
                 y=background,
                 mode='lines',
-                name=f'GTI{number} BG',
+                # name=f'GTI{number} BG',
+                name=f'{label} BG',
                 opacity=0.8,
                 line={'color': color},
                 legendgroup=number,

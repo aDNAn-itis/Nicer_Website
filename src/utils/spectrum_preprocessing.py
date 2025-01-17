@@ -160,7 +160,8 @@ def spectrum_plot(
         min_value: int,
         data_paths: list[str],
         gti_numbers: list[int],
-        cut_off: list = None) -> str:
+        cut_off: list = None,
+        gti_labels: list[str] | None = None) -> str:
     """
     Gets and plots the binned and corrected spectra
 
@@ -186,6 +187,9 @@ def spectrum_plot(
     background: list[ndarray] = []
     x_background: list[ndarray] = []
     y_uncertainties: list[ndarray] = []
+
+    if gti_labels is None:
+        gti_labels = [f'GTI{gti}' for gti in gti_numbers]
 
     # Get spectrum data
     for data_path in data_paths:
@@ -216,5 +220,6 @@ def spectrum_plot(
             'xaxis_type':'log',
             'yaxis_type':'log',
             'showlegend' : True,
-        }
+        },
+        gti_labels=gti_labels
     )

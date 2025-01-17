@@ -156,6 +156,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         obs_ids = request.POST['combined_obs_ids'].split(',')
         all_file_names = []
         all_gti_list = []
+        gti_obs_mapping = []
 
         for obs_id in obs_ids:
             dir_path = f'{obs_id}/jspipe/'
@@ -175,15 +176,18 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
                     full_path = f'{settings.DATA_DIR}/{dir_path}{file_name.name}'
                     all_file_names.append(full_path)
                     all_gti_list.append(gti)
+                    gti_obs_mapping.append(obs_id)
 
         if not all_file_names:
             return JsonResponse({'error': 'No GTI files found for the specified observations'})
 
-        # Plot combined GTIs
+        gti_labels = [f'GTI{gti} (Obs {obs_id})' for gti, obs_id in zip(all_gti_list, gti_obs_mapping)]
+
         plot_divs = PLOTS[plot_type]['function'](
             PLOTS[plot_type]['min_value'],
             all_file_names,
-            all_gti_list
+            all_gti_list,
+            gti_labels=gti_labels 
         )
         return JsonResponse({'plotDivs': [plot_divs]})
 
