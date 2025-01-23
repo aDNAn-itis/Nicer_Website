@@ -192,8 +192,6 @@ def main():
             count += 1
             progress_bar(count, total)
 
-    print(f"next: {changegoodx_5_12_rate}")
-
     # Insert data into database
     table_insert(data)
 

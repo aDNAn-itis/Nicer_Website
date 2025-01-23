@@ -52,84 +52,6 @@ PLOTS: dict[str, dict[str, Any]] = {
 }
 
 
-# def plot_gti(request: HttpRequest) -> JsonResponse:
-#     """
-#     Plots multiple GTI observations for a single plot
-#
-#     Parameters
-#     ----------
-#     request : HttpRequest
-#         Http request containing the variables GTI query (gti-search), observation ID (obs_id),
-#         pipeline quality (quality) and plot type (plot_type)
-#
-#     Returns
-#     -------
-#     JsonResponse
-#         Json response containing the plot as a list of the HTML element (plotDivs)
-#     """
-#     required_params = ['plot_type', 'obs_id', 'gti-search']
-#     missing_params = [param for param in required_params if param not in request.POST]
-#
-#     if missing_params:
-#         return JsonResponse({
-#             'error': f'Missing required parameters: {", ".join(missing_params)}'
-#         }, status=400)
-#
-#     gti: int | str
-#     # min_value: int = int(request.POST['min_value'])
-#     min_value: int | None = PLOTS[plot_type]['min_value']
-#     plot_divs: str
-#     obs_id: str = request.POST['obs_id']
-#     quality: str = request.POST['quality']
-#     plot_type: str = request.POST['plot_type']
-#     dir_path: str = f'{obs_id}/jspipe/'
-#     gti_query: str | list[str] = request.POST['gti-search']
-#     gti_range: list[int]
-#     gti_list: list[int | range] = []
-#     file_names: list[str] = []
-#     files: QuerySet
-#     file_name: Item
-#
-#     # Filter by quality, observation ID, and filter for files
-#     files = Item.objects.filter(
-#         name__contains=quality,
-#         path=dir_path,
-#         type=Item.item_type[1][0],
-#     ).order_by('name')
-#
-#     # Filter by the plot type and append relative file location to data path
-#     dir_path = f'{settings.DATA_DIR}/{dir_path}'
-#     files = files.filter(name__contains=PLOTS[plot_type]['file_type'])
-#
-#     # Remove characters that are not numbers or dashes, and separate by commas
-#     gti_query = re.sub(r'[^\d,-]', '', gti_query).split(',')
-#
-#     # Convert dashes to a list of integers in the range of the two numbers
-#     for gti in gti_query:
-#         if re.search(r'\d+-\d+', gti):
-#             gti_range = list(map(int, gti.split('-')))
-#             gti_range[-1] += 1
-#             gti_list.extend(range(*gti_range))
-#         elif gti.isdigit():
-#             gti_list.append(int(gti))
-#
-#     # Filter for each GTI
-#     for gti in gti_list:
-#         file_name = files.filter(name__regex=fr'^\w*GTI{gti}[^\d][-_.\w]*$').first()
-#
-#         if file_name:
-#             file_names.append(dir_path + file_name.name)
-#
-#     # If not GTI found, use the first available GTI
-#     if not file_names:
-#         file_name = files.first().name
-#         gti_list = re.search(r'GTI(\d+)', file_name).group(1)
-#         file_names.append(dir_path + file_name)
-#
-#     # Plot each GTI
-#     plot_divs = PLOTS[plot_type]['function'](min_value, file_names, gti_list)
-#     return JsonResponse({'plotDivs': [plot_divs]})
-
 
 def plot_gti(request: HttpRequest) -> JsonResponse:
     """
@@ -187,7 +109,8 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
             PLOTS[plot_type]['min_value'],
             all_file_names,
             all_gti_list,
-            gti_labels=gti_labels 
+            gti_labels=gti_labels,
+            is_combined_obs=True
         )
         return JsonResponse({'plotDivs': [plot_divs]})
 
