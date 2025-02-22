@@ -5,8 +5,32 @@ module.exports = {
     jquery: true,
     es6: true,
   },
-  extends: 'standard',
+  extends: ['eslint:recommended', 'plugin:prettier/recommended'],
   overrides: [
+    {
+      files: ['*.js'],
+      rules: {
+        'max-len': ['error', { code: 80 }],
+      },
+    },
+    {
+      files: ['*.py'],
+      rules: {
+        'max-len': ['error', { code: 100 }],
+      },
+    },
+    {
+      files: ['*.html'],
+      rules: {
+        'max-len': [
+          'error',
+          {
+            code: 120,
+            ignorePattern: 's*{% if .+? %}.*?{% endif %}s*',
+          },
+        ],
+      },
+    },
   ],
   parserOptions: {
     ecmaVersion: 'latest',
@@ -25,12 +49,16 @@ module.exports = {
         ignoreTemplateLiterals: false,
       },
     ],
-    'space-before-function-paren': ['error', {
-      anonymous: 'always',
-      asyncArrow: 'always',
-      named: 'never',
-    }],
+    'space-before-function-paren': [
+      'error',
+      {
+        anonymous: 'always',
+        asyncArrow: 'always',
+        named: 'never',
+      },
+    ],
     'comma-dangle': ['error', 'always-multiline'],
+    'prettier/prettier': ['error', { printWidth: 80 }],
   },
   globals: {
     quality: 'writable',

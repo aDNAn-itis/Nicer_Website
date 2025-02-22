@@ -109,7 +109,11 @@ td, th {
   white-space: nowrap;
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 0;
+}
+
+th label {
+  font-size: inherit;
 }
 
 /* Row styles */
@@ -234,6 +238,14 @@ td, th {
   display: none;
   font-size: var(--minor-font-size);
   padding: 6px;
+}
+
+.show.dropdown-content * {
+  display: block;
+}
+
+.graph-button-container {
+  margin: 10px 0;
 }
 
 @media screen and (max-width: 600px) {

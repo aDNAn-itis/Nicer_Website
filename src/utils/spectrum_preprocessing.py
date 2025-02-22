@@ -158,6 +158,7 @@ def spectrum_data(
 
 def spectrum_plot(
         min_value: int,
+        obs_id: int,
         data_paths: list[str],
         gti_numbers: list[int],
         cut_off: list = None,
@@ -169,6 +170,8 @@ def spectrum_plot(
     ----------
     min_value : int
         Minimum value for each bin, if None, groupings will be used
+    obs_id : int
+        Observation ID
     data_paths : list[str]
         File paths to the spectra
     gti_numbers: list[int]
@@ -214,7 +217,7 @@ def spectrum_plot(
         y_uncertainties=y_uncertainties,
         plot_kwargs={'mode': 'markers'},
         layout_kwargs={
-            'title': 'Spectrum',
+            'title': f'Spectrum {obs_id}',
             'xaxis_title': r'$\text{Energy}\ (keV)$',
             'yaxis_title': r'$\text{Photons}\ (keV^{-1} s^{-1} det^{-1})$',
             'xaxis_type':'log',

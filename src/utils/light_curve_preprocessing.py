@@ -160,12 +160,11 @@ def align_light_curves(
 
 def light_curve_plot(
     min_value: int,
+    obs_id: int,
     data_paths: list[str],
     gti_numbers: list[int],
     gti_labels: Optional[list[str]] = None,
-    is_combined_obs: bool = False,
-    debug: bool = True
-) -> str:
+    is_combined_obs: bool = False) -> str:
     """
     Gets and plots the corrected light curve data
 
@@ -173,6 +172,8 @@ def light_curve_plot(
     ----------
     min_value : int
         Minimum value used for binning
+    obs_id : int
+        Observation ID
     data_paths : list[str]
         File path to the light curve
     gti_numbers : list[int]
@@ -181,8 +182,6 @@ def light_curve_plot(
         List of GTI labels
     is_combined_obs : bool
         Flag indicating if this is a combined observation plot
-    debug : bool
-        Whether to print debugging information
 
     Returns
     -------
@@ -220,7 +219,7 @@ def light_curve_plot(
         x_errors=x_error,
         y_uncertainties=y_uncertainties,
         layout_kwargs={
-            'title': 'Light Curve',
+            'title': f'Light Curve {obs_id}',
             'xaxis_title': r'$\text{Relative Time}\ (s)$',
             'yaxis_title': r'$\text{Photons}\ (s^{-1} det^{-1})$',
             'showlegend': True,

@@ -1,4 +1,19 @@
 {
     "singleQuote": true,
-    "trailingComma": "all"
+    "trailingComma": "all",
+    "printWidth": 80,
+    "overrides": [
+        {
+            "files": "*.js",
+            "options": {"printWidth": 80}
+        },
+        {
+            "files": "*.py",
+            "options": {"printWidth": 100}
+        },
+        {
+            "files": "*.html",
+            "options": {"printWidth": 120}
+        }
+    ]
 }

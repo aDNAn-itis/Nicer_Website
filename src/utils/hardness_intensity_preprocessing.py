@@ -92,6 +92,7 @@ def process_lc_file(filename: str) -> Tuple[ndarray, ndarray, ndarray]:
 
 def get_hid_data_and_plot(
     _: Any,
+    obs_id: int,
     data_paths: List[str],
     gti_numbers: List[int]
 ) -> str:
@@ -102,6 +103,8 @@ def get_hid_data_and_plot(
     ----------
     _ : Any
         Unused parameter.
+    obs_id : int
+        Observation ID
     data_paths : list[str]
         List of file paths to the lightcurve data files.
     gti_numbers : list[int]
@@ -150,7 +153,7 @@ def get_hid_data_and_plot(
         color_data=norm_time.tolist(),
         plot_kwargs={'mode': 'markers'},
         layout_kwargs={
-            'title': 'Hardness-Intensity Diagram',
+            'title': f'Hardness-Intensity Diagram {obs_id}',
             'xaxis_title': r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$',
             'yaxis_title': r'$\text{Intensity}\ (counts/s)$',
             'xaxis_type': 'log',

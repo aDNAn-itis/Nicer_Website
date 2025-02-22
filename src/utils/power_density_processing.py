@@ -135,12 +135,20 @@ def process_pds_data(
     return freq_center, power_density, error_density
 
 
-def get_pds_data_and_plot(_, data_paths: List[str], gti_numbers: List[int]) -> str:
+def get_pds_data_and_plot(
+    _: Any,
+    obs_id: int,
+    data_paths: List[str],
+    gti_numbers: List[int]) -> str:
     """
     Processes and plots PDS data for multiple files.
 
     Parameters
     ----------
+    _ : Any
+        Unused parameter
+    obs_id : int
+        Observation ID
     data_paths : List[str]
         List of paths to PDS files.
     gti_numbers : List[int]
@@ -200,7 +208,7 @@ def get_pds_data_and_plot(_, data_paths: List[str], gti_numbers: List[int]) -> s
         y_uncertainties=y_uncertainties,
         plot_kwargs={'mode': 'markers'},
         layout_kwargs={
-            'title': 'Power Density Spectrum',
+            'title': f'Power Density Spectrum {obs_id}',
             'xaxis_title': 'Frequency (Hz)',
             'yaxis_title': 'f x PDS Power (rms)',
             'xaxis_type': 'log',

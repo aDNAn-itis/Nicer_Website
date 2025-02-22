@@ -7,7 +7,6 @@ import logging as log
 from typing import Any
 
 import numpy as np
-from numpy import ndarray
 from django.conf import settings
 from django.shortcuts import render
 from django.db.models import QuerySet
@@ -18,6 +17,7 @@ from src.utils.spectrum_preprocessing import spectrum_plot
 from src.utils.light_curve_preprocessing import light_curve_plot
 from src.utils.power_density_processing import get_pds_data_and_plot
 from src.utils.hardness_intensity_preprocessing import get_hid_data_and_plot
+
 
 # Log axis
 # Info field (avg count)
@@ -52,7 +52,6 @@ PLOTS: dict[str, dict[str, Any]] = {
 }
 
 
-
 def plot_gti(request: HttpRequest) -> JsonResponse:
     """
     Plots multiple GTI observations for a single plot
@@ -70,18 +69,31 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     JsonResponse
         Json response containing the plot as a list of the HTML element (plotDivs)
     """
-    plot_type = request.POST.get('plot_type')
-    quality = request.POST.get('quality')
+    gti: int | str
+    min_value: int | None
+    plot_divs: str
+    obs_id: str = request.POST.get('obs_id') or ''
+    quality: str = request.POST.get('quality')
+    plot_type: str = request.POST.get('plot_type').replace('-', '_')
+    dir_path: str = os.path.join(obs_id, 'jspipe/')
+    gti_query: str | list[str] = request.POST.get('gti-search')
+    gti_range: list[int]
+    gti_list: list[int | range] = []
+    file_names: list[str] = []
+    files: QuerySet
+    file_name: Item
+
+    min_value = int(request.POST.get('min_value') or PLOTS[plot_type]['min_value'])
 
     # Handle combined observations case
     if 'combined_obs_ids' in request.POST:
-        obs_ids = request.POST['combined_obs_ids'].split(',')
+        obs_ids = request.POST.get('combined_obs_ids').split(',')
         all_file_names = []
         all_gti_list = []
         gti_obs_mapping = []
 
         for obs_id in obs_ids:
-            dir_path = f'{obs_id}/jspipe/'
+            dir_path = os.path.join(obs_id, 'jspipe/')
             files = Item.objects.filter(
                 name__contains=quality,
                 path=dir_path,
@@ -95,7 +107,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
             for file_name in files:
                 if match := re.search(r'GTI(\d+)', file_name.name):
                     gti = int(match.group(1))
-                    full_path = f'{settings.DATA_DIR}/{dir_path}{file_name.name}'
+                    full_path = os.path.join(settings.DATA_DIR, dir_path, file_name.name)
                     all_file_names.append(full_path)
                     all_gti_list.append(gti)
                     gti_obs_mapping.append(obs_id)
@@ -107,6 +119,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
         plot_divs = PLOTS[plot_type]['function'](
             PLOTS[plot_type]['min_value'],
+            obs_id,
             all_file_names,
             all_gti_list,
             gti_labels=gti_labels,
@@ -123,19 +136,6 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
             'error': f'Missing required parameters: {", ".join(missing_params)}'
         }, status=400)
 
-    gti: int | str
-    min_value: int | None = PLOTS[plot_type]['min_value']
-    plot_divs: str
-    obs_id: str = request.POST['obs_id']
-    quality: str = request.POST['quality']
-    dir_path: str = f'{obs_id}/jspipe/'
-    gti_query: str | list[str] = request.POST['gti-search']
-    gti_range: list[int]
-    gti_list: list[int | range] = []
-    file_names: list[str] = []
-    files: QuerySet
-    file_name: Item
-
     # Filter by quality, observation ID, and filter for files
     files = Item.objects.filter(
         name__contains=quality,
@@ -144,7 +144,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     ).order_by('name')
 
     # Filter by the plot type and append relative file location to data path
-    dir_path = f'{settings.DATA_DIR}/{dir_path}'
+    dir_path = os.path.join(settings.DATA_DIR, dir_path)
     files = files.filter(name__contains=PLOTS[plot_type]['file_type'])
 
     # Remove characters that are not numbers or dashes, and separate by commas
@@ -164,7 +164,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         file_name = files.filter(name__regex=fr'^\w*GTI{gti}[^\d][-_.\w]*$').first()
 
         if file_name:
-            file_names.append(dir_path + file_name.name)
+            file_names.append(os.path.join(dir_path, file_name.name))
 
     # If no GTI found, use the first available GTI
     if not file_names:
@@ -180,7 +180,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         file_names.append(dir_path + file_name.name)
 
     # Plot each GTI
-    plot_divs = PLOTS[plot_type]['function'](min_value, file_names, gti_list)
+    plot_divs = PLOTS[plot_type]['function'](min_value, obs_id, file_names, gti_list)
     return JsonResponse({'plotDivs': [plot_divs]})
 
 
@@ -203,29 +203,25 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         observation ID (obsID), quality (quality), if spectrum is plotted (spectrum),
         and if light curve is plotted (lightCurve)
     """
+    dir_path: str
     file_name: str
     obs_id: str = request.POST.get('obs_id')
     source: str = request.POST.get('source')
-    quality: str = request.POST['quality']
-    dir_path: str
+    quality: str = request.POST.get('quality')
+    search_type: str = request.POST.get('search_type')
     max_gti: list[int] = []
     plot_divs: list[str] = []
     infos: list[dict[str, Any]] = []
+    obs_ids: list[dict[str, str]]
     plot_type: dict[str, Any]
     logger: log.Logger = log.getLogger(__name__)
     info: np.ndarray
     indices: np.ndarray
     file_names: np.ndarray
     files: QuerySet
+    obs_items: QuerySet
 
-    if obs_id:
-        dir_path = f'{obs_id}/jspipe/'
-        files = Item.objects.filter(
-            name__contains=quality,
-            path__startswith=dir_path,
-            type=Item.item_type[1][0],
-        ).order_by('name')
-    elif source:
+    if search_type == 'source' and source:
         obs_items = Item.objects.filter(
             source__icontains=source,
             type=Item.item_type[1][0],
@@ -237,31 +233,28 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             if len(path_parts) > 0:
                 obs_ids.append({'obs_id': path_parts[0], 'source': item['source']})
 
-        if obs_ids:
-            if len(obs_ids) > 1:
-                return JsonResponse({
-                    'multiple_observations': True,
-                    'obs_ids': obs_ids,
-                    'source': source
-                })
-            else:
-                # If only one observation is found, proceed with that
-                obs_id = obs_ids[0]['obs_id']
-                dir_path = f'{obs_id}/jspipe/'
-                files = Item.objects.filter(
-                    name__contains=quality,
-                    path__startswith=dir_path,
-                    type=Item.item_type[1][0],
-                ).order_by('name')
-                print(f"Found {files.count()} files for obs_id {obs_id}")
-        else:
-            return JsonResponse({'error': 'No files found for the given source name'})
+        if len(obs_ids) > 1:
+            return JsonResponse({
+                'multiple_observations': True,
+                'obs_ids': obs_ids,
+                'source': source
+            })
 
-    else:
-        return JsonResponse({'error': 'No observation ID or source name provided'})
+        obs_id = obs_ids[0]['obs_id'] if obs_ids else None
 
-    if not files.exists():
-        return JsonResponse({'error': 'No observable data found for the given criteria'})
+    if obs_id:
+        files = Item.objects.filter(
+            name__contains=quality,
+            path__startswith=os.path.join(obs_id, 'jspipe/'),
+            type=Item.item_type[1][0],
+        ).order_by('name')
+        print(f"Found {files.count()} files for obs_id {obs_id}")
+
+    if not obs_id or not files.exists():
+        return JsonResponse({
+            'error': f'No observable data found for '
+            f"{f'source: {source}' if search_type == 'source' else f'observation ID: {obs_id}'}"
+        })
 
     item = files.first()
     obs_info = {
@@ -277,7 +270,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         'goodx_5_12_rate': item.changegoodx_5_12_rate,
     }
 
-    dir_path = f'{settings.DATA_DIR}/{obs_id}/jspipe/'
+    dir_path = os.path.join(settings.DATA_DIR, obs_id, 'jspipe/')
 
     # Try to get data for specified plots
     try:
@@ -318,17 +311,10 @@ def plot_data(request: HttpRequest) -> JsonResponse:
 
         # Plot depending on the data type
         for plot_type, plot_info in PLOTS.items():
-            # mapping between HTML form names and PLOTS keys
-            html_to_plot_type = {
-                'spectrum': 'spectrum',
-                'light-curve': 'light_curve',
-                'power-density-spectrum': 'power_density_spectrum',
-                'hardness-intensity-diagram': 'hardness_intensity_diagram'
-            }
-
             # Check if this plot type is requested in the POST data
-            if any(html_name for html_name, plot_key in html_to_plot_type.items()
-                   if html_name in request.POST and plot_key == plot_type):
+            if plot_type.replace('_', '-') in request.POST:
+            # if any(html_name for html_name, plot_key in html_to_plot_type.items()
+                #    if html_name in request.POST and plot_key == plot_type):
                 plot_info['exists'] = True
                 file_names = files.filter(name__contains=plot_info['file_type'])
                 file_names = file_names.exclude(name__regex=r'_BAND\d+')
@@ -338,6 +324,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
 
                     plot_divs.append(plot_info['function'](
                         plot_info['min_value'],
+                        obs_id,
                         [dir_path + file_name],
                         [0],
                     ))
@@ -361,6 +348,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         'source': found_source or source,
         'obs_info': obs_info,
     })
+
 
 def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
     """
@@ -409,8 +397,6 @@ def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
         return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('name', flat=True))})
     else:
         return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('source', flat=True))})
-
-
 
 
 def fetch_sources(request: HttpRequest, count: int = 5) -> JsonResponse:

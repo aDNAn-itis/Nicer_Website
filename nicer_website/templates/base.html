@@ -1,16 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>{% block title %}Nicer Dataset{% endblock %}</title>
-    {% block head %}
-    {% endblock %}
-</head>
-<body>
+    {% block head %} {% endblock %}
+  </head>
+  <script>
+    const CSRF_TOKEN = '{{ csrf_token }}';
+  </script>
+  <body>
     {% include 'navbar.html' %}
-    <main>
-        {% block content %}
-        {% endblock %}
-    </main>
-</body>
+    <main>{% block content %} {% endblock %}</main>
+  </body>
 </html>
