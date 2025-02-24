@@ -83,7 +83,21 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     files: QuerySet
     file_name: Item
 
-    min_value = int(request.POST.get('min_value') or PLOTS[plot_type]['min_value'])
+    # min_value = int(request.POST.get('min_value') or PLOTS[plot_type]['min_value'])
+    requested_min_value = request.POST.get('min_value')
+    default_min_value = PLOTS[plot_type]['min_value'] if plot_type in PLOTS else None
+    if requested_min_value is not None:
+        try:
+            min_value = int(requested_min_value)
+        except (ValueError, TypeError):
+            min_value = default_min_value
+    else:
+        min_value = default_min_value
+        
+    if plot_type not in PLOTS:
+        return JsonResponse({
+            'error': f'Invalid plot type: {plot_type}. Valid types are: {", ".join(PLOTS.keys())}'
+        }, status=400)
 
     # Handle combined observations case
     if 'combined_obs_ids' in request.POST:
@@ -100,10 +114,8 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
                 type=Item.item_type[1][0],
             ).order_by('name')
 
-            # Filter by the plot type
             files = files.filter(name__contains=PLOTS[plot_type]['file_type'])
 
-            # Get all GTIs for this observation
             for file_name in files:
                 if match := re.search(r'GTI(\d+)', file_name.name):
                     gti = int(match.group(1))
@@ -117,14 +129,18 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
         gti_labels = [f'GTI{gti} (Obs {obs_id})' for gti, obs_id in zip(all_gti_list, gti_obs_mapping)]
 
-        plot_divs = PLOTS[plot_type]['function'](
-            PLOTS[plot_type]['min_value'],
-            obs_id,
-            all_file_names,
-            all_gti_list,
-            gti_labels=gti_labels,
-            is_combined_obs=True
-        )
+        plot_kwargs = {
+            'min_value': min_value,
+            'obs_id': obs_id,
+            'data_paths': all_file_names,
+            'gti_numbers': all_gti_list,
+            'gti_labels': gti_labels,
+        }
+
+        if 'is_combined_obs' in PLOTS[plot_type].get('optional_params', []):
+            plot_kwargs['is_combined_obs'] = True
+
+        plot_divs = PLOTS[plot_type]['function'](**plot_kwargs)
         return JsonResponse({'plotDivs': [plot_divs]})
 
     # Handle single observation case
