@@ -84,7 +84,6 @@ function displayInfo(info) {
     ],
     precision: [null, null, 5, 2, 0, 2, 4, 3],
   };
-  let selectedGTIs = [];
 
   const $CONTAINER = $('#obs-info');
   const $OBS_ID_TABLE = $('#obs-info-table');
@@ -110,7 +109,7 @@ function displayInfo(info) {
       return acc;
     }, {});
 
-    Object.entries(OBS_BY_OBS_ID).forEach(([obsID, rows], _) => {
+    Object.entries(OBS_BY_OBS_ID).forEach(([obsID, rows]) => {
       const MAIN_ROW = rows[0];
       const $OBS_ID_ROW = $('<tr class="obs-row">');
       $OBS_ID_ROW.attr('data-obs-id', obsID);
@@ -150,7 +149,6 @@ function displayInfo(info) {
         $OBS_ID_TABLE.append($OBS_ID_ROW);
       }
 
-      // Make GTI table
       const $DETAILS_ROW = $('<tr>', {
         class: 'details-row',
         style: 'display: none',
@@ -165,13 +163,12 @@ function displayInfo(info) {
         'data-obs-id': obsID,
       });
       const $GTI_HEADER = $('<tr>');
-      $GTI_TABLE.append($GTI_HEADER);
-
       GTI_INFO.headers.forEach((header) => {
         $GTI_HEADER.append($('<th>', { text: header }));
       });
+      $GTI_TABLE.append($GTI_HEADER);
 
-      rows.forEach((gti, _) => {
+      rows.forEach((gti) => {
         if (gti.GTI !== undefined) {
           const $GTI_ROW = $('<tr class="gti-row">');
           $GTI_ROW.attr('data-gti', gti.GTI);
@@ -203,7 +200,41 @@ function displayInfo(info) {
         .contents()
         .wrapAll($('<label>', { class: 'checkboxes' }));
 
-      // Handle "Select All" toggle
+      const $GTI_FORM = $('<form>', {
+        id: `info-fetch-gti-${obsID}`,
+        class: 'fetch-gti',
+      });
+
+      $GTI_FORM.append(
+        $('<input>', {
+          name: 'gti-search',
+          type: 'hidden',
+          value: '',
+        }),
+      );
+
+      $GTI_FORM.append(
+        $('<input>', {
+          name: 'plot_type',
+          type: 'hidden',
+          value: 'spectrum',
+        }),
+      );
+
+      $GTI_FORM.append(
+        $('<input>', {
+          name: 'obs_id',
+          type: 'hidden',
+          value: obsID,
+        }),
+      );
+
+      const $GRAPH_BUTTON = $('<button>', {
+        class: 'graph-selected-gtis hide',
+        text: 'Graph Selected GTIs',
+        type: 'submit',
+      });
+
       $SELECT_ALL.on('change', function () {
         const IS_CHECKED = $(this).is(':checked');
         $GTI_TABLE
@@ -212,70 +243,9 @@ function displayInfo(info) {
           .trigger('change');
       });
 
-      const $GTI_FORM = $('<form>', {
-        id: `info-fetch-gti-${obsID}`,
-        class: 'fetch-gti',
-      });
-      $GTI_FORM.append(
-        $('<input>', {
-          name: 'gti-search',
-          type: 'hidden',
-          value: selectedGTIs,
-        }),
-      );
-      $GTI_FORM.append(
-        $('<input>', {
-          name: 'plot_type',
-          type: 'hidden',
-          value: 'spectrum',
-        }),
-      );
-      $GTI_FORM.append(
-        $('<input>', {
-          name: 'obs_id',
-          type: 'hidden',
-          value: obsID,
-        }),
-      );
-      $GTI_FORM.append(
-        $('<input>', {
-          name: 'min_value',
-          type: 'hidden',
-          value: 1,
-        }),
-      );
-      const $GRAPH_BUTTON = $('<button>', {
-        class: 'graph-selected-gtis hide',
-        text: 'Graph Selected GTIs',
-        type: 'submit',
-      });
-
-      $DETAILS_CELL.append($GTI_TABLE);
-      $GTI_FORM.append($GRAPH_BUTTON);
-      $DETAILS_CELL.append($GTI_FORM);
-      $DETAILS_ROW.append($DETAILS_CELL);
-      $OBS_ID_TABLE.append($DETAILS_ROW);
-
-      $SHOW_GTI_BUTTON.on('click', function (e) {
-        e.preventDefault();
-        const $detailsRow = $(this).closest('tr').next('.details-row');
-        const isVisible = $detailsRow.is(':visible');
-
-        $(this).text(isVisible ? 'Show GTIs' : 'Hide GTIs');
-        $detailsRow.toggle();
-      });
-
       $GTI_TABLE.on('change', '.gti-checkbox', function () {
-        const $GRAPH_BUTTON = $(this)
-          .closest('.details-row')
-          .find('.graph-selected-gtis');
-        const HAS_CHECKED_BOXES =
-          $(this).closest('.gti-table').find('.gti-checkbox:checked').length >
-          0;
-        $GRAPH_BUTTON.toggle(HAS_CHECKED_BOXES);
-        $GRAPH_BUTTON
-          .closest('.graph-button-container')
-          .toggle(HAS_CHECKED_BOXES);
+        const $form = $(this).closest('.details-row').find('.fetch-gti');
+        const $graphButton = $form.find('.graph-selected-gtis');
 
         let selectedGTIs = [];
         $(this)
@@ -284,10 +254,72 @@ function displayInfo(info) {
           .each(function () {
             selectedGTIs.push($(this).closest('tr').attr('data-gti'));
           });
-        $(`#info-fetch-gti-${obsID}`)
-          .find('input[name="gti-search"]')
-          .val(selectedGTIs);
+
+        $form.find('input[name="gti-search"]').val(selectedGTIs.join(','));
+        $graphButton.toggle(selectedGTIs.length > 0);
       });
+
+      $GTI_FORM.on('submit', function (event) {
+        event.preventDefault();
+
+        let formData = $(this).serialize();
+        formData += `&csrfmiddlewaretoken=${$(
+          "input[name='csrfmiddlewaretoken']",
+        ).val()}`;
+        formData += `&quality=${$('#quality-select').val().toLowerCase()}`;
+
+        const $loadingIndicator = $('<div>', {
+          class: 'loading-indicator',
+          text: 'Generating plot...',
+        });
+        $(this).append($loadingIndicator);
+
+        $.ajax({
+          type: 'POST',
+          url: PLOT_GTI_URL,
+          data: formData,
+          success: (response) => {
+            if (response.error) {
+              console.error('Server error:', response.error);
+              alert(response.error);
+              return;
+            }
+
+            if (response.plotDivs && response.plotDivs.length > 0) {
+              const plotType = $(this).find('input[name="plot_type"]').val();
+              const obsID = $(this).find('input[name="obs_id"]').val();
+
+              $(`#${plotType}-${obsID}`)
+                .find('.js-plotly-plot')
+                .replaceWith(response.plotDivs[0]);
+
+              MathJax.typeset();
+            }
+          },
+          error: (xhr, status, error) => {
+            console.error('Error fetching GTI plot:', error);
+            console.error('Server response:', xhr.responseText);
+            alert('Error fetching GTI plot. Please try again.');
+          },
+          complete: () => {
+            $loadingIndicator.remove();
+          },
+        });
+      });
+
+      $SHOW_GTI_BUTTON.on('click', function (e) {
+        e.preventDefault();
+        const $detailsRow = $(this).closest('tr').next('.details-row');
+        const isVisible = $detailsRow.is(':visible');
+        $(this).text(isVisible ? 'Show GTIs' : 'Hide GTIs');
+        $detailsRow.toggle();
+      });
+
+      $DETAILS_CELL.append($GTI_TABLE);
+      $GTI_FORM.append($GRAPH_BUTTON);
+      $DETAILS_CELL.append($GTI_FORM);
+      $DETAILS_ROW.append($DETAILS_CELL);
+      $OBS_ID_TABLE.append($DETAILS_ROW);
     });
   } else {
     $OBS_ID_TABLE.append(
@@ -307,26 +339,34 @@ function displayInfo(info) {
  * @param {Event} event Event generated by form submit
  */
 function fetchGTIPlot(event) {
-  // Constants
-  // const NAME_REGEX = /"title":\{"text":"(.+?)"\}/;
-  const OBS_ID_REGEX = /&obs_id=(\d+)/;
-  let serializedData = $(event.target).serialize();
-
-  const OBS_ID = serializedData.match(OBS_ID_REGEX)[1];
-
-  // Prevents reloading the page
   event.preventDefault();
+  const $form = $(event.target);
 
-  serializedData += `&csrfmiddlewaretoken=${$(
+  let selectedGTIs = [];
+  $form
+    .closest('.details-row')
+    .find('.gti-table .gti-checkbox:checked')
+    .each(function () {
+      selectedGTIs.push($(this).closest('tr').attr('data-gti'));
+    });
+  $form.find('input[name="gti-search"]').val(selectedGTIs.join(','));
+
+  let formData = $form.serialize();
+  formData += `&csrfmiddlewaretoken=${$(
     "input[name='csrfmiddlewaretoken']",
   ).val()}`;
-  serializedData += `&quality=${$('#quality-select').val().toLowerCase()}`;
+  formData += `&quality=${$('#quality-select').val().toLowerCase()}`;
 
-  // Sends an asynchronous request to generate a plot with multiple GTIs
+  const $loadingIndicator = $('<div>', {
+    class: 'loading-indicator',
+    text: 'Generating plot...',
+  });
+  $form.append($loadingIndicator);
+
   $.ajax({
     type: 'POST',
     url: PLOT_GTI_URL,
-    data: serializedData,
+    data: formData,
     success: function (response) {
       if (response.error) {
         console.error('Server error:', response.error);
@@ -334,19 +374,23 @@ function fetchGTIPlot(event) {
         return;
       }
       if (response.plotDivs && response.plotDivs.length > 0) {
-        // Gets information on the plot type
-        // const NAME = NAME_REGEX.exec(response.plotDivs[0])[1]
-        //   .toLowerCase()
-        //   .replaceAll(' ', '-');
+        const plotType = $form.find('input[name="plot_type"]').val();
+        const obsID = $form.find('input[name="obs_id"]').val();
 
-        // Updates the plot with the GTIs
-        $('#plots').find(`[id*=${OBS_ID}]`).replaceWith(response.plotDivs[0]);
+        $(`#${plotType}-${obsID}`)
+          .find('.js-plotly-plot')
+          .replaceWith(response.plotDivs[0]);
+
+        MathJax.typeset();
       }
     },
-    error: function (xhr, _, error) {
+    error: function (xhr, status, error) {
       console.error('Error fetching GTI plot:', error);
       console.error('Server response:', xhr.responseText);
       alert('Error fetching GTI plot. Please try again.');
+    },
+    complete: function () {
+      $loadingIndicator.remove();
     },
   });
 }
