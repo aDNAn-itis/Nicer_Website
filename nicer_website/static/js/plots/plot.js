@@ -1,8 +1,16 @@
 import { columnLayout, dropdowns } from './utils/utils.js';
-import { displayInfo, handleMultipleObservations } from './components/observationInfo.js';
-import { showPlotSelectionPopup, fetchGraphPlots, removePlots } from './components/graph.js';
+import {
+  displayInfo,
+  handleMultipleObservations,
+} from './components/observationInfo.js';
+import {
+  showPlotSelectionPopup,
+  fetchGraphPlots,
+  removePlots,
+} from './components/graph.js';
 import { fetchGTIPlot, combineAndPlotGTIs } from './components/gtiPlots.js';
 import { fetchOptions, addOption } from './components/dropdowns.js';
+import { downloadData } from './components/download.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize dropdowns
@@ -16,13 +24,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#add-obs').submit(function (event) {
     // Prepare form data
-    $('#options').find('input:checked').each(function () {
-      $('#add-obs').append($('<input>', {
-        type: 'hidden',
-        name: $(this).attr('name'),
-        value: $(this).val()
-      }));
-    });
+    $('#options')
+      .find('input:checked')
+      .each(function () {
+        $('#add-obs').append(
+          $('<input>', {
+            type: 'hidden',
+            name: $(this).attr('name'),
+            value: $(this).val(),
+          }),
+        );
+      });
 
     event.preventDefault();
     fetchGraphPlots(false, event);
@@ -75,5 +87,42 @@ document.addEventListener('DOMContentLoaded', () => {
   $(document).on('click', '.plot-button', function () {
     const obsID = $(this).data('obs-id');
     showPlotSelectionPopup(obsID);
+  });
+
+  $(document).on('click', '.download-data', function () {
+    const dataType = $(this).data('type');
+    const obsId = $(this).data('obs-id');
+    const gtiNum = $(this).closest('tr').data('gti')?.replace('GTI', '');
+
+    console.log('Download clicked:', { dataType, obsId, gtiNum }); // Debug log
+
+    if (dataType === 'gti' && gtiNum) {
+      downloadData(dataType, obsId, null, [gtiNum]);
+    } else {
+      downloadData(dataType, obsId);
+    }
+  });
+
+  // Update the GTI checkbox handler to show/hide action buttons
+  $(document).on('change', '.gti-checkbox', function () {
+    const $table = $(this).closest('table');
+    const hasChecked = $table.find('.gti-checkbox:checked').length > 0;
+    $table.siblings('.selected-gti-actions').toggle(hasChecked);
+  });
+
+  // Handle downloading selected GTIs
+  $(document).on('click', '.download-selected-gtis', function () {
+    const $table = $(this).closest('.obs-info-container').find('table');
+    const obsId = $table.find('tr:first').data('obs-id');
+    const selectedGtis = [];
+
+    $table.find('.gti-checkbox:checked').each(function () {
+      const gtiNum = $(this).closest('tr').data('gti').replace('GTI', '');
+      selectedGtis.push(gtiNum);
+    });
+
+    if (selectedGtis.length > 0) {
+      downloadData('gti', obsId, null, selectedGtis);
+    }
   });
 });

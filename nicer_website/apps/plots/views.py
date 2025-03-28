@@ -5,18 +5,25 @@ import os
 import re
 import logging as log
 from typing import Any
+from pathlib import Path
+import tempfile
+import zipfile
 
 import numpy as np
 from django.conf import settings
 from django.shortcuts import render
 from django.db.models import QuerySet
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse, FileResponse
 
 from nicer_website.apps.file_mgr.models import Item
 from src.utils.spectrum_preprocessing import spectrum_plot
 from src.utils.light_curve_preprocessing import light_curve_plot
 from src.utils.power_density_processing import get_pds_data_and_plot
 from src.utils.hardness_intensity_preprocessing import get_hid_data_and_plot
+
+import logging
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 
 # Log axis
@@ -444,3 +451,132 @@ def interactive_plot(request: HttpRequest) -> HttpResponse:
     return render(request, 'plots/plot.html', {
         'plot_divs': None,
     })
+
+def download_data(request):
+    """Handle data downloads for observations and GTIs"""
+    data_type = request.GET.get('type')
+    obs_id = request.GET.get('obs_id')
+    gti_numbers = request.GET.get('gti_numbers')
+
+    logger.info(f"Download request - Type: {data_type}, OBS_ID: {obs_id}, GTI: {gti_numbers}")
+
+    if not obs_id:
+        return HttpResponse('OBS_ID is required', status=400)
+
+    try:
+        base_path = Path(settings.DATA_DIR)
+        
+        if data_type == 'gti':
+            jspipe_dir = base_path / obs_id / 'jspipe'
+            
+            if not jspipe_dir.exists():
+                return HttpResponse(f'Directory not found: {jspipe_dir}', status=404)
+
+            if gti_numbers:
+                gti_num = gti_numbers.split(',')[0]  # Get the first GTI number
+                logger.info(f"Looking for GTI{gti_num} files")
+                
+                # Use strict pattern matching for GTI files
+                matching_files = []
+                for file in jspipe_dir.glob(f'js_ni{obs_id}*_GTI{gti_num}'):
+                    if f'_GTI{gti_num}' in str(file):
+                        matching_files.append(file)
+                
+                logger.info(f"Found files: {matching_files}")
+                
+                if not matching_files:
+                    return HttpResponse(f'No files found for GTI{gti_num}', status=404)
+                
+                # If single file, return it directly
+                if len(matching_files) == 1:
+                    return FileResponse(
+                        open(str(matching_files[0]), 'rb'),
+                        as_attachment=True,
+                        filename=matching_files[0].name
+                    )
+                
+                # If multiple files, create a zip
+                with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+                    with zipfile.ZipFile(tmp.name, 'w') as archive:
+                        for file in matching_files:
+                            archive.write(str(file), file.name)
+                    
+                    return FileResponse(
+                        open(tmp.name, 'rb'),
+                        as_attachment=True,
+                        filename=f'{obs_id}_GTI{gti_num}.zip'
+                    )
+            else:
+                # If no GTI specified, return all GTI files
+                return create_gti_archive(obs_id, [], base_path)
+        
+        elif data_type == 'obs':
+            return create_obs_archive(obs_id, base_path)
+        
+        else:
+            return HttpResponse('Invalid data type', status=400)
+
+    except Exception as e:
+        logger.exception("Error in download_data")
+        return HttpResponse(f'Error: {str(e)}', status=500)
+
+    # Fallback response if somehow we get here
+    return HttpResponse('Invalid request', status=400)
+
+def create_gti_archive(obs_id, gti_list, base_path):
+    """Create a zip archive of GTI files"""
+    logger.info(f"Creating GTI archive for OBS_ID {obs_id}, GTIs: {gti_list}")
+    
+    jspipe_dir = base_path / obs_id / 'jspipe'
+    
+    if not jspipe_dir.exists():
+        return HttpResponse(f'Directory not found: {jspipe_dir}', status=404)
+
+    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+        with zipfile.ZipFile(tmp.name, 'w') as archive:
+            files_added = False
+            
+            if not gti_list:
+                # Get all GTI files
+                for file in jspipe_dir.glob(f'js_ni{obs_id}*_GTI*'):
+                    logger.info(f"Adding file to archive: {file}")
+                    archive.write(str(file), file.name)
+                    files_added = True
+            else:
+                # Add files for specific GTIs
+                for gti_num in gti_list:
+                    for file in jspipe_dir.glob(f'js_ni{obs_id}*_GTI{gti_num}'):
+                        if f'_GTI{gti_num}' in str(file):
+                            logger.info(f"Adding file to archive: {file}")
+                            archive.write(str(file), file.name)
+                            files_added = True
+
+            if not files_added:
+                return HttpResponse('No GTI files found', status=404)
+
+        return FileResponse(
+            open(tmp.name, 'rb'),
+            as_attachment=True,
+            filename=f'{obs_id}_GTI_{"-".join(gti_list) if gti_list else "all"}.zip'
+        )
+
+def create_obs_archive(obs_id, base_path):
+    """Create a zip archive of an entire observation"""
+    obs_path = base_path / obs_id
+    
+    if not obs_path.exists():
+        return HttpResponse('Observation not found', status=404)
+
+    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+        with zipfile.ZipFile(tmp.name, 'w') as archive:
+            for root, _, files in os.walk(str(obs_path)):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    archive_path = os.path.relpath(file_path, str(obs_path))
+                    archive.write(file_path, archive_path)
+
+        return FileResponse(
+            open(tmp.name, 'rb'),
+            as_attachment=True,
+            filename=f'{obs_id}_full.zip'
+        )
