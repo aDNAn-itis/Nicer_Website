@@ -3,6 +3,7 @@ export async function downloadData(
   obsId,
   filePath = null,
   gtiNumbers = null,
+  quality
 ) {
   try {
     console.log('Download called with:', {
@@ -10,11 +11,13 @@ export async function downloadData(
       obsId,
       filePath,
       gtiNumbers,
-    }); // Debug log
+      quality
+    }); 
 
     const params = new URLSearchParams({
       type: dataType,
       obs_id: obsId,
+      quality: quality
     });
     if (filePath) {
       params.append('file_path', filePath);
@@ -23,7 +26,6 @@ export async function downloadData(
       params.append('gti_numbers', gtiNumbers.join(','));
     }
 
-    console.log('Request URL params:', params.toString()); // Debug log
 
     const response = await fetch(`/plots/download?${params}`);
 
@@ -36,7 +38,6 @@ export async function downloadData(
       );
     }
 
-    // Get filename from Content-Disposition header
     const contentDisposition = response.headers.get('Content-Disposition');
     const filename = contentDisposition
       ? contentDisposition.split('filename=')[1].replace(/"/g, '')
@@ -44,9 +45,6 @@ export async function downloadData(
           gtiNumbers ? '_GTI_' + gtiNumbers.join('-') : ''
         }.fits`;
 
-    console.log(`Downloading file: ${filename}`);
-
-    // Create blob and trigger download
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');

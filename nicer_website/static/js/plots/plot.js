@@ -13,17 +13,14 @@ import { fetchOptions, addOption } from './components/dropdowns.js';
 import { downloadData } from './components/download.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize dropdowns
   dropdowns();
 
-  // Event handlers for form submissions
   $('#plot-graph').submit(function (event) {
     event.preventDefault();
     fetchGraphPlots(true, event);
   });
 
   $('#add-obs').submit(function (event) {
-    // Prepare form data
     $('#options')
       .find('input:checked')
       .each(function () {
@@ -40,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchGraphPlots(false, event);
   });
 
-  // Search input handlers
   $('#observation-search').keyup(function () {
     fetchOptions(`obs_id=${this.value}`, $('#obs-id-dropdown'));
   });
@@ -53,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchOptions(`source=${this.value}`, $('#source-name-dropdown'));
   });
 
-  // UI toggle handlers
   $('#add-obs-btn').click(function () {
     $('#add-obs-dropdown').toggle();
   });
@@ -71,7 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#quality-select').val(this.textContent);
   });
 
-  // Dynamic event handlers
   $(document).on('submit', '.fetch-gti', function (event) {
     fetchGTIPlot(event);
   });
@@ -93,28 +87,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const dataType = $(this).data('type');
     const obsId = $(this).data('obs-id');
     const gtiNum = $(this).closest('tr').data('gti')?.replace('GTI', '');
-
-    console.log('Download clicked:', { dataType, obsId, gtiNum }); // Debug log
+    const quality = $('#quality-select').val();
 
     if (dataType === 'gti' && gtiNum) {
-      downloadData(dataType, obsId, null, [gtiNum]);
+      downloadData(dataType, obsId, null, [gtiNum], quality);
     } else {
-      downloadData(dataType, obsId);
+      downloadData(dataType, obsId, null, null, quality);
     }
   });
 
-  // Update the GTI checkbox handler to show/hide action buttons
   $(document).on('change', '.gti-checkbox', function () {
     const $table = $(this).closest('table');
     const hasChecked = $table.find('.gti-checkbox:checked').length > 0;
     $table.siblings('.selected-gti-actions').toggle(hasChecked);
   });
 
-  // Handle downloading selected GTIs
   $(document).on('click', '.download-selected-gtis', function () {
     const $table = $(this).closest('.obs-info-container').find('table');
     const obsId = $table.find('tr:first').data('obs-id');
     const selectedGtis = [];
+    const quality = $('#quality-select').val();
 
     $table.find('.gti-checkbox:checked').each(function () {
       const gtiNum = $(this).closest('tr').data('gti').replace('GTI', '');
@@ -122,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (selectedGtis.length > 0) {
-      downloadData('gti', obsId, null, selectedGtis);
+      downloadData('gti', obsId, null, selectedGtis, quality);
     }
   });
 });
