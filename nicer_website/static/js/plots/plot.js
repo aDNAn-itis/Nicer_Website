@@ -11,8 +11,20 @@ import {
 import { fetchGTIPlot, combineAndPlotGTIs } from './components/gtiPlots.js';
 import { fetchOptions, addOption } from './components/dropdowns.js';
 import { downloadData } from './components/download.js';
+import {
+  initSynchronizedSelection,
+  updateAllSelections,
+} from './components/syncSelection.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Ensure jQuery is loaded
+  if (typeof $ === 'undefined') {
+    console.error(
+      'jQuery is not loaded. Cannot initialize synchronized selection.',
+    );
+    return;
+  }
+
   dropdowns();
 
   $('#plot-graph').submit(function (event) {
@@ -115,6 +127,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (selectedGtis.length > 0) {
       downloadData('gti', obsId, null, selectedGtis, quality);
+    }
+  });
+
+  // Initialize synchronized selection when new plots are loaded
+  $(document).ajaxComplete(function (event, xhr, settings) {
+    if (
+      settings.url.includes('plot_data') ||
+      settings.url.includes('plot_gti')
+    ) {
+      // First attempt with short delay
+      setTimeout(() => {
+        // Ensure global Plotly object is available
+        if (typeof Plotly !== 'undefined') {
+          console.log('First attempt initializing synchronized selection...');
+          initSynchronizedSelection();
+        } else {
+          console.error(
+            'Plotly is not loaded. Cannot initialize synchronized selection.',
+          );
+        }
+      }, 500);
+
+      // Second attempt with longer delay to ensure plots are fully rendered
+      setTimeout(() => {
+        if (typeof Plotly !== 'undefined') {
+          console.log('Second attempt initializing synchronized selection...');
+          initSynchronizedSelection();
+          updateAllSelections();
+        }
+      }, 1000);
+
+      // Final attempt with even longer delay
+      setTimeout(() => {
+        if (typeof Plotly !== 'undefined') {
+          console.log('Final attempt initializing synchronized selection...');
+          initSynchronizedSelection();
+          updateAllSelections();
+        }
+      }, 2000);
     }
   });
 });
