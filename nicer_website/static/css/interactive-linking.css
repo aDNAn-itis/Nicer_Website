@@ -1,0 +1,61 @@
+/**
+ * Styles for interactive linking between plots
+ */
+
+/* Highlighted points on spectrum plot */
+.spectrum-highlight-point {
+  stroke-width: 2px;
+  stroke: #ff4136;
+}
+
+/* Highlighted points on light curve plot */
+.lightcurve-highlight-point {
+  stroke-width: 2px;
+  stroke: #0074d9;
+}
+
+/* Tooltip that appears on hover over highlighted points */
+.highlight-tooltip {
+  position: absolute;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-width: 200px;
+}
+
+/* Visual indicator that interactive linking is active */
+.interactive-linking-active::after {
+  content: 'Interactive Linking Active';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(255, 65, 54, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Show indicator when linking is active and mouse is over the plot */
+.interactive-linking-active:hover::after {
+  opacity: 1;
+}
+
+/* Style for dimmed (non-highlighted) points */
+.dimmed-point {
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+/* Make dimmed points slightly more visible on hover for context */
+.dimmed-point:hover {
+  opacity: 0.6;
+}

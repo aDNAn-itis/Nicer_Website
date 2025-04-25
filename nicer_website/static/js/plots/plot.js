@@ -15,6 +15,10 @@ import {
   initSynchronizedSelection,
   updateAllSelections,
 } from './components/syncSelection.js';
+import {
+  initInteractiveLinking,
+  diagnosePlotlyGraphs,
+} from './components/interactiveLinking.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Ensure jQuery is loaded
@@ -136,36 +140,114 @@ document.addEventListener('DOMContentLoaded', () => {
       settings.url.includes('plot_data') ||
       settings.url.includes('plot_gti')
     ) {
+      // Use a flag to track if we've successfully initialized
+      let initialized = false;
+
       // First attempt with short delay
       setTimeout(() => {
+        if (initialized) return;
+
         // Ensure global Plotly object is available
         if (typeof Plotly !== 'undefined') {
-          console.log('First attempt initializing synchronized selection...');
-          initSynchronizedSelection();
+          console.log('First attempt initializing interactive features...');
+
+          const plots = document.querySelectorAll('.js-plotly-plot');
+          if (plots.length > 0) {
+            // Only initialize if not already initialized
+            const alreadyInitialized = Array.from(plots).some(
+              (plot) =>
+                plot.getAttribute('data-interactive-linking') === 'true',
+            );
+
+            if (!alreadyInitialized) {
+              initSynchronizedSelection();
+              initInteractiveLinking();
+              initialized = true;
+            } else {
+              console.log('Interactive features already initialized, skipping');
+              initialized = true;
+            }
+          }
         } else {
           console.error(
-            'Plotly is not loaded. Cannot initialize synchronized selection.',
+            'Plotly is not loaded. Cannot initialize interactive features.',
           );
         }
       }, 500);
 
-      // Second attempt with longer delay to ensure plots are fully rendered
+      // Second attempt only if first failed
       setTimeout(() => {
+        if (initialized) return;
+
         if (typeof Plotly !== 'undefined') {
-          console.log('Second attempt initializing synchronized selection...');
-          initSynchronizedSelection();
-          updateAllSelections();
+          console.log('Second attempt initializing interactive features...');
+
+          const plots = document.querySelectorAll('.js-plotly-plot');
+          if (plots.length > 0 && !initialized) {
+            initSynchronizedSelection();
+            updateAllSelections();
+            initInteractiveLinking();
+            initialized = true;
+          }
         }
       }, 1000);
-
-      // Final attempt with even longer delay
-      setTimeout(() => {
-        if (typeof Plotly !== 'undefined') {
-          console.log('Final attempt initializing synchronized selection...');
-          initSynchronizedSelection();
-          updateAllSelections();
-        }
-      }, 2000);
     }
   });
+
+  // Make diagnostic function available globally
+  window.diagnosePlotlyGraphs = diagnosePlotlyGraphs;
+});
+
+// Initialize interactive linking feature when plots are added
+$(document).on('DOMNodeInserted', function (e) {
+  // Only process if inserted node contains a plotly graph
+  if (
+    $(e.target).find('.js-plotly-plot').length > 0 ||
+    $(e.target).hasClass('js-plotly-plot')
+  ) {
+    // Allow DOM to fully render
+    setTimeout(() => {
+      // Initialize only if not already initialized
+      const plots = document.querySelectorAll('.js-plotly-plot');
+      const initialized = Array.from(plots).some(
+        (plot) => plot.getAttribute('data-interactive-linking') === 'true',
+      );
+
+      if (!initialized) {
+        console.log('Initializing interactive linking after DOM insertion');
+        initInteractiveLinking();
+      }
+    }, 500);
+  }
+});
+
+// Add a global fallback click handler for plots
+$(document).on('click', '.js-plotly-plot', function (event) {
+  // Only handle if it appears we don't have working interactive linking
+  if (this.getAttribute('data-interactive-linking') !== 'true') {
+    const plots = document.querySelectorAll('.js-plotly-plot');
+    // Only attempt if we haven't tried to initialize yet
+    if (plots.length >= 2 && !window.interactiveLinkingAttempted) {
+      console.log(
+        'Attempting to initialize interactive linking from global handler',
+      );
+      window.interactiveLinkingAttempted = true;
+      initInteractiveLinking();
+    }
+  }
+});
+
+// Listen for our custom plotly_direct_click event
+$(document).on('plotly_direct_click', function (e) {
+  // Only try to initialize interactive linking if not already done
+  if (!window.interactiveLinkingAttempted) {
+    const plots = document.querySelectorAll('.js-plotly-plot');
+    if (plots.length >= 2) {
+      console.log(
+        'Attempting to initialize interactive linking from direct click event',
+      );
+      window.interactiveLinkingAttempted = true;
+      initInteractiveLinking();
+    }
+  }
 });

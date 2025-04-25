@@ -6,6 +6,7 @@ import {
   updateAllSelections,
   initSynchronizedSelection,
 } from './syncSelection.js';
+import { initInteractiveLinking } from './interactiveLinking.js';
 
 export function fetchGTIPlot(event) {
   event.preventDefault();
@@ -61,6 +62,8 @@ export function fetchGTIPlot(event) {
           initSynchronizedSelection();
           // Then apply any existing selections
           updateAllSelections();
+          // Initialize interactive linking
+          initInteractiveLinking();
         }, 500);
       }
     },

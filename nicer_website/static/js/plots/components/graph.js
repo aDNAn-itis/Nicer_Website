@@ -4,6 +4,7 @@ import {
   updateAllSelections,
   initSynchronizedSelection,
 } from './syncSelection.js';
+import { initInteractiveLinking } from './interactiveLinking.js';
 
 /**
  *  CSS styles for the popup to the document head
@@ -412,6 +413,8 @@ export function fetchGraphPlots(refresh = false, event) {
           initSynchronizedSelection();
           // Then update any existing selections
           updateAllSelections();
+          // Initialize interactive linking between spectrum and light curve
+          initInteractiveLinking();
         }, 800);
       }
 

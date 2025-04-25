@@ -1,5 +1,6 @@
 {% extends 'base.html' %} {% load static %} {% block head %}
 <link rel="stylesheet" href="{% static '/css/plot.css' %}" />
+<link rel="stylesheet" href="{% static '/css/interactive-linking.css' %}" />
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
@@ -30,14 +31,26 @@
     <!-- Observation ID and Source Name Inputs -->
     <div class="column">
       <div class="dropdown" id="obs-id-dropdown">
-        <input id="observation-search" class="dropdown-field" name="obs_id" type="text" value="{{ obsID }}"
-          placeholder="Observation ID..." />
+        <input
+          id="observation-search"
+          class="dropdown-field"
+          name="obs_id"
+          type="text"
+          value="{{ obsID }}"
+          placeholder="Observation ID..."
+        />
         <div id="observation-options" class="dropdown-content"></div>
       </div>
 
       <div class="dropdown" id="source-name-dropdown" style="display: none">
-        <input id="source-search" class="dropdown-field" name="source" type="text" value="{{ sourceName }}"
-          placeholder="Source Name..." />
+        <input
+          id="source-search"
+          class="dropdown-field"
+          name="source"
+          type="text"
+          value="{{ sourceName }}"
+          placeholder="Source Name..."
+        />
         <div id="source-options" class="dropdown-content"></div>
       </div>
     </div>
@@ -45,8 +58,15 @@
     <!-- Quality Dropdown -->
     <div class="column">
       <div class="dropdown">
-        <input id="quality-select" class="dropdown-field" name="quality" type="text" value="{{ quality }}"
-          placeholder="Quality..." readonly="true" />
+        <input
+          id="quality-select"
+          class="dropdown-field"
+          name="quality"
+          type="text"
+          value="{{ quality }}"
+          placeholder="Quality..."
+          readonly="true"
+        />
         <div class="dropdown-content">
           <button class="change-quality" type="button" name="goddard">Goddard</button>
           <button class="change-quality" type="button" name="gold">Gold</button>
@@ -91,13 +111,23 @@
       </div>
       <div class="column">
         <label for="ushoot_net_rate">Undershoot</label>
-        <input id="ushoot_net_rate" class="dropdown-field" name="ushoot_net_rate" type="text"
-          placeholder="Undershoot..." />
+        <input
+          id="ushoot_net_rate"
+          class="dropdown-field"
+          name="ushoot_net_rate"
+          type="text"
+          placeholder="Undershoot..."
+        />
       </div>
       <div class="column">
         <label for="oshoot_net_rate">Overshoot</label>
-        <input id="oshoot_net_rate" class="dropdown-field" name="oshoot_net_rate" type="text"
-          placeholder="Overshoot..." />
+        <input
+          id="oshoot_net_rate"
+          class="dropdown-field"
+          name="oshoot_net_rate"
+          type="text"
+          placeholder="Overshoot..."
+        />
       </div>
     </div>
   </div>
@@ -115,8 +145,14 @@
   {% csrf_token %}
   <button id="add-obs-btn" type="button">Add Another Observation</button>
   <div id="add-obs-dropdown" class="hide dropdown">
-    <input id="additional-observation-search" class="dropdown-field" name="obs_id" type="text" value="{{ obsID }}"
-      placeholder="Enter Observation ID..." />
+    <input
+      id="additional-observation-search"
+      class="dropdown-field"
+      name="obs_id"
+      type="text"
+      value="{{ obsID }}"
+      placeholder="Enter Observation ID..."
+    />
     <div class="dropdown-content"></div>
     <button type="submit">Add</button>
   </div>
