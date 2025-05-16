@@ -29,7 +29,7 @@ input {
   padding: 6px;
 }
 
-input[type="checkbox"] {
+input[type='checkbox'] {
   appearance: none;
   border: 1px solid var(--border-color);
   position: relative;
@@ -37,9 +37,9 @@ input[type="checkbox"] {
   width: 1em;
 }
 
-input[type="checkbox"]:before {
+input[type='checkbox']:before {
   background-color: #333;
-  content: "";
+  content: '';
   height: 0.6em;
   left: 50%;
   opacity: 0;
@@ -50,22 +50,22 @@ input[type="checkbox"]:before {
   width: 0.6em;
 }
 
-input[type="checkbox"]:checked:before {
+input[type='checkbox']:checked:before {
   opacity: 1;
 }
 
-input[type="range"] {
+input[type='range'] {
   padding: 0px;
   width: 100%;
 }
 
-input[type="text"] {
+input[type='text'] {
   margin-bottom: 3px;
   transition-delay: 200ms;
   width: 100%;
 }
 
-input[type="text"]:focus {
+input[type='text']:focus {
   border-bottom: 3px solid var(--border-color);
   margin-bottom: 0px;
   outline: none;
@@ -83,7 +83,8 @@ table {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-td, th {
+td,
+th {
   border: 1px solid var(--row-border);
   padding: 12px 16px;
 }
@@ -183,7 +184,7 @@ th label {
 /* Empty cell handling */
 .info-table td:empty::before,
 .gti-table td:empty::before {
-  content: "-";
+  content: '-';
   color: #999;
 }
 
@@ -208,10 +209,9 @@ th label {
   position: relative;
 }
 
-.column:has(button[type="submit"]) {
+.column:has(button[type='submit']) {
   display: flex;
 }
-
 
 .checkboxes {
   align-items: center;
@@ -253,11 +253,27 @@ th label {
     width: 100%;
   }
 
-  .info-table, .gti-table {
+  .info-table,
+  .gti-table {
     font-size: 12px;
   }
 
-  td, th {
+  td,
+  th {
     padding: 8px;
   }
+}
+
+/* GTI Selection styles */
+.gti-selected {
+  opacity: 1 !important;
+}
+
+.gti-dimmed {
+  opacity: 0.2 !important;
+}
+
+/* Add transition for smooth opacity changes */
+.js-plotly-plot .trace {
+  transition: opacity 0.3s ease-in-out;
 }

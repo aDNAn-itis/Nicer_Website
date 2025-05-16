@@ -49,6 +49,8 @@ def data_plot(
         Additional keyword arguments to pass to go.Scatter
     layout_kwargs : Optional[dict]
         Additional keyword arguments to pass to fig.update_layout
+    gti_labels : Optional[List[str]]
+        List of labels for each GTI
 
     Returns
     -------
@@ -85,10 +87,10 @@ def data_plot(
             'x': x_data,
             'y': y_data,
             'mode': plot_type,
-            # 'name': f'GTI{number}',
             'name': label,
-            'opacity': 0.8,
+            'opacity': 1.0,  # Default opacity
             'line': {'color': color},
+            'marker': {'color': color, 'opacity': 1.0},  # Default marker opacity
             'legendgroup': number,
         }
 
@@ -106,7 +108,8 @@ def data_plot(
                     'color': color_data,
                     'colorscale': 'Viridis',
                     'colorbar': {'title': layout_kwargs.get('colorbar_title', 'Time')},
-                    'showscale': True
+                    'showscale': True,
+                    'opacity': 1.0  # Default marker opacity
                 }
             })
 
@@ -121,7 +124,6 @@ def data_plot(
                 x=x_background,
                 y=background,
                 mode='lines',
-                # name=f'GTI{number} BG',
                 name=f'{label} BG',
                 opacity=0.8,
                 line={'color': color},
