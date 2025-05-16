@@ -7,6 +7,366 @@ import {
   initSynchronizedSelection,
 } from './syncSelection.js';
 
+/**
+ * Shows a popup for selecting which plot types to generate for selected GTIs
+ * @param {string} obsID The observation ID
+ * @param {Array} selectedGTIs Array of selected GTI numbers
+ */
+function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
+  // Add CSS styles if they don't exist
+  if (!document.getElementById('popup-styles')) {
+    const styles = `
+      .popup-container {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        animation: fadeIn 0.3s ease-out;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      @keyframes slideIn {
+        from { transform: translateY(-50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      
+      .popup-content {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 500px;
+        padding: 0;
+        position: relative;
+        animation: slideIn 0.3s ease-out;
+      }
+      
+      .popup-title {
+        background-color: #505050;
+        color: white;
+        padding: 15px 20px;
+        font-size: 18px;
+        font-weight: bold;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .popup-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        margin: 0;
+        line-height: 1;
+        transition: transform 0.2s;
+      }
+      
+      .popup-close:hover {
+        transform: scale(1.2);
+      }
+      
+      .plot-type-form {
+        padding: 20px;
+        background-color: #f5f5f5;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+      }
+      
+      .plot-option {
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+      }
+      
+      .plot-option input[type="checkbox"] {
+        margin-right: 10px;
+        width: 18px;
+        height: 18px;
+      }
+      
+      .plot-option label {
+        font-size: 16px;
+        cursor: pointer;
+        color: #333;
+      }
+      
+      .plot-submit-btn {
+        background-color: #666666;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-size: 16px;
+        cursor: pointer;
+        margin-top: 10px;
+        transition: background-color 0.2s;
+        width: 100%;
+      }
+      
+      .plot-submit-btn:hover {
+        background-color: #555555;
+      }
+      
+      .loading-indicator {
+        margin: 20px 0;
+        padding: 10px;
+        background-color: #f5f5f5;
+        border-left: 4px solid #666666;
+        border-radius: 4px;
+        color: #333;
+      }
+    `;
+    const styleSheet = document.createElement('style');
+    styleSheet.id = 'popup-styles';
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
+  }
+
+  // Create popup container if it doesn't exist
+  let $popup = $('#gti-plot-selection-popup');
+  if ($popup.length === 0) {
+    $popup = $('<div>', {
+      id: 'gti-plot-selection-popup',
+      class: 'popup-container',
+    });
+
+    const $content = $('<div>', {
+      class: 'popup-content',
+    });
+
+    const $title = $('<div>', {
+      class: 'popup-title',
+      text: 'Select Plot Types',
+    });
+
+    const $closeBtn = $('<button>', {
+      class: 'popup-close',
+      text: '×',
+    });
+
+    $title.append($closeBtn);
+    $content.append($title);
+    $popup.append($content);
+    $('body').append($popup);
+
+    // Setup close button and backdrop click to close popup
+    $popup.on('click', function (e) {
+      if (e.target === this) {
+        $popup.fadeOut(200);
+      }
+    });
+
+    $popup.on('click', '.popup-close', function () {
+      $popup.fadeOut(200);
+    });
+  }
+
+  // Update popup content
+  const $content = $popup.find('.popup-content');
+  $content
+    .find('.popup-title')
+    .text(`Select Plot Types for GTIs: ${selectedGTIs.join(', ')}`)
+    .append(
+      $('<button>', {
+        class: 'popup-close',
+        text: '×',
+      }),
+    );
+
+  // Remove any existing form
+  $content.find('form').remove();
+
+  // Create form for plot type selection
+  const $form = $('<form>', {
+    id: 'gti-plot-type-form',
+    class: 'plot-type-form',
+  });
+
+  // Add plot type options
+  const plotTypes = [
+    { id: 'spectrum', name: 'Spectrum' },
+    { id: 'light-curve', name: 'Light Curve' },
+    { id: 'power-density-spectrum', name: 'Power Density Spectrum' },
+    { id: 'hardness-intensity-diagram', name: 'Hardness Intensity Diagram' },
+  ];
+
+  plotTypes.forEach((type) => {
+    const $option = $('<div>', {
+      class: 'plot-option',
+    });
+
+    const $checkbox = $('<input>', {
+      type: 'checkbox',
+      id: `${type.id}-checkbox`,
+      name: type.id,
+      value: 'on',
+    });
+
+    const $label = $('<label>', {
+      for: `${type.id}-checkbox`,
+      text: type.name,
+    });
+
+    $option.append($checkbox);
+    $option.append($label);
+    $form.append($option);
+  });
+
+  // Add hidden fields
+  $form.append(
+    $('<input>', {
+      type: 'hidden',
+      name: 'obs_id',
+      value: obsID,
+    }),
+  );
+  $form.append(
+    $('<input>', {
+      type: 'hidden',
+      name: 'gti-search',
+      value: selectedGTIs.join(','),
+    }),
+  );
+
+  // Add submit button
+  const $submitBtn = $('<button>', {
+    type: 'submit',
+    class: 'plot-submit-btn',
+    text: 'Generate Plots',
+  });
+
+  $form.append($submitBtn);
+
+  // Handle form submission
+  $form.on('submit', function (event) {
+    event.preventDefault();
+    $popup.fadeOut(200);
+
+    // Get selected plot types
+    const selectedPlotTypes = [];
+    $form.find('input[type="checkbox"]:checked').each(function () {
+      selectedPlotTypes.push($(this).attr('id').replace('-checkbox', ''));
+    });
+
+    if (selectedPlotTypes.length === 0) {
+      alert('Please select at least one plot type');
+      return;
+    }
+
+    // Create a loading indicator
+    const $loadingIndicator = $('<div>', {
+      class: 'loading-indicator',
+      text: 'Generating plots...',
+    });
+    $form.append($loadingIndicator);
+
+    // Function to update a single plot
+    const updatePlot = (plotType) => {
+      let formData = new FormData();
+      formData.append('plot_type', plotType);
+      formData.append('obs_id', obsID);
+      formData.append('gti-search', selectedGTIs.join(','));
+      formData.append(
+        'csrfmiddlewaretoken',
+        $("input[name='csrfmiddlewaretoken']").val(),
+      );
+      formData.append('quality', $('#quality-select').val().toLowerCase());
+
+      return $.ajax({
+        type: 'POST',
+        url: PLOT_GTI_URL,
+        data: formData,
+        processData: false,
+        contentType: false,
+      });
+    };
+
+    // Update all selected plots
+    Promise.all(selectedPlotTypes.map(updatePlot))
+      .then((responses) => {
+        responses.forEach((response, index) => {
+          if (response.error) {
+            console.error('Server error:', response.error);
+            alert(response.error);
+            return;
+          }
+          if (response.plotDivs && response.plotDivs.length > 0) {
+            const plotType = selectedPlotTypes[index];
+            const plotID = `${plotType}-${obsID}`;
+
+            // Create plot section if it doesn't exist
+            let $section = $(`#${plotType}-section`);
+            if (!$section.length) {
+              $section = $('<div>', {
+                id: `${plotType}-section`,
+                class: 'plot-type-section',
+              });
+              $section.append(
+                $('<h3>', {
+                  text: plotType
+                    .split('-')
+                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' '),
+                }),
+              );
+              $('#plots').append($section);
+            }
+
+            // Create or update plot container
+            let $plotContainer = $(`#${plotID}`);
+            if (!$plotContainer.length) {
+              $plotContainer = $('<div>', {
+                id: plotID,
+                class: 'plot-container',
+              });
+              $section.append($plotContainer);
+            }
+
+            $plotContainer.html(response.plotDivs[0]);
+          }
+        });
+
+        MathJax.typeset();
+
+        // Update synchronized selections after all plots are updated
+        setTimeout(() => {
+          console.log(
+            'Reinitializing synchronized selection after GTI plot updates',
+          );
+          initSynchronizedSelection();
+          updateAllSelections();
+        }, 500);
+      })
+      .catch((error) => {
+        console.error('Error fetching GTI plots:', error);
+        alert('Error fetching GTI plots. Please try again.');
+      })
+      .finally(() => {
+        $loadingIndicator.remove();
+      });
+  });
+
+  $content.append($form);
+
+  // Show the popup with animation
+  $popup.css('display', 'flex').hide().fadeIn(300);
+}
+
 export function fetchGTIPlot(event) {
   event.preventDefault();
   const $form = $(event.target);
@@ -20,59 +380,84 @@ export function fetchGTIPlot(event) {
     });
   $form.find('input[name="gti-search"]').val(selectedGTIs.join(','));
 
-  let formData = $form.serialize();
-  formData += `&csrfmiddlewaretoken=${$(
-    "input[name='csrfmiddlewaretoken']",
-  ).val()}`;
-  formData += `&quality=${$('#quality-select').val().toLowerCase()}`;
+  // Get the observation ID
+  const obsID = $form.find('input[name="obs_id"]').val();
 
-  const $loadingIndicator = $('<div>', {
+  // Find all open plot types for this observation
+  const openPlotTypes = [];
+  $('.plot-type-section').each(function () {
+    const plotType = this.id.replace('-section', '');
+    if ($(`#${plotType}-${obsID}`).length > 0) {
+      openPlotTypes.push(plotType);
+    }
+  });
+
+  // If no plots are open, show the plot selection popup
+  if (openPlotTypes.length === 0) {
+    showGTIPlotSelectionPopup(obsID, selectedGTIs);
+    return;
+  }
+
+  // Create a loading indicator for each open plot
+  const $loadingIndicators = $('<div>', {
     class: 'loading-indicator',
-    text: 'Generating plot...',
+    text: 'Generating plots...',
   });
-  $form.append($loadingIndicator);
+  $form.append($loadingIndicators);
 
-  $.ajax({
-    type: 'POST',
-    url: PLOT_GTI_URL,
-    data: formData,
-    success: function (response) {
-      if (response.error) {
-        console.error('Server error:', response.error);
-        alert(response.error);
-        return;
-      }
-      if (response.plotDivs && response.plotDivs.length > 0) {
-        const plotType = $form.find('input[name="plot_type"]').val();
-        const obsID = $form.find('input[name="obs_id"]').val();
+  // Function to update a single plot
+  const updatePlot = (plotType) => {
+    let formData = $form.serialize();
+    formData = formData.replace(/plot_type=[^&]+/, `plot_type=${plotType}`);
+    formData += `&csrfmiddlewaretoken=${$(
+      "input[name='csrfmiddlewaretoken']",
+    ).val()}`;
+    formData += `&quality=${$('#quality-select').val().toLowerCase()}`;
 
-        $(`#${plotType}-${obsID}`)
-          .find('.js-plotly-plot')
-          .replaceWith(response.plotDivs[0]);
+    return $.ajax({
+      type: 'POST',
+      url: PLOT_GTI_URL,
+      data: formData,
+    });
+  };
 
-        MathJax.typeset();
+  // Update all open plots
+  Promise.all(openPlotTypes.map(updatePlot))
+    .then((responses) => {
+      responses.forEach((response, index) => {
+        if (response.error) {
+          console.error('Server error:', response.error);
+          alert(response.error);
+          return;
+        }
+        if (response.plotDivs && response.plotDivs.length > 0) {
+          const plotType = openPlotTypes[index];
+          const $plotContainer = $(`#${plotType}-${obsID}`);
 
-        // Update synchronized selections after plot update with larger delay
-        setTimeout(() => {
-          console.log(
-            'Reinitializing synchronized selection after GTI plot update',
-          );
-          // First reinitialize for the new plot
-          initSynchronizedSelection();
-          // Then apply any existing selections
-          updateAllSelections();
-        }, 500);
-      }
-    },
-    error: function (xhr, status, error) {
-      console.error('Error fetching GTI plot:', error);
-      console.error('Server response:', xhr.responseText);
-      alert('Error fetching GTI plot. Please try again.');
-    },
-    complete: function () {
-      $loadingIndicator.remove();
-    },
-  });
+          $plotContainer
+            .find('.js-plotly-plot')
+            .replaceWith(response.plotDivs[0]);
+        }
+      });
+
+      MathJax.typeset();
+
+      // Update synchronized selections after all plots are updated
+      setTimeout(() => {
+        console.log(
+          'Reinitializing synchronized selection after GTI plot updates',
+        );
+        initSynchronizedSelection();
+        updateAllSelections();
+      }, 500);
+    })
+    .catch((error) => {
+      console.error('Error fetching GTI plots:', error);
+      alert('Error fetching GTI plots. Please try again.');
+    })
+    .finally(() => {
+      $loadingIndicators.remove();
+    });
 }
 
 /**
