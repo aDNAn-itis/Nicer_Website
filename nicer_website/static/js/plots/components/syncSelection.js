@@ -12,6 +12,7 @@
 const PLOT_UNIT_TYPES = {
   'light-curve': 'time', // x-axis is time (seconds)
   spectrum: 'energy', // x-axis is energy (keV)
+  'summed-spectrum': 'energy', // x-axis is energy (keV)
   'power-density-spectrum': 'frequency', // x-axis is frequency (Hz)
   'hardness-intensity-diagram': 'hardness', // x-axis is hardness ratio
 };

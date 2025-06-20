@@ -200,6 +200,7 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
   // Add plot type options
   const plotTypes = [
     { id: 'spectrum', name: 'Spectrum' },
+    { id: 'summed-spectrum', name: 'Summed Spectrum' },
     { id: 'light-curve', name: 'Light Curve' },
     { id: 'power-density-spectrum', name: 'Power Density Spectrum' },
     { id: 'hardness-intensity-diagram', name: 'Hardness Intensity Diagram' },

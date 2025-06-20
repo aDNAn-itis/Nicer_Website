@@ -3,6 +3,7 @@ Main functions for backend functionality of the interactive plot page
 """
 import os
 import re
+import time
 import logging as log
 from typing import Any
 from pathlib import Path
@@ -20,6 +21,7 @@ from src.utils.spectrum_preprocessing import spectrum_plot
 from src.utils.light_curve_preprocessing import light_curve_plot
 from src.utils.power_density_processing import get_pds_data_and_plot
 from src.utils.hardness_intensity_preprocessing import get_hid_data_and_plot
+from src.utils.summed_spectrum_preprocessing import summed_spectrum_plot
 
 import logging
 logger: logging.Logger = logging.getLogger(__name__)
@@ -37,6 +39,12 @@ PLOTS: dict[str, dict[str, Any]] = {
         'min_value': None,  # Default min_value for spectrum
         'file_type': '.jsgrp',
         'function': spectrum_plot,
+    },
+    'summed_spectrum': {
+        'exists': False,
+        'min_value': None,  # Default min_value for summed spectrum
+        'file_type': '.jsgrp',
+        'function': summed_spectrum_plot,
     },
     'light_curve': {
         'exists': False,
@@ -246,15 +254,38 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'error': 'No data files could be selected for plotting.'}, status=404)
 
     logger.info(f"[plot_gti] Calling plotting function for '{plot_type}' with: min_value={min_value}, obs_id='{obs_id}', file_paths={final_file_paths_to_plot}, gti_numbers={final_gti_numbers_for_plot_func}")
+    
+    # Special handling for summed spectrum - use all available GTI files regardless of selection
+    if plot_type == 'summed_spectrum':
+        logger.info(f"[plot_gti] Summed spectrum detected - using all available GTI files instead of selection")
+        all_gti_files = []
+        all_gti_numbers = []
+        
+        for file_item in plot_specific_files_qs.order_by('name'):
+            file_path = os.path.join(full_dir_path_for_files, file_item.name)
+            all_gti_files.append(file_path)
+            # Extract GTI number from filename
+            gti_match = re.search(r'GTI(\d+)', file_item.name)
+            if gti_match:
+                all_gti_numbers.append(int(gti_match.group(1)))
+            else:
+                all_gti_numbers.append(0)  # fallback
+        
+        final_file_paths_to_plot = all_gti_files
+        final_gti_numbers_for_plot_func = all_gti_numbers
+        logger.info(f"[plot_gti] Summed spectrum using {len(all_gti_files)} GTI files: GTIs {all_gti_numbers}")
+    
     try:
         # The plotting function expects: min_value, obs_id, data_paths (list of full paths), gti_numbers (list of ints)
+        plot_function_start = time.time()
         plot_divs_html = PLOTS[plot_type]['function'](
             min_value, 
             obs_id, 
             final_file_paths_to_plot, 
             final_gti_numbers_for_plot_func
         )
-        logger.info(f"[plot_gti] Successfully generated plot divs for '{plot_type}'.")
+        plot_function_time = time.time() - plot_function_start
+        logger.info(f"[plot_gti] Successfully generated plot divs for '{plot_type}' in {plot_function_time:.3f}s.")
     except Exception as e:
         logger.exception(f"[plot_gti] Error during plot generation for '{plot_type}': {e}")
         return JsonResponse({'error': f'Error generating plot: {str(e)}'}, status=500)
@@ -393,20 +424,55 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             if plot_type.replace('_', '-') in request.POST:
             # if any(html_name for html_name, plot_key in html_to_plot_type.items()
                 #    if html_name in request.POST and plot_key == plot_type):
+                logger.info(f"[plot_data] Processing plot type: {plot_type}")
                 plot_info['exists'] = True
                 file_names = files.filter(name__contains=plot_info['file_type'])
                 file_names = file_names.exclude(name__regex=r'_BAND\d+')
                 if file_names:
-                    file_name = file_names.first().name
                     max_gti.append(len(file_names))
 
-                    plot_divs.append(plot_info['function'](
-                        plot_info['min_value'],
-                        obs_id,
-                        [dir_path + file_name],
-                        [0],
-                    ))
+                    plot_function_start = time.time()
+                    
+                    # Special handling for summed spectrum - include all GTI files
+                    if plot_type == 'summed_spectrum':
+                        # Get all GTI files for summed spectrum
+                        all_file_paths = []
+                        all_gti_numbers = []
+                        
+                        for file_item in file_names.order_by('name'):
+                            all_file_paths.append(dir_path + file_item.name)
+                            # Extract GTI number from filename
+                            gti_match = re.search(r'GTI(\d+)', file_item.name)
+                            if gti_match:
+                                all_gti_numbers.append(int(gti_match.group(1)))
+                            else:
+                                all_gti_numbers.append(0)  # fallback
+                        
+                        logger.info(f"[plot_data] Summed spectrum using {len(all_file_paths)} GTI files: GTIs {all_gti_numbers}")
+                        
+                        plot_div = plot_info['function'](
+                            plot_info['min_value'],
+                            obs_id,
+                            all_file_paths,
+                            all_gti_numbers,
+                        )
+                    else:
+                        # Regular handling for other plot types - use first file only
+                        file_name = file_names.first().name
+                        logger.info(f"[plot_data] Calling {plot_type} function with file: {file_name}")
+                        plot_div = plot_info['function'](
+                            plot_info['min_value'],
+                            obs_id,
+                            [dir_path + file_name],
+                            [0],
+                        )
+                    
+                    plot_function_time = time.time() - plot_function_start
+                    logger.info(f"[plot_data] {plot_type} function completed in {plot_function_time:.3f}s")
+                    
+                    plot_divs.append(plot_div)
                 else:
+                    logger.warning(f"[plot_data] No files found for plot type: {plot_type}")
                     max_gti.append(0)
 
     except AttributeError as error:
@@ -418,6 +484,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         'obsID': obs_id,
         'quality': quality,
         'spectrum': PLOTS['spectrum']['exists'],
+        'summedSpectrum': PLOTS['summed_spectrum']['exists'],
         'lightCurve': PLOTS['light_curve']['exists'],
         'powerSpectrum': PLOTS['power_density_spectrum']['exists'],
         'hardnessIntensity': PLOTS['hardness_intensity_diagram']['exists'],
