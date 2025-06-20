@@ -34,13 +34,13 @@ logger: logging.Logger = logging.getLogger(__name__)
 PLOTS: dict[str, dict[str, Any]] = {
     'spectrum': {
         'exists': False,
-        'min_value': None,
+        'min_value': None,  # Default min_value for spectrum
         'file_type': '.jsgrp',
         'function': spectrum_plot,
     },
     'light_curve': {
         'exists': False,
-        'min_value': 100,
+        'min_value': 100, # Default min_value for light_curve
         'file_type': '.lc.gz',
         'function': light_curve_plot,
     },
@@ -76,135 +76,190 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     JsonResponse
         Json response containing the plot as a list of the HTML element (plotDivs)
     """
-    gti: int | str
-    min_value: int | None
-    plot_divs: str
-    obs_id: str = request.POST.get('obs_id') or ''
-    quality: str = request.POST.get('quality')
-    plot_type: str = request.POST.get('plot_type').replace('-', '_')
-    dir_path: str = os.path.join(obs_id, 'jspipe/')
-    gti_query: str | list[str] = request.POST.get('gti-search')
-    gti_range: list[int]
-    gti_list: list[int | range] = []
-    file_names: list[str] = []
-    files: QuerySet
-    file_name: Item
+    # plot_divs: str # Defined later
+    obs_id: str = request.POST.get('obs_id', '')
+    quality: str = request.POST.get('quality', '')
+    plot_type_str: str = request.POST.get('plot_type', '')
+    gti_query_str: str = request.POST.get('gti-search', '')
+    requested_min_value_str = request.POST.get('min_value')
 
-    # min_value = int(request.POST.get('min_value') or PLOTS[plot_type]['min_value'])
-    requested_min_value = request.POST.get('min_value')
-    default_min_value = PLOTS[plot_type]['min_value'] if plot_type in PLOTS else None
-    if requested_min_value is not None:
+    logger.info(f"[plot_gti START] Received POST data: obs_id='{obs_id}', quality='{quality}', plot_type='{plot_type_str}', gti-search='{gti_query_str}', min_value='{requested_min_value_str}'")
+
+    if not obs_id:
+        logger.error("[plot_gti] obs_id is missing from POST data.")
+        return JsonResponse({'error': 'obs_id is required.'}, status=400)
+    if not plot_type_str:
+        logger.error("[plot_gti] plot_type is missing from POST data.")
+        return JsonResponse({'error': 'plot_type is required.'}, status=400)
+
+    plot_type: str = plot_type_str.replace('-', '_')
+
+    if plot_type not in PLOTS:
+        logger.error(f"[plot_gti] Invalid plot_type: '{plot_type_str}' (parsed as '{plot_type}')")
+        return JsonResponse({'error': f'Invalid plot type: {plot_type_str}'}, status=400)
+
+    default_min_value = PLOTS[plot_type].get('min_value')
+    min_value: int | None
+
+    if requested_min_value_str is not None and requested_min_value_str != '':
         try:
-            min_value = int(requested_min_value)
-        except (ValueError, TypeError):
+            min_value = int(requested_min_value_str)
+            logger.info(f"[plot_gti] Parsed min_value from request: {min_value}")
+        except ValueError:
+            logger.warning(f"[plot_gti] Could not parse requested_min_value_str '{requested_min_value_str}' to int. Using default: {default_min_value}")
             min_value = default_min_value
     else:
         min_value = default_min_value
-        
-    if plot_type not in PLOTS:
-        return JsonResponse({
-            'error': f'Invalid plot type: {plot_type}. Valid types are: {", ".join(PLOTS.keys())}'
-        }, status=400)
+        logger.info(f"[plot_gti] min_value not in request or empty. Using default: {min_value}")
+    
+    logger.info(f"[plot_gti] Final min_value for plotting: {min_value}")
 
-    # Handle combined observations case
+    # Handle combined observations case - Assuming this part is okay for now based on logs
     if 'combined_obs_ids' in request.POST:
-        obs_ids = request.POST.get('combined_obs_ids').split(',')
+        logger.info("[plot_gti] Handling combined observations.")
+        # For brevity, assuming this path is less critical for the current bug
+        # but should be reviewed for logging consistency if issues arise there.
+        obs_ids_str = request.POST.get('combined_obs_ids')
+        obs_ids = obs_ids_str.split(',')
         all_file_names = []
         all_gti_list = []
         gti_obs_mapping = []
 
-        for obs_id in obs_ids:
-            dir_path = os.path.join(obs_id, 'jspipe/')
-            files = Item.objects.filter(
-                name__contains=quality,
-                path=dir_path,
+        for current_obs_id_combined in obs_ids:
+            current_dir_path_combined = os.path.join(current_obs_id_combined, 'jspipe/')
+            # Ensure 'quality' and 'plot_type' are used correctly here
+            files_combined_qs = Item.objects.filter(
+                name__contains=quality, # Make sure quality is available and correct
+                path=current_dir_path_combined,
                 type=Item.item_type[1][0],
-            ).order_by('name')
+            ).filter(name__contains=PLOTS[plot_type]['file_type']).order_by('name')
 
-            files = files.filter(name__contains=PLOTS[plot_type]['file_type'])
-
-            for file_name in files:
-                if match := re.search(r'GTI(\d+)', file_name.name):
-                    gti = int(match.group(1))
-                    full_path = os.path.join(settings.DATA_DIR, dir_path, file_name.name)
-                    all_file_names.append(full_path)
-                    all_gti_list.append(gti)
-                    gti_obs_mapping.append(obs_id)
-
+            for file_item_combined in files_combined_qs:
+                if match := re.search(r'GTI(\d+)', file_item_combined.name):
+                    gti_num_combined = int(match.group(1))
+                    full_path_combined = os.path.join(settings.DATA_DIR, current_dir_path_combined, file_item_combined.name)
+                    all_file_names.append(full_path_combined)
+                    all_gti_list.append(gti_num_combined)
+                    gti_obs_mapping.append(current_obs_id_combined)
+        
         if not all_file_names:
-            return JsonResponse({'error': 'No GTI files found for the specified observations'})
+            logger.error("[plot_gti] Combined: No GTI files found.")
+            return JsonResponse({'error': 'No GTI files found for the specified combined observations'})
 
-        gti_labels = [f'GTI{gti} (Obs {obs_id})' for gti, obs_id in zip(all_gti_list, gti_obs_mapping)]
-
+        gti_labels = [f'GTI{gti_num} (Obs {obs_id_map})' for gti_num, obs_id_map in zip(all_gti_list, gti_obs_mapping)]
         plot_kwargs = {
             'min_value': min_value,
-            'obs_id': obs_id,
+            'obs_id': obs_id, # This might need to be a list or handled differently by the plotting function
             'data_paths': all_file_names,
             'gti_numbers': all_gti_list,
             'gti_labels': gti_labels,
         }
-
         if 'is_combined_obs' in PLOTS[plot_type].get('optional_params', []):
             plot_kwargs['is_combined_obs'] = True
+        
+        try:
+            plot_divs = PLOTS[plot_type]['function'](**plot_kwargs)
+            logger.info(f"[plot_gti] Combined: Successfully generated plot divs.")
+            return JsonResponse({'plotDivs': [plot_divs]})
+        except Exception as e:
+            logger.exception(f"[plot_gti] Combined: Error during plot generation: {e}")
+            return JsonResponse({'error': f'Error generating combined plot: {str(e)}'}, status=500)
 
-        plot_divs = PLOTS[plot_type]['function'](**plot_kwargs)
-        return JsonResponse({'plotDivs': [plot_divs]})
 
     # Handle single observation case
-    required_params = ['plot_type', 'obs_id', 'gti-search']
-    missing_params = [param for param in required_params if param not in request.POST]
-
-    if missing_params:
-        return JsonResponse({
-            'error': f'Missing required parameters: {", ".join(missing_params)}'
-        }, status=400)
-
-    # Filter by quality, observation ID, and filter for files
-    files = Item.objects.filter(
+    logger.info(f"[plot_gti] Handling single observation for obs_id: {obs_id}")
+    single_obs_dir_path_relative = os.path.join(obs_id, 'jspipe/')
+    
+    files_qs = Item.objects.filter(
         name__contains=quality,
-        path=dir_path,
+        path=single_obs_dir_path_relative,
         type=Item.item_type[1][0],
     ).order_by('name')
+    logger.info(f"[plot_gti] Found {files_qs.count()} items for obs_id '{obs_id}', quality '{quality}' in path '{single_obs_dir_path_relative}'")
 
-    # Filter by the plot type and append relative file location to data path
-    dir_path = os.path.join(settings.DATA_DIR, dir_path)
-    files = files.filter(name__contains=PLOTS[plot_type]['file_type'])
+    plot_specific_files_qs = files_qs.filter(name__contains=PLOTS[plot_type]['file_type'])
+    logger.info(f"[plot_gti] Found {plot_specific_files_qs.count()} files matching plot type '{plot_type}' (file_type: '{PLOTS[plot_type]['file_type']}')")
 
-    # Remove characters that are not numbers or dashes, and separate by commas
-    gti_query = re.sub(r'[^\d,-]', '', gti_query).split(',')
+    if not plot_specific_files_qs.exists():
+        logger.error(f"[plot_gti] No files found for plot type '{plot_type}' in obs '{obs_id}'. Cannot plot.")
+        return JsonResponse({'error': f'No files found for plot type {plot_type} in observation {obs_id}'}, status=404)
 
-    # Convert dashes to a list of integers in the range of the two numbers
-    for gti in gti_query:
-        if re.search(r'\d+-\d+', gti):
-            gti_range = list(map(int, gti.split('-')))
-            gti_range[-1] += 1
-            gti_list.extend(range(*gti_range))
-        elif gti.isdigit():
-            gti_list.append(int(gti))
+    gti_list_parsed: list[int] = []
+    if gti_query_str:
+        processed_gti_query_parts = re.sub(r'[^\d,-]', '', gti_query_str).split(',')
+        logger.info(f"[plot_gti] Processed GTI query parts: {processed_gti_query_parts}")
+        for gti_val_part in processed_gti_query_parts:
+            if not gti_val_part: continue
+            if re.search(r'^\d+-\d+$', gti_val_part):
+                start_str, end_str = gti_val_part.split('-')
+                start, end = int(start_str), int(end_str)
+                if start > end: start, end = end, start
+                gti_list_parsed.extend(range(start, end + 1))
+            elif gti_val_part.isdigit():
+                gti_list_parsed.append(int(gti_val_part))
+            else:
+                logger.warning(f"[plot_gti] Skipping invalid GTI value in query part: '{gti_val_part}'")
+        gti_list_parsed = sorted(list(set(gti_list_parsed))) # Unique and sorted
+    logger.info(f"[plot_gti] Parsed gti_list from query: {gti_list_parsed}")
 
-    # Filter for each GTI
-    for gti in gti_list:
-        file_name = files.filter(name__regex=fr'^\w*GTI{gti}[^\d][-_.\w]*$').first()
+    final_file_paths_to_plot: list[str] = []
+    final_gti_numbers_for_plot_func: list[int] = []
+    
+    full_dir_path_for_files = os.path.join(settings.DATA_DIR, single_obs_dir_path_relative)
 
-        if file_name:
-            file_names.append(os.path.join(dir_path, file_name.name))
+    if gti_list_parsed:
+        for gti_num in gti_list_parsed:
+            # Regex to find files for a specific GTI number. Example: ني1130360113_0mpu7_cl_GTI0.lc.gz
+            # We need to match _GTI{gti_num} or GTI{gti_num}_ or GTI{gti_num}. to avoid GTI1 matching GTI10
+            # Using a regex that looks for GTI, optional leading zeros, the number, and then a non-digit character or end of string.
+            file_match_item = plot_specific_files_qs.filter(name__regex=fr'GTI0*{gti_num}([^\\d]|$)').first()
+            if file_match_item:
+                logger.info(f"[plot_gti] Found file '{file_match_item.name}' for GTI '{gti_num}'")
+                final_file_paths_to_plot.append(os.path.join(full_dir_path_for_files, file_match_item.name))
+                final_gti_numbers_for_plot_func.append(gti_num)
+            else:
+                logger.warning(f"[plot_gti] No file found for GTI '{gti_num}' with plot type '{plot_type}'")
+    
+    logger.info(f"[plot_gti] Files selected based on gti_list_parsed: {final_file_paths_to_plot}")
 
-    # If no GTI found, use the first available GTI
-    if not file_names:
-        file_name = files.first()
-        if not file_name:
-            return JsonResponse({'error': 'No GTI files found for the specified observation'})
+    if not final_file_paths_to_plot:
+        logger.info(f"[plot_gti] No files found for specified GTIs (or no GTIs specified in query). Attempting to use a default GTI for plot type '{plot_type}'.")
+        default_file_item = plot_specific_files_qs.first() # Takes the first available file for this plot type
+        if default_file_item:
+            final_file_paths_to_plot.append(os.path.join(full_dir_path_for_files, default_file_item.name))
+            # Try to extract GTI number from this default file to pass to the plotting function
+            match = re.search(r'GTI(0*)(\\d+)', default_file_item.name)
+            if match:
+                default_gti_num = int(match.group(2))
+                final_gti_numbers_for_plot_func = [default_gti_num] # Use this GTI for the plot call
+                logger.info(f"[plot_gti] Using default file '{default_file_item.name}' (extracted GTI: {default_gti_num}) for plot type '{plot_type}'")
+            else:
+                final_gti_numbers_for_plot_func = [0] # Fallback GTI number if not extractable
+                logger.warning(f"[plot_gti] Could not extract GTI number from default file '{default_file_item.name}'. Using GTI 0 as fallback for plotting function.")
+        else:
+            # This case should have been caught by "if not plot_specific_files_qs.exists()" earlier, but as a safeguard:
+            logger.error(f"[plot_gti] CRITICAL: No default file could be found for plot type '{plot_type}' for obs_id '{obs_id}'.")
+            return JsonResponse({'error': 'No data files could be selected for plotting.'}, status=404)
 
-        match = re.search(r'GTI(\d+)', file_name.name)
-        if not match:
-            return JsonResponse({'error': 'Invalid GTI format in file name'})
+    if not final_file_paths_to_plot:
+        logger.error(f"[plot_gti] CRITICAL: After all checks, no files (neither specific nor default) could be selected for plotting for obs_id '{obs_id}', plot type '{plot_type}'.")
+        return JsonResponse({'error': 'No data files could be selected for plotting.'}, status=404)
 
-        gti_list = [int(match.group(1))]
-        file_names.append(dir_path + file_name.name)
-
-    # Plot each GTI
-    plot_divs = PLOTS[plot_type]['function'](min_value, obs_id, file_names, gti_list)
-    return JsonResponse({'plotDivs': [plot_divs]})
+    logger.info(f"[plot_gti] Calling plotting function for '{plot_type}' with: min_value={min_value}, obs_id='{obs_id}', file_paths={final_file_paths_to_plot}, gti_numbers={final_gti_numbers_for_plot_func}")
+    try:
+        # The plotting function expects: min_value, obs_id, data_paths (list of full paths), gti_numbers (list of ints)
+        plot_divs_html = PLOTS[plot_type]['function'](
+            min_value, 
+            obs_id, 
+            final_file_paths_to_plot, 
+            final_gti_numbers_for_plot_func
+        )
+        logger.info(f"[plot_gti] Successfully generated plot divs for '{plot_type}'.")
+    except Exception as e:
+        logger.exception(f"[plot_gti] Error during plot generation for '{plot_type}': {e}")
+        return JsonResponse({'error': f'Error generating plot: {str(e)}'}, status=500)
+        
+    return JsonResponse({'plotDivs': [plot_divs_html]})
 
 
 def plot_data(request: HttpRequest) -> JsonResponse:
