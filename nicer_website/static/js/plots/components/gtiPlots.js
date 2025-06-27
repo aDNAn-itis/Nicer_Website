@@ -6,6 +6,7 @@ import {
   updateAllSelections,
   initSynchronizedSelection,
 } from './syncSelection.js';
+import { initInteractiveLinking } from './interactiveLinking.js';
 
 /**
  * Shows a popup for selecting which plot types to generate for selected GTIs
@@ -351,6 +352,8 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
           );
           initSynchronizedSelection();
           updateAllSelections();
+          // Initialize interactive linking
+          initInteractiveLinking();
         }, 500);
       })
       .catch((error) => {

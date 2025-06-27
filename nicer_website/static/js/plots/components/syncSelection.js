@@ -22,6 +22,7 @@ const selectionState = {
   activeSelection: null,
   sourceType: null,
   inProgress: false, // Flag to prevent infinite loops
+  preserveHighlights: true, // Flag to indicate if highlighting should be preserved during zoom
   selectedGTI: null, // Track the currently selected GTI
 };
 
@@ -423,6 +424,20 @@ function applyZoomToGraph(graphElement, xRange) {
       return;
     }
 
+    // Check if there are highlighted traces we need to preserve
+    const hasHighlightedTraces =
+      graphElement.data &&
+      graphElement.data.some(
+        (trace) => trace.name && trace.name.includes('Highlighted'),
+      );
+
+    // Store the current data if we have highlights and want to preserve them
+    let currentData = null;
+    if (hasHighlightedTraces && selectionState.preserveHighlights) {
+      console.log(`Preserving highlights during zoom on ${graphElement.id}`);
+      currentData = JSON.parse(JSON.stringify(graphElement.data));
+    }
+
     // Apply the zoom level using direct layout approach
     const update = {
       'xaxis.range': [min, max],
@@ -431,10 +446,19 @@ function applyZoomToGraph(graphElement, xRange) {
 
     console.log(`Relayout update for ${graphElement.id}:`, update);
 
-    // Try multiple approaches to ensure it works
+    // Apply the zoom
     try {
       // First attempt using relayout
       Plotly.relayout(graphElement, update);
+
+      // Restore highlighted traces if needed
+      if (currentData && selectionState.preserveHighlights) {
+        // Wait for the relayout to complete
+        setTimeout(() => {
+          console.log(`Restoring highlights for ${graphElement.id}`);
+          Plotly.react(graphElement, currentData, graphElement.layout);
+        }, 50);
+      }
     } catch (error) {
       console.warn(
         `Initial relayout failed for ${graphElement.id}, trying alternative method:`,
@@ -446,6 +470,16 @@ function applyZoomToGraph(graphElement, xRange) {
         graphElement.layout.xaxis.range = [min, max];
         graphElement.layout.xaxis.autorange = false;
         Plotly.redraw(graphElement);
+
+        // Restore highlighted traces if needed
+        if (currentData && selectionState.preserveHighlights) {
+          setTimeout(() => {
+            console.log(
+              `Restoring highlights for ${graphElement.id} (alt method)`,
+            );
+            Plotly.react(graphElement, currentData, graphElement.layout);
+          }, 50);
+        }
       } catch (innerError) {
         console.error(
           `All zoom methods failed for ${graphElement.id}:`,
@@ -626,6 +660,15 @@ function clearAllSelections() {
 
     plotlyGraphs.forEach((graph) => {
       try {
+        // Check if there are highlighted traces
+        const hasHighlightedTraces =
+          graph.data &&
+          graph.data.some(
+            (trace) => trace.name && trace.name.includes('Highlighted'),
+          );
+
+        // We'll only reset zoom, not clear highlighting
+        // This allows our interactive linking feature to work independently
         Plotly.relayout(graph, {
           'xaxis.autorange': true,
           'yaxis.autorange': true,

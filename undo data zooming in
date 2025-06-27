@@ -1,0 +1,16 @@
+Revert "initial data highlighting implementation"
+
+This reverts commit fd8bd5054bdae91284ba24cf2b729838d0a316e4.
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch sharedDataHighlight
+# Your branch is up to date with 'origin/sharedDataHighlight'.
+#
+# Changes to be committed:
+#	modified:   nicer_website/static/js/plots/components/graph.js
+#	modified:   nicer_website/static/js/plots/components/gtiPlots.js
+#	deleted:    nicer_website/static/js/plots/components/syncSelection.js
+#	modified:   nicer_website/static/js/plots/plot.js
+#
