@@ -31,6 +31,14 @@
           </a>
         </li>
 
+        {% url 'about' as about_url %}
+        <li>
+          <a href="{{ about_url }}" class="nav-link {% if request.path == about_url %}active{% endif %}">
+            <i class="fas fa-info-circle"></i>
+            About
+          </a>
+        </li>
+
         <li>
           <button onclick="openSearchModal()" class="nav-search-btn" title="Search (Ctrl+K)">
             <i class="fas fa-search"></i>

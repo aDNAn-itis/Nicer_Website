@@ -1,0 +1,256 @@
+{% extends "base.html" %} {% block title %}About - NASA NICER Data Platform{% endblock %} {% block content %}
+<!-- Hero Section -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <h1>About NASA NICER</h1>
+      <p class="hero-subtitle">
+        Learn about the platform, mission, and the team behind NASA's premier X-ray timing mission
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Platform Overview -->
+<section class="section">
+  <div class="container">
+    <div class="feature">
+      <div class="feature-content">
+        <h2>About This Platform</h2>
+        <p>
+          The NASA NICER Data Platform is a comprehensive web-based interface designed to make X-ray timing and
+          spectroscopy data from the Neutron star Interior Composition Explorer (NICER) mission accessible to
+          researchers worldwide.
+        </p>
+        <p>
+          Our platform provides interactive visualization tools, advanced data analysis capabilities, and seamless
+          access to the complete NICER data archive. Whether you're studying neutron star physics, testing general
+          relativity, or exploring accretion processes, our tools are designed to accelerate your research.
+        </p>
+        <div style="margin-top: 2rem">
+          <h3>Key Features</h3>
+          <ul style="list-style: none; padding: 0; margin-top: 1rem">
+            <li style="display: flex; align-items: center; margin-bottom: 0.75rem">
+              <i
+                class="fas fa-chart-line"
+                style="color: var(--nicer-light-blue); margin-right: 0.75rem; width: 1.25rem"
+              ></i>
+              Interactive multi-plot visualization with synchronized analysis
+            </li>
+            <li style="display: flex; align-items: center; margin-bottom: 0.75rem">
+              <i
+                class="fas fa-database"
+                style="color: var(--nicer-light-blue); margin-right: 0.75rem; width: 1.25rem"
+              ></i>
+              Complete NICER data archive with advanced search capabilities
+            </li>
+            <li style="display: flex; align-items: center; margin-bottom: 0.75rem">
+              <i
+                class="fas fa-wave-square"
+                style="color: var(--nicer-light-blue); margin-right: 0.75rem; width: 1.25rem"
+              ></i>
+              Advanced timing analysis tools for pulse profile studies
+            </li>
+            <li style="display: flex; align-items: center; margin-bottom: 0.75rem">
+              <i
+                class="fas fa-chart-area"
+                style="color: var(--nicer-light-blue); margin-right: 0.75rem; width: 1.25rem"
+              ></i>
+              Spectral analysis tools with customizable energy binning
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="feature-image">
+        <i class="fas fa-laptop-code" style="font-size: 4rem; color: var(--nicer-gold)"></i>
+        <div style="margin-top: 1rem; text-align: center">Web Platform</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Mission Overview -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <div class="feature">
+      <div class="feature-content">
+        <h2>The NICER Mission</h2>
+        <p>
+          NICER (Neutron star Interior Composition Explorer) is a NASA mission designed to study the structure and
+          dynamics of neutron stars, the densest objects in the universe. Launched in 2017 and mounted on the
+          International Space Station, NICER provides unprecedented precision in X-ray timing measurements.
+        </p>
+        <p>
+          The mission's primary goal is to measure neutron star radii to within 5% accuracy, which will help constrain
+          the equation of state of matter at nuclear densities—conditions that cannot be replicated in any terrestrial
+          laboratory.
+        </p>
+        <div style="display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap">
+          {% url 'mission_details' as mission_details_url %}
+          <a href="{{ mission_details_url }}" class="btn btn-primary">Mission Details</a>
+          {% url 'science_details' as science_details_url %}
+          <a href="{{ science_details_url }}" class="btn btn-outline">Science Goals</a>
+        </div>
+      </div>
+      <div class="feature-image">
+        <i class="fas fa-satellite" style="font-size: 4rem; color: var(--nicer-blue)"></i>
+        <div style="margin-top: 1rem; text-align: center">NICER on ISS</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Team & Development -->
+<section class="section">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Development & Team</h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-users"></i>
+        </div>
+        <h3 class="card-title">NICER Team</h3>
+        <p>
+          The NICER mission is led by NASA's Goddard Space Flight Center in collaboration with international partners
+          and universities. The science team includes experts in X-ray astronomy, neutron star physics, and data
+          analysis.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-code"></i>
+        </div>
+        <h3 class="card-title">Platform Development</h3>
+        <p>
+          This web platform was developed to make NICER data more accessible to the global research community. The
+          platform is continuously updated with new features and improvements based on user feedback.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-globe"></i>
+        </div>
+        <h3 class="card-title">Open Science</h3>
+        <p>
+          NICER is committed to open science principles. All data is made publicly available, and our platform provides
+          free access to analysis tools for researchers worldwide.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Technical Information -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Technical Specifications</h2>
+    <div class="grid grid-3">
+      <div class="stat-card">
+        <span class="stat-number">56</span>
+        <div class="stat-label">X-ray Concentrator Pairs</div>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+          Each pair consists of a concentrator optic and silicon drift detector
+        </p>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-number">0.2-12</span>
+        <div class="stat-label">Energy Range (keV)</div>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+          Optimal sensitivity in the soft X-ray band
+        </p>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-number">~100</span>
+        <div class="stat-label">Timing Resolution (ns)</div>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+          Unprecedented precision for X-ray timing studies
+        </p>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-number">85</span>
+        <div class="stat-label">Energy Resolution (eV)</div>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+          High spectral resolution for detailed analysis
+        </p>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-number">1900</span>
+        <div class="stat-label">Effective Area (cm²)</div>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+          Large collecting area for high sensitivity
+        </p>
+      </div>
+
+      <div class="stat-card">
+        <span class="stat-number">408</span>
+        <div class="stat-label">Orbital Period (min)</div>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+          ISS orbital period affecting observation scheduling
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Contact & Support -->
+<section class="section">
+  <div class="container">
+    <div style="text-align: center; max-width: 800px; margin: 0 auto">
+      <h2>Contact & Support</h2>
+      <p style="font-size: 1.125rem; margin-bottom: 2rem">
+        Have questions about NICER data or need help with the platform? We're here to support your research.
+      </p>
+
+      <div class="grid grid-2" style="margin-top: 2rem">
+        <div class="card">
+          <h4>NICER Help Desk</h4>
+          <p>For technical questions about NICER data, observations, or analysis techniques.</p>
+          <p style="color: var(--nicer-light-blue); font-weight: 600">
+            <i class="fas fa-envelope"></i>
+            <a
+              href="https://heasarc.gsfc.nasa.gov/cgi-bin/Feedback"
+              target="_blank"
+              style="color: var(--nicer-light-blue); text-decoration: none"
+            >
+              HEASARC Feedback
+            </a>
+          </p>
+        </div>
+
+        <div class="card">
+          <h4>Platform Support</h4>
+          <p>For issues with the web platform, feature requests, or bug reports.</p>
+          <p style="color: var(--nicer-light-blue); font-weight: 600">
+            <i class="fas fa-code"></i>
+            GitHub Issues
+          </p>
+        </div>
+      </div>
+
+      <div style="margin-top: 3rem">
+        <h3>Useful Links</h3>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem">
+          <a href="https://heasarc.gsfc.nasa.gov/docs/nicer/" class="btn btn-outline" target="_blank">
+            <i class="fas fa-external-link-alt"></i>
+            Official NICER Page
+          </a>
+          <a href="https://heasarc.gsfc.nasa.gov/docs/nicer/data_analysis/" class="btn btn-outline" target="_blank">
+            <i class="fas fa-book"></i>
+            Data Analysis Guide
+          </a>
+          <a href="https://heasarc.gsfc.nasa.gov/docs/nicer/proposals/" class="btn btn-outline" target="_blank">
+            <i class="fas fa-file-alt"></i>
+            Proposal Information
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

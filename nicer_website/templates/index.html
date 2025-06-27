@@ -1,5 +1,4 @@
-{% extends "base.html" %} {% block title %}NASA NICER - Neutron star Interior Composition Explorer
-{% endblock %} 
+{% extends "base.html" %} {% block title %}NASA NICER - Neutron star Interior Composition Explorer {% endblock %}
 {%block content %}
 <!-- Hero Section -->
 <section class="hero">
@@ -37,7 +36,7 @@
       </div>
       <div class="stat-card">
         <span class="stat-number">56</span>
-        <div class="stat-label">X-ray Telescopes</div>
+        <div class="stat-label">X-ray paired SDD-detector plus concentrator optics</div>
       </div>
       <div class="stat-card">
         <span class="stat-number">12+</span>
@@ -109,10 +108,11 @@
           equation of state of matter at nuclear densities.
         </p>
         <p>
-          NICER consists of 56 X-ray "concentrator" optics and silicon drift detector pairs, providing unprecedented
-          sensitivity for X-ray timing measurements in the 0.2-12 keV energy range.
+          NICER consists of 56 paired SDD-detector plus concentrator optics, providing unprecedented sensitivity for
+          X-ray timing measurements in the 0.2-12 keV energy range.
         </p>
-        <a href="#mission-details" class="btn btn-primary">Learn More</a>
+        {% url 'mission_details' as mission_details_url %}
+        <a href="{{ mission_details_url }}" class="btn btn-primary">Learn More</a>
       </div>
       <div class="feature-image">
         <i class="fas fa-satellite" style="font-size: 4rem; color: var(--nicer-gold)"></i>
@@ -131,11 +131,12 @@
           Key scientific objectives include studying neutron star interior composition, testing general relativity in
           strong gravitational fields, and understanding the physics of accretion onto compact objects.
         </p>
-        <a href="#science-details" class="btn btn-primary">Explore Science</a>
+        {% url 'science_details' as science_details_url %}
+        <a href="{{ science_details_url }}" class="btn btn-primary">Explore Science</a>
       </div>
       <div class="feature-image">
         <i class="fas fa-atom" style="font-size: 4rem; color: var(--nicer-light-blue)"></i>
-        <div style="margin-top: 1rem; text-align: center">Nuclear Physics</div>
+        <div style="margin-top: 1rem; text-align: center">Physics</div>
       </div>
     </div>
 

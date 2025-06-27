@@ -21,6 +21,9 @@ from . import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index, name='index'),
+    path('about/', views.about, name='about'),
+    path('mission-details/', views.mission_details, name='mission_details'),
+    path('science-details/', views.science_details, name='science_details'),
     path('manager/', include('nicer_website.apps.file_mgr.urls')),
     path('plots/', include('nicer_website.apps.plots.urls')),
 ]
