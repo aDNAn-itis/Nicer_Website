@@ -1,0 +1,55 @@
+<footer class="footer">
+  <div class="container">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h3>NASA NICER Mission</h3>
+        <p>
+          The Neutron star Interior Composition Explorer (NICER) is a NASA Explorer mission dedicated to studying the
+          physics and dynamics of neutron stars.
+        </p>
+        <div style="margin-top: 1rem">
+          <i class="fas fa-satellite" style="color: var(--nicer-gold); margin-right: 0.5rem"></i>
+          <span>Launched: June 3, 2017</span>
+        </div>
+      </div>
+
+      <div class="footer-section">
+        <h3>Quick Links</h3>
+        <a href="#mission">Mission Overview</a>
+        <a href="#science">Science Goals</a>
+        <a href="#instruments">Instruments</a>
+        <a href="#data">Data Access</a>
+        <a href="#publications">Publications</a>
+      </div>
+
+      <div class="footer-section">
+        <h3>Data & Tools</h3>
+        {% url 'file_mgr:directory' '/' as file_mgr_url %}
+        <a href="{{ file_mgr_url }}">Browse Data Archive</a>
+        {% url 'plots:plots' as plots_url %}
+        <a href="{{ plots_url }}">Interactive Analysis</a>
+        <a href="#api">API Documentation</a>
+        <a href="#tutorials">Tutorials</a>
+      </div>
+
+      <div class="footer-section">
+        <h3>Resources</h3>
+        <a href="https://heasarc.gsfc.nasa.gov/docs/nicer/" target="_blank" rel="noopener">
+          <i class="fas fa-external-link-alt"></i>
+          Official NICER Website
+        </a>
+        <a href="https://github.com/nasa/nicer" target="_blank" rel="noopener">
+          <i class="fab fa-github"></i>
+          GitHub Repository
+        </a>
+        <a href="#contact">Contact Team</a>
+        <a href="#help">Help & Support</a>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>&copy; 2025  </p>
+      <p>Data visualization platform developed for the NICER mission scientific community.</p>
+    </div>
+  </div>
+</footer>

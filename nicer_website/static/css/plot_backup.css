@@ -1,7 +1,7 @@
 /* NICER Data Analysis Platform - Plot Styles */
 
 :root {
-  --header-bg: #0b3d91;
+  --header-bg: #0B3D91;
   --header-text: #ffffff;
   --row-border: #e5e7eb;
   --alternate-row: #f8fafc;
@@ -29,11 +29,7 @@ button {
 }
 
 button:hover {
-  background: linear-gradient(
-    135deg,
-    var(--nicer-light-blue),
-    var(--nicer-blue)
-  );
+  background: linear-gradient(135deg, var(--nicer-light-blue), var(--nicer-blue));
   color: white;
   transform: translateY(-1px);
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
@@ -116,7 +112,7 @@ input[type='range']::-webkit-slider-thumb {
   background: var(--nicer-light-blue);
   cursor: pointer;
   border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 input[type='text'] {
@@ -136,36 +132,6 @@ label {
   font-weight: 500;
   color: var(--text-primary);
 }
-
-/* Table base styles */
-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-family: 'Inter', -apple-system, sans-serif;
-  background: white;
-  border-radius: 0.75rem;
-  overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-}
-
-td,
-th {
-  border: 1px solid var(--row-border);
-  padding: 1rem 1.25rem;
-}
-
-/* Info Container styles */
-.info-container {
-  width: 100%;
-  overflow-x: auto;
-  margin: 1.5rem 0;
-  border-radius: 0.75rem;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-}
-
-/* Main Info Table styles */
-.info-table {
-  margin-bottom: 1.5rem;
   font-size: 14px;
 }
 
@@ -343,44 +309,4 @@ th label {
 /* Add transition for smooth opacity changes */
 .js-plotly-plot .trace {
   transition: opacity 0.3s ease-in-out;
-}
-
-/* Enhanced plot container styles */
-.js-plotly-plot {
-  border-radius: 0.75rem;
-  overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  background: white;
-  margin: 1rem 0;
-}
-
-/* Plot loading states */
-.plot-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  background: var(--bg-color);
-  border-radius: 0.75rem;
-  color: var(--text-primary);
-}
-
-.plot-loading::before {
-  content: '';
-  width: 2rem;
-  height: 2rem;
-  border: 3px solid var(--border-color);
-  border-top: 3px solid var(--nicer-light-blue);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-right: 1rem;
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
 }

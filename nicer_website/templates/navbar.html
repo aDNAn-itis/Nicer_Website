@@ -1,8 +1,42 @@
-<div>
-    {% url 'index' as index_url %}
-    <span>{% if request.path == index_url %}Home{% else %}<a href="{{ index_url }}">Home</a>{% endif %}</span>
-    {% url 'file_mgr:directory' '/' as file_mgr_url %}
-    <span>{% if request.path == file_mgr_url %}Directory{% else %}<a href="{{ file_mgr_url }}">Directory</a>{% endif %}</span>
-    {% url 'plots:plots' as plots_url %}
-    <span>{% if request.path == plots_url %}Interactive Plots{% else %}<a href="{{ plots_url }}">Interactive Plots</a>{% endif %}</span>
-</div>
+<nav class="navbar">
+  <div class="container">
+    <div class="nav-container">
+      <div class="nav-logo">
+        <i class="fas fa-satellite"></i>
+        <span>NASA NICER</span>
+      </div>
+
+      <ul class="nav-menu">
+        {% url 'index' as index_url %}
+        <li>
+          <a href="{{ index_url }}" class="nav-link {% if request.path == index_url %}active{% endif %}">
+            <i class="fas fa-home"></i>
+            Home
+          </a>
+        </li>
+
+        {% url 'file_mgr:directory' '/' as file_mgr_url %}
+        <li>
+          <a href="{{ file_mgr_url }}" class="nav-link {% if request.path == file_mgr_url %}active{% endif %}">
+            <i class="fas fa-folder"></i>
+            Data Browser
+          </a>
+        </li>
+
+        {% url 'plots:plots' as plots_url %}
+        <li>
+          <a href="{{ plots_url }}" class="nav-link {% if request.path == plots_url %}active{% endif %}">
+            <i class="fas fa-chart-line"></i>
+            Interactive Plots
+          </a>
+        </li>
+
+        <li>
+          <button onclick="openSearchModal()" class="nav-search-btn" title="Search (Ctrl+K)">
+            <i class="fas fa-search"></i>
+          </button>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>

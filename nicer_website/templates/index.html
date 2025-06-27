@@ -1,3 +1,229 @@
-{% extends "base.html" %}
+{% extends "base.html" %} {% block title %}NASA NICER - Neutron star Interior Composition Explorer
+{% endblock %} 
+{%block content %}
+<!-- Hero Section -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <h1>NASA NICER Mission</h1>
+      <p class="hero-subtitle">
+        Exploring the extreme physics of neutron stars through precise X-ray timing and spectroscopy from the
+        International Space Station
+      </p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem">
+        {% url 'plots:plots' as plots_url %}
+        <a href="{{ plots_url }}" class="btn btn-primary">
+          <i class="fas fa-chart-line"></i>
+          Explore Data
+        </a>
+        {% url 'file_mgr:directory' '/' as file_mgr_url %}
+        <a href="{{ file_mgr_url }}" class="btn btn-outline">
+          <i class="fas fa-database"></i>
+          Browse Archive
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
 
-{% block title %}Index{% endblock %}
+<!-- Mission Stats -->
+<section class="section stats-section">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem; color: var(--text-primary)">Mission Impact</h2>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-number">2017</span>
+        <div class="stat-label">Mission Launch Year</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number">56</span>
+        <div class="stat-label">X-ray Telescopes</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number">12+</span>
+        <div class="stat-label">Neutron Stars Observed</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-number">400+</span>
+        <div class="stat-label">Scientific Publications</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Key Features -->
+<section class="section">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Platform Capabilities</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-wave-square"></i>
+        </div>
+        <h3 class="card-title">X-ray Timing Analysis</h3>
+        <p>
+          Precise measurement of neutron star rotation periods, pulse profiles, and timing noise with microsecond
+          accuracy.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-chart-area"></i>
+        </div>
+        <h3 class="card-title">Spectral Analysis</h3>
+        <p>
+          High-resolution X-ray spectroscopy to study neutron star atmospheres, magnetic fields, and emission
+          mechanisms.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-sync-alt"></i>
+        </div>
+        <h3 class="card-title">Interactive Visualization</h3>
+        <p>Real-time data exploration with synchronized multi-plot analysis and customizable visualization tools.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-database"></i>
+        </div>
+        <h3 class="card-title">Data Archive</h3>
+        <p>Comprehensive archive of NICER observations with advanced search and filtering capabilities.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Mission Overview -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <div class="feature">
+      <div class="feature-content">
+        <h2>About the NICER Mission</h2>
+        <p>
+          The Neutron star Interior Composition Explorer (NICER) is an X-ray timing instrument aboard the International
+          Space Station. NICER's primary science goal is to measure neutron star radii to within 5%, constraining the
+          equation of state of matter at nuclear densities.
+        </p>
+        <p>
+          NICER consists of 56 X-ray "concentrator" optics and silicon drift detector pairs, providing unprecedented
+          sensitivity for X-ray timing measurements in the 0.2-12 keV energy range.
+        </p>
+        <a href="#mission-details" class="btn btn-primary">Learn More</a>
+      </div>
+      <div class="feature-image">
+        <i class="fas fa-satellite" style="font-size: 4rem; color: var(--nicer-gold)"></i>
+        <div style="margin-top: 1rem; text-align: center">ISS-Mounted Observatory</div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-content">
+        <h2>Science Goals</h2>
+        <p>
+          NICER enables groundbreaking science by measuring neutron star masses and radii with unprecedented precision.
+          These measurements help constrain the equation of state of nuclear matter under extreme conditions.
+        </p>
+        <p>
+          Key scientific objectives include studying neutron star interior composition, testing general relativity in
+          strong gravitational fields, and understanding the physics of accretion onto compact objects.
+        </p>
+        <a href="#science-details" class="btn btn-primary">Explore Science</a>
+      </div>
+      <div class="feature-image">
+        <i class="fas fa-atom" style="font-size: 4rem; color: var(--nicer-light-blue)"></i>
+        <div style="margin-top: 1rem; text-align: center">Nuclear Physics</div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-content">
+        <h2>Data Analysis Tools</h2>
+        <p>
+          Our platform provides comprehensive tools for analyzing NICER data, including light curve analysis, spectral
+          fitting, timing analysis, and multi-wavelength correlation studies.
+        </p>
+        <p>
+          Interactive visualizations allow researchers to explore data in real-time, with synchronized plots and
+          advanced filtering capabilities for detailed scientific analysis.
+        </p>
+        {% url 'plots:plots' as plots_url %}
+        <a href="{{ plots_url }}" class="btn btn-primary">Start Analysis</a>
+      </div>
+      <div class="feature-image">
+        <i class="fas fa-chart-line" style="font-size: 4rem; color: var(--nebula-purple)"></i>
+        <div style="margin-top: 1rem; text-align: center">Interactive Analysis</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Call to Action -->
+<section class="section">
+  <div class="container">
+    <div style="text-align: center; max-width: 800px; margin: 0 auto">
+      <h2>Ready to Explore Neutron Star Data?</h2>
+      <p style="font-size: 1.125rem; margin-bottom: 2rem">
+        Access cutting-edge X-ray timing and spectroscopy data from NASA's NICER mission. Start your research with our
+        comprehensive analysis platform.
+      </p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap">
+        {% url 'plots:plots' as plots_url %}
+        <a href="{{ plots_url }}" class="btn btn-primary">
+          <i class="fas fa-rocket"></i>
+          Start Analyzing
+        </a>
+        {% url 'file_mgr:directory' '/' as file_mgr_url %}
+        <a href="{{ file_mgr_url }}" class="btn btn-outline">
+          <i class="fas fa-download"></i>
+          Download Data
+        </a>
+        <a href="#documentation" class="btn btn-outline">
+          <i class="fas fa-book"></i>
+          View Documentation
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Recent Updates -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Latest Updates</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <div style="color: var(--nicer-light-blue); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem">
+          <i class="fas fa-calendar"></i>
+          December 2024
+        </div>
+        <h4>New Analysis Features</h4>
+        <p>
+          Enhanced visualization tools with synchronized multi-plot analysis and improved GTI selection capabilities.
+        </p>
+      </div>
+
+      <div class="card">
+        <div style="color: var(--nicer-light-blue); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem">
+          <i class="fas fa-calendar"></i>
+          November 2024
+        </div>
+        <h4>Data Archive Update</h4>
+        <p>Added latest NICER observations with improved search functionality and metadata enrichment.</p>
+      </div>
+
+      <div class="card">
+        <div style="color: var(--nicer-light-blue); font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem">
+          <i class="fas fa-calendar"></i>
+          October 2024
+        </div>
+        <h4>Performance Improvements</h4>
+        <p>Optimized data loading and processing for faster analysis of large datasets and improved user experience.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
