@@ -217,6 +217,66 @@ def summed_spectrum_data(
     net_rate_error = np.array(net_rate_error)
     net_background = np.array(net_background)
     
+    # Print detailed summed spectrum properties before energy cut-off
+    print("\n" + "="*80)
+    print("SUMMED SPECTRUM PROPERTIES AND VALUES")
+    print("="*80)
+    print(f"Total GTIs processed: {len(data_paths)}")
+    print(f"GTI numbers: {gti_numbers}")
+    print(f"Total exposure time: {summed_time:.3f} s")
+    print(f"52-FPM normalized exposure: {summed_52time:.3f} s")
+    print(f"Effective detector count: {summed_52time/summed_time*52:.1f} FPMs")
+    print(f"Original spectrum channels: {len(channels)}")
+    print(f"Energy bins after grouping: {len(x_bin)}")
+    print(f"Energy range: {x_bin.min():.3f} - {x_bin.max():.3f} keV")
+    print(f"Energy bin width: {energy_bin_width:.6f} keV")
+    
+    # Raw counts statistics
+    total_spec_counts = np.sum(summed_spec)
+    total_bg_counts = np.sum(summed_background)
+    net_counts = total_spec_counts - total_bg_counts
+    print(f"\nRAW COUNTS STATISTICS:")
+    print(f"Total spectrum counts: {total_spec_counts:.0f}")
+    print(f"Total background counts: {total_bg_counts:.0f}")
+    print(f"Net counts: {net_counts:.0f}")
+    print(f"Background fraction: {total_bg_counts/total_spec_counts*100:.1f}%")
+    
+    # Rate statistics (before energy cut-off)
+    print(f"\nRATE STATISTICS (before energy cut-off):")
+    print(f"Net rate range: {net_rate.min():.3e} - {net_rate.max():.3e} counts/s/det")
+    print(f"Net rate mean: {net_rate.mean():.3e} counts/s/det")
+    print(f"Net rate median: {np.median(net_rate):.3e} counts/s/det")
+    print(f"Net rate stddev: {np.std(net_rate):.3e} counts/s/det")
+    print(f"Net rate variance: {np.var(net_rate):.3e} counts/s/det")
+    print(f"Background rate range: {net_background.min():.3e} - {net_background.max():.3e} counts/s/det")
+    print(f"Background rate mean: {net_background.mean():.3e} counts/s/det")
+    print(f"Signal-to-noise ratio (mean): {net_rate.mean()/(net_rate_error.mean()):.2f}")
+    
+    # Energy band statistics
+    print(f"\nENERGY BAND STATISTICS:")
+    low_energy_mask = x_bin <= 2.0
+    mid_energy_mask = (x_bin > 2.0) & (x_bin <= 8.0)
+    high_energy_mask = x_bin > 8.0
+    
+    if np.any(low_energy_mask):
+        low_rate_sum = np.sum(net_rate[low_energy_mask])
+        print(f"Low energy (≤2 keV) net rate sum: {low_rate_sum:.3e} counts/s/det")
+    
+    if np.any(mid_energy_mask):
+        mid_rate_sum = np.sum(net_rate[mid_energy_mask])
+        print(f"Mid energy (2-8 keV) net rate sum: {mid_rate_sum:.3e} counts/s/det")
+    
+    if np.any(high_energy_mask):
+        high_rate_sum = np.sum(net_rate[high_energy_mask])
+        print(f"High energy (>8 keV) net rate sum: {high_rate_sum:.3e} counts/s/det")
+    
+    # Sample data points for verification
+    print(f"\nSAMPLE DATA POINTS (first 10 bins):")
+    print(f"{'Energy (keV)':<12} {'Net Rate':<12} {'Error':<12} {'Background':<12}")
+    print("-" * 50)
+    for i in range(min(10, len(x_bin))):
+        print(f"{x_bin[i]:<12.3f} {net_rate[i]:<12.3e} {net_rate_error[i]:<12.3e} {net_background[i]:<12.3e}")
+    
     # Apply energy cut-off
     logger.debug(f"Applying energy cut-off: {cut_off[0]}-{cut_off[1]} keV")
     energy_mask = (x_bin >= cut_off[0]) & (x_bin <= cut_off[1])
@@ -226,6 +286,30 @@ def summed_spectrum_data(
     net_rate_error = net_rate_error[energy_mask]
     net_background = net_background[energy_mask]
     logger.info(f"Energy cut-off applied: {bins_before} -> {len(x_bin)} bins")
+    
+    # Print properties after energy cut-off
+    print(f"\nAFTER ENERGY CUT-OFF ({cut_off[0]}-{cut_off[1]} keV):")
+    print(f"Energy bins: {len(x_bin)}")
+    print(f"Energy range: {x_bin.min():.3f} - {x_bin.max():.3f} keV")
+    print(f"Net rate range: {net_rate.min():.3e} - {net_rate.max():.3e} counts/s/det")
+    print(f"Net rate sum: {np.sum(net_rate):.3e} counts/s/det")
+    print(f"Background rate sum: {np.sum(net_background):.3e} counts/s/det")
+    
+    # Check for any problematic values
+    neg_rate_count = np.sum(net_rate < 0)
+    zero_error_count = np.sum(net_rate_error <= 0)
+    inf_count = np.sum(~np.isfinite(net_rate))
+    
+    print(f"\nDATA QUALITY CHECKS:")
+    print(f"Negative net rates: {neg_rate_count}/{len(net_rate)} bins")
+    print(f"Zero/negative errors: {zero_error_count}/{len(net_rate_error)} bins")
+    print(f"Non-finite values: {inf_count}/{len(net_rate)} bins")
+    
+    if neg_rate_count > 0:
+        print(f"WARNING: {neg_rate_count} bins have negative net rates (background > source)")
+    
+    print("="*80)
+    print()
     
     # Calculate x_error (half bin width)
     x_error = np.full_like(x_bin, energy_bin_width / 2)
@@ -345,6 +429,27 @@ def summed_spectrum_plot(
         logger.info(f"Creating plot for {gti_range}")
         logger.info(f"Plot data summary: {len(x_bin)} energy bins, net_rate range: {net_rate.min():.3e} to {net_rate.max():.3e}")
         logger.info(f"Background range: {net_background.min():.3e} to {net_background.max():.3e}")
+        
+        # Print final plot data summary
+        print("\n" + "="*60)
+        print("FINAL PLOT DATA SUMMARY")
+        print("="*60)
+        print(f"Observation ID: {obs_id}")
+        print(f"GTI range: {gti_range}")
+        print(f"Energy range plotted: {x_bin.min():.3f} - {x_bin.max():.3f} keV")
+        print(f"Number of data points: {len(x_bin)}")
+        print(f"Net rate statistics:")
+        print(f"  Min: {net_rate.min():.3e} counts/s/det")
+        print(f"  Max: {net_rate.max():.3e} counts/s/det")
+        print(f"  Mean: {net_rate.mean():.3e} counts/s/det")
+        print(f"  Median: {np.median(net_rate):.3e} counts/s/det")
+        print(f"Background statistics:")
+        print(f"  Min: {net_background.min():.3e} counts/s/det")
+        print(f"  Max: {net_background.max():.3e} counts/s/det")
+        print(f"  Mean: {net_background.mean():.3e} counts/s/det")
+        print(f"Peak energy bin: {x_bin[np.argmax(net_rate)]:.3f} keV (rate: {net_rate.max():.3e})")
+        print("="*60)
+        print()
         
         plot_creation_start = time.time()
         result = data_plot(
