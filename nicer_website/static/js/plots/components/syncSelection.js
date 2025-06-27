@@ -12,6 +12,7 @@
 const PLOT_UNIT_TYPES = {
   'light-curve': 'time', // x-axis is time (seconds)
   spectrum: 'energy', // x-axis is energy (keV)
+  'summed-spectrum': 'energy', // x-axis is energy (keV)
   'power-density-spectrum': 'frequency', // x-axis is frequency (Hz)
   'hardness-intensity-diagram': 'hardness', // x-axis is hardness ratio
 };
@@ -22,6 +23,7 @@ const selectionState = {
   sourceType: null,
   inProgress: false, // Flag to prevent infinite loops
   preserveHighlights: true, // Flag to indicate if highlighting should be preserved during zoom
+  selectedGTI: null, // Track the currently selected GTI
 };
 
 /**
@@ -114,6 +116,9 @@ export function initSynchronizedSelection() {
 
     // Set up the relayout listener
     setupRelayoutListener(graph);
+
+    // Set up click listener for GTI selection
+    setupGTIClickListener(graph);
   });
 
   console.log(
@@ -205,14 +210,93 @@ function setupRelayoutListener(graphElement) {
 }
 
 /**
+ * Set up click listener for GTI selection in plotly graphs
+ * @param {HTMLElement} graphElement - The DOM element containing the plotly graph
+ */
+function setupGTIClickListener(graphElement) {
+  if (!graphElement || !graphElement.id) return;
+
+  try {
+    const plotId = graphElement.id;
+    const plotType = getPlotTypeFromId(plotId);
+    const gd = graphElement;
+
+    console.log(`Setting up GTI click listener for ${plotId} (${plotType})`);
+
+    // Remove any existing event handlers to prevent duplicates
+    gd.removeAllListeners('plotly_click');
+
+    // Listen for clicks on the plot
+    gd.on('plotly_click', function (data) {
+      if (selectionState.inProgress) return;
+
+      const point = data.points[0];
+      if (!point) return;
+
+      // Get the GTI number from the trace name
+      const gtiMatch = point.data.name.match(/GTI(\d+)/);
+      if (!gtiMatch) return;
+
+      const gtiNumber = parseInt(gtiMatch[1]);
+      console.log(`GTI ${gtiNumber} clicked on ${plotType}`);
+
+      // Update selection state
+      selectionState.selectedGTI = gtiNumber;
+      selectionState.sourceType = plotType;
+
+      // Propagate GTI selection to all graphs
+      propagateGTISelection(gtiNumber, plotType);
+    });
+
+    console.log(`Successfully set up GTI click listener for ${plotId}`);
+  } catch (error) {
+    console.error(
+      `Error setting up GTI click listener for ${graphElement.id}:`,
+      error,
+    );
+  }
+}
+
+/**
  * Extract the plot type from the plot element ID
  * @param {string} plotId - ID of the plot element
  * @returns {string} The plot type (light-curve, spectrum, etc.)
  */
 function getPlotTypeFromId(plotId) {
-  // Handle different ID formats (regular plots and combined plots)
-  const match = plotId.match(/^(?:combined-)?([\w-]+)(?:-\d+)?$/);
-  return match ? match[1] : null;
+  if (!plotId) return null;
+  // Plot IDs are typically like "spectrum-obsid", "light-curve-obsid",
+  // or "combined-spectrum-obsid".
+  // We want to extract the "spectrum", "light-curve" part.
+  for (const type of Object.keys(PLOT_UNIT_TYPES)) {
+    if (plotId.startsWith(type)) {
+      // e.g., plotId "spectrum-obs1" starts with "spectrum"
+      return type;
+    }
+    if (plotId.startsWith(`combined-${type}`)) {
+      // e.g., plotId "combined-spectrum-obs1"
+      return type;
+    }
+  }
+  // Fallback for IDs that might not contain a known plot type at the start,
+  // or have a different structure.
+  // This attempts to grab the first part if it's a simple 'type-id' structure.
+  const parts = plotId.split('-');
+  if (parts.length > 0 && PLOT_UNIT_TYPES[parts[0]]) {
+    return parts[0];
+  }
+  if (
+    parts.length > 1 &&
+    parts[0] === 'combined' &&
+    PLOT_UNIT_TYPES[parts[1]]
+  ) {
+    return parts[1];
+  }
+
+  console.warn(
+    `Could not reliably determine plot type from ID: ${plotId}. Full ID will be used.`,
+  );
+  // Return the part before the first hyphen if it's a generic name, or the full id.
+  return parts[0] || plotId;
 }
 
 /**
@@ -409,9 +493,165 @@ function applyZoomToGraph(graphElement, xRange) {
 }
 
 /**
- * Clear selections from all graphs
+ * Propagate GTI selection to all graphs
+ * @param {number} gtiNumber - The selected GTI number
+ * @param {string} sourceType - The plot type that originated the selection
+ */
+function propagateGTISelection(gtiNumber, sourceType) {
+  if (selectionState.inProgress) return;
+  selectionState.inProgress = true;
+
+  try {
+    const plotlyGraphs = document.querySelectorAll('.js-plotly-plot');
+    const dimmedBaseColor = 'rgb(0,0,0)'; // Black for dimmed GTIs
+    const baseDimmedOpacity = 0.2;
+    const opacityStepPerGTI = 0.03;
+    const minDimmedOpacity = 0.05;
+
+    plotlyGraphs.forEach((graph) => {
+      const plotType = getPlotTypeFromId(graph.id);
+      if (!plotType) return;
+
+      const gd = graph;
+      const update = {
+        opacity: [],
+        'marker.opacity': [],
+        'line.color': [],
+        'marker.color': [],
+      };
+
+      gd.data.forEach((trace) => {
+        const traceGTIMatch = trace.name ? trace.name.match(/GTI(\d+)/) : null;
+        const traceGTI = traceGTIMatch ? parseInt(traceGTIMatch[1]) : null;
+        const isSelectedGTI = traceGTI === gtiNumber;
+
+        // Store original colors if not already stored
+        if (trace.line && !trace._originalLineColor) {
+          trace._originalLineColor = trace.line.color;
+        }
+        if (trace.marker && !trace._originalMarkerColor) {
+          trace._originalMarkerColor = trace.marker.color;
+        }
+        // Store original opacity if not already stored (for BG traces mostly)
+        if (
+          typeof trace.opacity !== 'undefined' &&
+          typeof trace._originalOpacity === 'undefined'
+        ) {
+          trace._originalOpacity = trace.opacity;
+        }
+        if (
+          trace.marker &&
+          typeof trace.marker.opacity !== 'undefined' &&
+          typeof trace._originalMarkerOpacity === 'undefined'
+        ) {
+          trace._originalMarkerOpacity = trace.marker.opacity;
+        }
+
+        if (isSelectedGTI) {
+          update['opacity'].push(
+            trace._originalOpacity !== undefined ? trace._originalOpacity : 1.0,
+          );
+          update['marker.opacity'].push(
+            trace._originalMarkerOpacity !== undefined
+              ? trace._originalMarkerOpacity
+              : 1.0,
+          );
+          update['line.color'].push(
+            trace._originalLineColor || trace.line?.color,
+          );
+          update['marker.color'].push(
+            trace._originalMarkerColor || trace.marker?.color,
+          );
+        } else {
+          let currentDimmedOpacity = baseDimmedOpacity;
+          if (traceGTI !== null) {
+            // Apply step-down opacity only if it's a numbered GTI
+            currentDimmedOpacity = Math.max(
+              minDimmedOpacity,
+              baseDimmedOpacity - traceGTI * opacityStepPerGTI,
+            );
+          }
+
+          update['opacity'].push(currentDimmedOpacity);
+          update['marker.opacity'].push(currentDimmedOpacity);
+          update['line.color'].push(dimmedBaseColor);
+          update['marker.color'].push(dimmedBaseColor); // Marker color also black, opacity controlled by marker.opacity
+        }
+      });
+      Plotly.restyle(gd, update);
+    });
+    updateSelectionIndicators(sourceType);
+  } catch (error) {
+    console.error('Error propagating GTI selection:', error);
+  } finally {
+    selectionState.inProgress = false;
+  }
+}
+
+/**
+ * Clear GTI selection from all graphs
+ */
+function clearGTISelection() {
+  if (selectionState.inProgress) return;
+  selectionState.inProgress = true;
+
+  try {
+    const plotlyGraphs = document.querySelectorAll('.js-plotly-plot');
+    plotlyGraphs.forEach((graph) => {
+      const gd = graph;
+      const update = {
+        opacity: [],
+        'marker.opacity': [],
+        'line.color': [],
+        'marker.color': [],
+      };
+
+      gd.data.forEach((trace) => {
+        // Restore original opacities if stored, otherwise default
+        const originalOpacity =
+          trace._originalOpacity !== undefined ? trace._originalOpacity : 1.0;
+        const originalMarkerOpacity =
+          trace._originalMarkerOpacity !== undefined
+            ? trace._originalMarkerOpacity
+            : 1.0;
+
+        update['opacity'].push(originalOpacity);
+        update['marker.opacity'].push(originalMarkerOpacity);
+        update['line.color'].push(
+          trace._originalLineColor || trace.line?.color,
+        );
+        update['marker.color'].push(
+          trace._originalMarkerColor || trace.marker?.color,
+        );
+
+        // Clean up stored original properties
+        delete trace._originalLineColor;
+        delete trace._originalMarkerColor;
+        delete trace._originalOpacity;
+        delete trace._originalMarkerOpacity;
+      });
+      Plotly.restyle(gd, update);
+    });
+
+    selectionState.selectedGTI = null;
+    selectionState.sourceType = null;
+    document
+      .querySelectorAll('.sync-selection-active, .sync-selection-source')
+      .forEach((el) => {
+        el.classList.remove('sync-selection-active', 'sync-selection-source');
+      });
+  } catch (error) {
+    console.error('Error clearing GTI selection:', error);
+  } finally {
+    selectionState.inProgress = false;
+  }
+}
+
+/**
+ * Clear all selections from all graphs
  */
 function clearAllSelections() {
+  clearGTISelection();
   // Set flag to prevent infinite loops
   selectionState.inProgress = true;
 

@@ -8,74 +8,707 @@ import {
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
 
-export function fetchGTIPlot(event) {
-  event.preventDefault();
-  const $form = $(event.target);
-
-  let selectedGTIs = [];
-  $form
-    .closest('.details-row')
-    .find('.gti-table .gti-checkbox:checked')
-    .each(function () {
-      selectedGTIs.push($(this).closest('tr').attr('data-gti'));
-    });
-  $form.find('input[name="gti-search"]').val(selectedGTIs.join(','));
-
-  let formData = $form.serialize();
-  formData += `&csrfmiddlewaretoken=${$(
-    "input[name='csrfmiddlewaretoken']",
-  ).val()}`;
-  formData += `&quality=${$('#quality-select').val().toLowerCase()}`;
-
-  const $loadingIndicator = $('<div>', {
-    class: 'loading-indicator',
-    text: 'Generating plot...',
-  });
-  $form.append($loadingIndicator);
-
-  $.ajax({
-    type: 'POST',
-    url: PLOT_GTI_URL,
-    data: formData,
-    success: function (response) {
-      if (response.error) {
-        console.error('Server error:', response.error);
-        alert(response.error);
-        return;
+/**
+ * Shows a popup for selecting which plot types to generate for selected GTIs
+ * @param {string} obsID The observation ID
+ * @param {Array} selectedGTIs Array of selected GTI numbers
+ */
+function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
+  // Add CSS styles if they don't exist
+  if (!document.getElementById('popup-styles')) {
+    const styles = `
+      .popup-container {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        animation: fadeIn 0.3s ease-out;
       }
-      if (response.plotDivs && response.plotDivs.length > 0) {
-        const plotType = $form.find('input[name="plot_type"]').val();
-        const obsID = $form.find('input[name="obs_id"]').val();
+      
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      @keyframes slideIn {
+        from { transform: translateY(-50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      
+      .popup-content {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 500px;
+        padding: 0;
+        position: relative;
+        animation: slideIn 0.3s ease-out;
+      }
+      
+      .popup-title {
+        background-color: #505050;
+        color: white;
+        padding: 15px 20px;
+        font-size: 18px;
+        font-weight: bold;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .popup-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        margin: 0;
+        line-height: 1;
+        transition: transform 0.2s;
+      }
+      
+      .popup-close:hover {
+        transform: scale(1.2);
+      }
+      
+      .plot-type-form {
+        padding: 20px;
+        background-color: #f5f5f5;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+      }
+      
+      .plot-option {
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+      }
+      
+      .plot-option input[type="checkbox"] {
+        margin-right: 10px;
+        width: 18px;
+        height: 18px;
+      }
+      
+      .plot-option label {
+        font-size: 16px;
+        cursor: pointer;
+        color: #333;
+      }
+      
+      .plot-submit-btn {
+        background-color: #666666;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-size: 16px;
+        cursor: pointer;
+        margin-top: 10px;
+        transition: background-color 0.2s;
+        width: 100%;
+      }
+      
+      .plot-submit-btn:hover {
+        background-color: #555555;
+      }
+      
+      .loading-indicator {
+        margin: 20px 0;
+        padding: 10px;
+        background-color: #f5f5f5;
+        border-left: 4px solid #666666;
+        border-radius: 4px;
+        color: #333;
+      }
+    `;
+    const styleSheet = document.createElement('style');
+    styleSheet.id = 'popup-styles';
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
+  }
 
-        $(`#${plotType}-${obsID}`)
-          .find('.js-plotly-plot')
-          .replaceWith(response.plotDivs[0]);
+  // Create popup container if it doesn't exist
+  let $popup = $('#gti-plot-selection-popup');
+  if ($popup.length === 0) {
+    $popup = $('<div>', {
+      id: 'gti-plot-selection-popup',
+      class: 'popup-container',
+    });
+
+    const $content = $('<div>', {
+      class: 'popup-content',
+    });
+
+    const $title = $('<div>', {
+      class: 'popup-title',
+      text: 'Select Plot Types',
+    });
+
+    const $closeBtn = $('<button>', {
+      class: 'popup-close',
+      text: '×',
+    });
+
+    $title.append($closeBtn);
+    $content.append($title);
+    $popup.append($content);
+    $('body').append($popup);
+
+    // Setup close button and backdrop click to close popup
+    $popup.on('click', function (e) {
+      if (e.target === this) {
+        $popup.fadeOut(200);
+      }
+    });
+
+    $popup.on('click', '.popup-close', function () {
+      $popup.fadeOut(200);
+    });
+  }
+
+  // Update popup content
+  const $content = $popup.find('.popup-content');
+  $content
+    .find('.popup-title')
+    .text(`Select Plot Types for GTIs: ${selectedGTIs.join(', ')}`)
+    .append(
+      $('<button>', {
+        class: 'popup-close',
+        text: '×',
+      }),
+    );
+
+  // Remove any existing form
+  $content.find('form').remove();
+
+  // Create form for plot type selection
+  const $form = $('<form>', {
+    id: 'gti-plot-type-form',
+    class: 'plot-type-form',
+  });
+
+  // Add plot type options
+  const plotTypes = [
+    { id: 'spectrum', name: 'Spectrum' },
+    { id: 'summed-spectrum', name: 'Summed Spectrum' },
+    { id: 'light-curve', name: 'Light Curve' },
+    { id: 'power-density-spectrum', name: 'Power Density Spectrum' },
+    { id: 'hardness-intensity-diagram', name: 'Hardness Intensity Diagram' },
+  ];
+
+  plotTypes.forEach((type) => {
+    const $option = $('<div>', {
+      class: 'plot-option',
+    });
+
+    const $checkbox = $('<input>', {
+      type: 'checkbox',
+      id: `${type.id}-checkbox`,
+      name: type.id,
+      value: 'on',
+    });
+
+    const $label = $('<label>', {
+      for: `${type.id}-checkbox`,
+      text: type.name,
+    });
+
+    $option.append($checkbox);
+    $option.append($label);
+    $form.append($option);
+  });
+
+  // Add hidden fields
+  $form.append(
+    $('<input>', {
+      type: 'hidden',
+      name: 'obs_id',
+      value: obsID,
+    }),
+  );
+  $form.append(
+    $('<input>', {
+      type: 'hidden',
+      name: 'gti-search',
+      value: selectedGTIs.join(','),
+    }),
+  );
+
+  // Add submit button
+  const $submitBtn = $('<button>', {
+    type: 'submit',
+    class: 'plot-submit-btn',
+    text: 'Generate Plots',
+  });
+
+  $form.append($submitBtn);
+
+  // Handle form submission
+  $form.on('submit', function (event) {
+    event.preventDefault();
+    $popup.fadeOut(200);
+
+    // Get selected plot types
+    const selectedPlotTypes = [];
+    $form.find('input[type="checkbox"]:checked').each(function () {
+      selectedPlotTypes.push($(this).attr('id').replace('-checkbox', ''));
+    });
+
+    if (selectedPlotTypes.length === 0) {
+      alert('Please select at least one plot type');
+      return;
+    }
+
+    // Create a loading indicator
+    const $loadingIndicator = $('<div>', {
+      class: 'loading-indicator',
+      text: 'Generating plots...',
+    });
+    $form.append($loadingIndicator);
+
+    // Function to update a single plot
+    const updatePlot = (plotType) => {
+      let formData = new FormData();
+      formData.append('plot_type', plotType);
+      formData.append('obs_id', obsID);
+      formData.append('gti-search', selectedGTIs.join(','));
+      formData.append(
+        'csrfmiddlewaretoken',
+        $("input[name='csrfmiddlewaretoken']").val(),
+      );
+      formData.append('quality', $('#quality-select').val().toLowerCase());
+
+      return $.ajax({
+        type: 'POST',
+        url: PLOT_GTI_URL,
+        data: formData,
+        processData: false,
+        contentType: false,
+      });
+    };
+
+    // Update all selected plots
+    Promise.all(selectedPlotTypes.map(updatePlot))
+      .then((responses) => {
+        responses.forEach((response, index) => {
+          if (response.error) {
+            console.error('Server error:', response.error);
+            alert(response.error);
+            return;
+          }
+          if (response.plotDivs && response.plotDivs.length > 0) {
+            const plotType = selectedPlotTypes[index];
+            const plotID = `${plotType}-${obsID}`;
+
+            // Create plot section if it doesn't exist
+            let $section = $(`#${plotType}-section`);
+            if (!$section.length) {
+              $section = $('<div>', {
+                id: `${plotType}-section`,
+                class: 'plot-type-section',
+              });
+              $section.append(
+                $('<h3>', {
+                  text: plotType
+                    .split('-')
+                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' '),
+                }),
+              );
+              $('#plots').append($section);
+            }
+
+            // Create or update plot container
+            let $plotContainer = $(`#${plotID}`);
+            if (!$plotContainer.length) {
+              $plotContainer = $('<div>', {
+                id: plotID,
+                class: 'plot-container',
+              });
+              $section.append($plotContainer);
+            }
+
+            $plotContainer.html(response.plotDivs[0]);
+          }
+        });
 
         MathJax.typeset();
 
-        // Update synchronized selections after plot update with larger delay
+        // Update synchronized selections after all plots are updated
         setTimeout(() => {
           console.log(
-            'Reinitializing synchronized selection after GTI plot update',
+            'Reinitializing synchronized selection after GTI plot updates',
           );
-          // First reinitialize for the new plot
           initSynchronizedSelection();
-          // Then apply any existing selections
           updateAllSelections();
           // Initialize interactive linking
           initInteractiveLinking();
         }, 500);
-      }
-    },
-    error: function (xhr, status, error) {
-      console.error('Error fetching GTI plot:', error);
-      console.error('Server response:', xhr.responseText);
-      alert('Error fetching GTI plot. Please try again.');
-    },
-    complete: function () {
-      $loadingIndicator.remove();
-    },
+      })
+      .catch((error) => {
+        console.error('Error fetching GTI plots:', error);
+        alert('Error fetching GTI plots. Please try again.');
+      })
+      .finally(() => {
+        $loadingIndicator.remove();
+      });
   });
+
+  $content.append($form);
+
+  // Show the popup with animation
+  $popup.css('display', 'flex').hide().fadeIn(300);
+}
+
+export function fetchGTIPlot(event) {
+  event.preventDefault();
+  const $form = $(event.target);
+  const plotType = $form.find('input[name="plot_type"]').val();
+  const obsID = $form.find('input[name="obs_id"]').val();
+  const gtiSearch = $form.find('input[name="gti-search"]').val();
+  const minValue = $form.find('input[name="min_value"]').val();
+
+  console.log(
+    `[DEBUG gtiPlots.js fetchGTIPlot] Form submitted. Plot Type: ${plotType}, Obs ID: ${obsID}, GTI Search: ${gtiSearch}, Min Value: ${minValue}`,
+  );
+
+  let selectedGTIs = [];
+  // If gtiSearch is populated from the text input, use that directly.
+  // Otherwise, try to get GTIs from checkboxes (existing logic).
+  if (gtiSearch) {
+    selectedGTIs = gtiSearch
+      .split(',')
+      .map((gti) => gti.trim())
+      .filter((gti) => gti !== '');
+    console.log(
+      `[DEBUG gtiPlots.js fetchGTIPlot] Using GTIs from search input:`,
+      selectedGTIs,
+    );
+  } else {
+    $form
+      .closest('.details-row')
+      .find('.gti-table .gti-checkbox:checked')
+      .each(function () {
+        selectedGTIs.push($(this).closest('tr').data('gti').replace('GTI', ''));
+      });
+    console.log(
+      `[DEBUG gtiPlots.js fetchGTIPlot] Using GTIs from checkboxes:`,
+      selectedGTIs,
+    );
+    // Update the hidden gti-search field if we are using checkboxes,
+    // so it's included in the serialized form data for the AJAX call.
+    $form.find('input[name="gti-search"]').val(selectedGTIs.join(','));
+  }
+
+  // Get the observation ID again, in case it was modified or needs to be reconfirmed
+  const currentObsID = $form.find('input[name="obs_id"]').val();
+  console.log(
+    `[DEBUG gtiPlots.js fetchGTIPlot] Current Obs ID for AJAX: ${currentObsID}`,
+  );
+
+  // Find all open plot types for this observation
+  const openPlotTypes = [];
+  // Construct the selector for the plot section (sections are organized by plot type, not by obsID)
+  const plotTypeSectionSelector = `#${plotType.replace('_', '-')}-section`;
+  console.log(
+    `[DEBUG gtiPlots.js fetchGTIPlot] Looking for plot section with selector: ${plotTypeSectionSelector}`,
+  );
+
+  // Check if the specific plot section exists AND if there's a plot for this observation in that section
+  const plotContainerSelector = `#${plotType.replace(
+    '_',
+    '-',
+  )}-${currentObsID}`;
+  console.log(
+    `[DEBUG gtiPlots.js fetchGTIPlot] Looking for plot container with selector: ${plotContainerSelector}`,
+  );
+
+  if (
+    $(plotTypeSectionSelector).length > 0 &&
+    $(plotContainerSelector).length > 0
+  ) {
+    openPlotTypes.push(plotType);
+    console.log(
+      `[DEBUG gtiPlots.js fetchGTIPlot] Found specific plot section and container for update: ${plotType}`,
+    );
+  } else {
+    // Fallback: find all plot types that have containers for this observation
+    $('.plot-type-section').each(function () {
+      const sectionId = $(this).attr('id');
+      if (sectionId) {
+        const sectionPlotType = sectionId.replace('-section', '');
+        const potentialContainer = `#${sectionPlotType}-${currentObsID}`;
+        console.log(
+          `[DEBUG gtiPlots.js fetchGTIPlot] Checking for container: ${potentialContainer}`,
+        );
+        if ($(potentialContainer).length > 0) {
+          openPlotTypes.push(sectionPlotType.replace('-', '_'));
+          console.log(
+            `[DEBUG gtiPlots.js fetchGTIPlot] Found plot container for plot type: ${sectionPlotType}`,
+          );
+        }
+      }
+    });
+    console.log(
+      `[DEBUG gtiPlots.js fetchGTIPlot] Fallback: Found open plot types for obsID ${currentObsID}:`,
+      openPlotTypes,
+    );
+  }
+
+  // If no plots are open (neither specific nor fallback), show the plot selection popup
+  if (openPlotTypes.length === 0 && !gtiSearch) {
+    // Also check if gtiSearch was empty, as popup is for selecting plot *types*
+    console.log(
+      `[DEBUG gtiPlots.js fetchGTIPlot] No open plots found for ${currentObsID} and no specific GTI search. Showing GTI plot selection popup.`,
+    );
+    showGTIPlotSelectionPopup(currentObsID, selectedGTIs);
+    return; // Stop further execution as popup will handle next steps
+  }
+
+  // Create a loading indicator for each open plot
+  const $loadingIndicators = $('<div>', {
+    class: 'loading-indicator',
+    text: 'Updating plots...',
+  });
+
+  // Try to place loading indicator in a visible location
+  let loadingPlaced = false;
+
+  // First, try to place it in an existing plot container
+  for (const plotType of openPlotTypes) {
+    const plotContainerSelector = `#${plotType.replace(
+      '_',
+      '-',
+    )}-${currentObsID}`;
+    const plotContainer = $(plotContainerSelector);
+    if (plotContainer.length > 0) {
+      console.log(
+        `[DEBUG gtiPlots.js fetchGTIPlot] Placing loading indicator in: ${plotContainerSelector}`,
+      );
+      plotContainer.prepend($loadingIndicators.clone());
+      loadingPlaced = true;
+      break;
+    }
+  }
+
+  // Fallback: place near the form if no plot container found
+  if (!loadingPlaced) {
+    console.log(
+      `[DEBUG gtiPlots.js fetchGTIPlot] Placing loading indicator near form`,
+    );
+    $form.after($loadingIndicators);
+    loadingPlaced = true;
+  }
+
+  // Function to update a single plot
+  const updatePlot = (currentPlotType) => {
+    console.log(
+      `[DEBUG gtiPlots.js updatePlot] Updating plot: ${currentPlotType} for Obs ID: ${currentObsID}`,
+    );
+
+    // Get form data and ensure CSRF token is included
+    let formData = $form.serialize();
+
+    // Add CSRF token if not already included
+    const csrfToken = $("input[name='csrfmiddlewaretoken']").val();
+    if (csrfToken && !formData.includes('csrfmiddlewaretoken')) {
+      formData += `&csrfmiddlewaretoken=${csrfToken}`;
+    }
+
+    // Add plot type and quality if not already included
+    if (!formData.includes('plot_type=')) {
+      formData += `&plot_type=${currentPlotType}`;
+    }
+
+    const quality = $('#quality-select').val();
+    if (quality && !formData.includes('quality=')) {
+      formData += `&quality=${quality.toLowerCase()}`;
+    }
+
+    // Debug: Check what GTI data is in the form
+    const gtiSearchValue = $form.find('input[name="gti-search"]').val();
+    console.log(
+      `[DEBUG gtiPlots.js updatePlot] GTI search value in form: "${gtiSearchValue}"`,
+    );
+    console.log(
+      `[DEBUG gtiPlots.js updatePlot] Form data for AJAX: ${formData}`,
+    );
+
+    return $.ajax({
+      type: 'POST',
+      url: PLOT_GTI_URL, // Ensure PLOT_GTI_URL is defined and correct
+      data: formData,
+      success: function (data) {
+        console.log(
+          `[DEBUG gtiPlots.js updatePlot] AJAX success for ${currentPlotType}:`,
+          data,
+        );
+
+        // Debug: Check if we received plot data
+        if (data.plotDivs) {
+          console.log(
+            `[DEBUG gtiPlots.js updatePlot] Received ${data.plotDivs.length} plot divs`,
+          );
+        } else {
+          console.log(`[DEBUG gtiPlots.js updatePlot] No plotDivs in response`);
+        }
+
+        // Try multiple selectors to find the correct plot container
+        const plotContainerSelectors = [
+          `#${currentPlotType.replace('_', '-')}-${currentObsID}`, // Main plot container
+          `#${currentPlotType.replace(
+            '_',
+            '-',
+          )}-${currentObsID} .js-plotly-plot`, // Plotly element within container
+          `#${currentPlotType.replace(
+            '_',
+            '-',
+          )}-${currentObsID} .plot-container`, // Alternative container structure
+        ];
+
+        let plotContainer = null;
+        let selectorUsed = '';
+
+        for (const selector of plotContainerSelectors) {
+          const element = $(selector);
+          if (element.length > 0) {
+            plotContainer = element;
+            selectorUsed = selector;
+            console.log(
+              `[DEBUG gtiPlots.js updatePlot] Found plot container using selector: ${selector}`,
+            );
+            break;
+          } else {
+            console.log(
+              `[DEBUG gtiPlots.js updatePlot] Selector not found: ${selector}`,
+            );
+          }
+        }
+
+        if (plotContainer && data.plotDivs && data.plotDivs.length > 0) {
+          console.log(
+            `[DEBUG gtiPlots.js updatePlot] Updating plot container with selector: ${selectorUsed}`,
+          );
+
+          // If we found the main container, replace its content with the plot
+          if (selectorUsed.includes('.js-plotly-plot')) {
+            // Replace the plotly element specifically
+            plotContainer.replaceWith(data.plotDivs[0]);
+          } else {
+            // Find the plotly element within the container and replace it, or replace all content
+            const plotlyElement = plotContainer.find('.js-plotly-plot');
+            if (plotlyElement.length > 0) {
+              plotlyElement.replaceWith(data.plotDivs[0]);
+            } else {
+              plotContainer.html(data.plotDivs[0]);
+            }
+          }
+
+          // Re-run MathJax for any math expressions
+          if (typeof MathJax !== 'undefined' && MathJax.typeset) {
+            MathJax.typeset();
+          }
+
+          // Re-initialize synchronized selection for the updated plot
+          setTimeout(() => {
+            console.log(
+              `[DEBUG gtiPlots.js updatePlot] Re-initializing synchronized selection for ${currentPlotType}`,
+            );
+            if (typeof initSynchronizedSelection !== 'undefined') {
+              initSynchronizedSelection();
+            }
+            if (typeof updateAllSelections !== 'undefined') {
+              updateAllSelections();
+            }
+          }, 300);
+        } else if (!plotContainer) {
+          console.error(
+            `[DEBUG gtiPlots.js updatePlot] Could not find plot container for ${currentPlotType}-${currentObsID}. Tried selectors:`,
+            plotContainerSelectors,
+          );
+        } else {
+          console.error(
+            '[DEBUG gtiPlots.js updatePlot] No plotDivs in response for ',
+            currentPlotType,
+            data,
+          );
+        }
+      },
+      error: function (xhr, status, error) {
+        console.error(
+          `[DEBUG gtiPlots.js updatePlot] AJAX error for ${currentPlotType}:`,
+          status,
+          error,
+          xhr.responseText,
+        );
+
+        // Try to find the plot container to show error message
+        const plotContainerSelectors = [
+          `#${currentPlotType.replace('_', '-')}-${currentObsID}`,
+          `#${currentPlotType.replace(
+            '_',
+            '-',
+          )}-${currentObsID} .js-plotly-plot`,
+          `#${currentPlotType.replace(
+            '_',
+            '-',
+          )}-${currentObsID} .plot-container`,
+        ];
+
+        let plotContainer = null;
+        for (const selector of plotContainerSelectors) {
+          const element = $(selector);
+          if (element.length > 0) {
+            plotContainer = element;
+            break;
+          }
+        }
+
+        if (plotContainer) {
+          plotContainer.html(
+            '<p>Error loading plot. Check console for details.</p>',
+          );
+        } else {
+          console.error(
+            `[DEBUG gtiPlots.js updatePlot] Could not find plot container to show error message for ${currentPlotType}-${currentObsID}`,
+          );
+        }
+      },
+    });
+  };
+
+  // Update all relevant plots
+  Promise.all(openPlotTypes.map(updatePlot))
+    .then((responses) => {
+      console.log(
+        '[DEBUG gtiPlots.js fetchGTIPlot] All plots updated successfully:',
+        responses,
+      );
+    })
+    .catch((error) => {
+      console.error(
+        '[DEBUG gtiPlots.js fetchGTIPlot] Error updating one or more plots:',
+        error,
+      );
+    })
+    .finally(() => {
+      console.log(
+        '[DEBUG gtiPlots.js fetchGTIPlot] Finished plot update process. Removing loading indicators.',
+      );
+      // Remove all loading indicators
+      $('.loading-indicator').remove();
+    });
 }
 
 /**

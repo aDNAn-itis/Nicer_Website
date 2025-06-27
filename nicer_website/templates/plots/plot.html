@@ -14,147 +14,211 @@
 
 <script src="{% static '/js/plots/plot.js' %}" type="module"></script>
 
-{% endblock %} {% block title %}Plot{% endblock %} {% block content %}
-<h1>Interactive Plots</h1>
+{% endblock %} {% block content %}
+<!-- Interactive Plots Header -->
+<section class="hero" style="background: var(--space-gradient); min-height: 40vh; display: flex; align-items: center">
+  <div class="container">
+    <div class="hero-content" style="text-align: center; color: white">
+      <h1
+        style="
+          font-size: 3rem;
+          margin-bottom: 1rem;
+          background: linear-gradient(45deg, white, #fbbf24, #c0c0c0);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        "
+      >
+        Interactive Data Analysis
+      </h1>
+      <p class="hero-subtitle" style="font-size: 1.25rem; opacity: 0.9; max-width: 800px; margin: 0 auto">
+        Explore NICER X-ray timing and spectroscopy data with advanced visualization tools and synchronized multi-plot
+        analysis
+      </p>
+    </div>
+  </div>
+</section>
 
-<form id="plot-graph" method="post">
-  {% csrf_token %}
-  <div class="row">
-    <div class="column">
-      <label for="search-type">Search by:</label>
-      <select id="search-type" name="search_type" class="dropdown-field">
-        <option value="obs_id" selected>Observation ID</option>
-        <option value="source">Source Name</option>
-      </select>
+<!-- Search and Filter Section -->
+<section class="section" style="background: var(--bg-secondary); padding: 2rem 0">
+  <div class="container">
+    <div class="card" style="padding: 2rem; border-radius: 1rem; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1)">
+      <h2 style="margin-bottom: 1.5rem; color: var(--text-primary); text-align: center">Search Observations</h2>
+
+      <form id="plot-graph" method="post" style="margin-bottom: 0">
+        {% csrf_token %}
+        <div class="row" style="align-items: end; gap: 1rem">
+          <div class="column">
+            <label for="search-type">Search by:</label>
+            <select id="search-type" name="search_type" class="dropdown-field">
+              <option value="obs_id" selected>Observation ID</option>
+              <option value="source">Source Name</option>
+            </select>
+          </div>
+
+          <!-- Observation ID and Source Name Inputs -->
+          <div class="column">
+            <div class="dropdown" id="obs-id-dropdown">
+              <input
+                id="observation-search"
+                class="dropdown-field"
+                name="obs_id"
+                type="text"
+                value="{{ obsID }}"
+                placeholder="Observation ID..."
+              />
+              <div id="observation-options" class="dropdown-content"></div>
+            </div>
+
+            <div class="dropdown" id="source-name-dropdown" style="display: none">
+              <input
+                id="source-search"
+                class="dropdown-field"
+                name="source"
+                type="text"
+                value="{{ sourceName }}"
+                placeholder="Source Name..."
+              />
+              <div id="source-options" class="dropdown-content"></div>
+            </div>
+          </div>
+
+          <!-- Quality Dropdown -->
+          <div class="column">
+            <div class="dropdown">
+              <input
+                id="quality-select"
+                class="dropdown-field"
+                name="quality"
+                type="text"
+                value="{{ quality }}"
+                placeholder="Quality..."
+                readonly="true"
+              />
+              <div class="dropdown-content">
+                <button class="change-quality" type="button" name="goddard">Goddard</button>
+                <button class="change-quality" type="button" name="gold">Gold</button>
+                <button class="change-quality" type="button" name="silver">Silver</button>
+                <button class="change-quality" type="button" name="radium">Radium</button>
+                <button class="change-quality" type="button" name="pyrite">Pyrite</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="column" style="display: flex; align-items: end">
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1rem">
+              <i class="fas fa-search"></i>
+              Search & Plot
+            </button>
+          </div>
+        </div>
+
+        <!-- Advanced Search Button -->
+        <div style="text-align: center; margin-top: 1rem">
+          <button type="button" id="advance-search-btn" class="btn btn-outline">
+            <i class="fas fa-filter"></i>
+            Advanced Search
+          </button>
+        </div>
+
+        <!-- Advanced Search Section -->
+        <div
+          id="advanced-search"
+          style="
+            display: none;
+            margin-top: 2rem;
+            padding: 2rem;
+            background: var(--bg-color);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border-color);
+          "
+        >
+          <h3 style="margin-bottom: 1.5rem; color: var(--text-primary)">Advanced Search Parameters</h3>
+          <div class="row" style="gap: 1rem">
+            <div class="column">
+              <label for="ra">RA (degrees):</label>
+              <input id="ra" class="dropdown-field" name="ra" type="text" placeholder="Right Ascension..." />
+            </div>
+            <div class="column">
+              <label for="dec">DEC (degrees):</label>
+              <input id="dec" class="dropdown-field" name="dec" type="text" placeholder="Declination..." />
+            </div>
+            <div class="column">
+              <label for="tstart_tt">TStart_TT:</label>
+              <input id="tstart_tt" class="dropdown-field" name="tstart_tt" type="text" placeholder="Tstart_tt..." />
+            </div>
+            <div class="column">
+              <label for="tstop_tt">TStop_TT:</label>
+              <input id="tstop_tt" class="dropdown-field" name="tstop_tt" type="text" placeholder="Tstop_tt..." />
+            </div>
+          </div>
+          <div class="row" style="gap: 1rem; margin-top: 1rem">
+            <div class="column">
+              <label for="ndets_used">Detectors Used:</label>
+              <input id="ndets_used" class="dropdown-field" name="ndets_used" type="text" placeholder="ndets_used..." />
+            </div>
+            <div class="column">
+              <label for="ushoot_net_rate">Undershoot Rate:</label>
+              <input
+                id="ushoot_net_rate"
+                class="dropdown-field"
+                name="ushoot_net_rate"
+                type="text"
+                placeholder="Undershoot..."
+              />
+            </div>
+            <div class="column">
+              <label for="oshoot_net_rate">Overshoot Rate:</label>
+              <input
+                id="oshoot_net_rate"
+                class="dropdown-field"
+                name="oshoot_net_rate"
+                type="text"
+                placeholder="Overshoot..."
+              />
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- Results Section -->
+<section class="section">
+  <div class="container">
+    <div id="obs-info" class="info-container hide" style="margin-bottom: 2rem">
+      <h3 style="margin-bottom: 1rem; color: var(--text-primary)">Observation Information</h3>
+      <table id="obs-info-table" class="info-table obs-id-table"></table>
     </div>
 
-    <!-- Observation ID and Source Name Inputs -->
-    <div class="column">
-      <div class="dropdown" id="obs-id-dropdown">
+    <div id="plots" style="margin-bottom: 2rem"></div>
+
+    <div id="remove-obs" style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center"></div>
+
+    <form id="add-obs" method="post" class="hide" style="text-align: center; margin-top: 2rem">
+      {% csrf_token %}
+      <button id="add-obs-btn" type="button" class="btn btn-outline">
+        <i class="fas fa-plus"></i>
+        Add Another Observation
+      </button>
+      <div id="add-obs-dropdown" class="hide dropdown" style="max-width: 400px; margin: 1rem auto 0">
         <input
-          id="observation-search"
+          id="additional-observation-search"
           class="dropdown-field"
           name="obs_id"
           type="text"
           value="{{ obsID }}"
-          placeholder="Observation ID..."
+          placeholder="Enter Observation ID..."
         />
-        <div id="observation-options" class="dropdown-content"></div>
+        <div class="dropdown-content"></div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 1rem">
+          <i class="fas fa-check"></i>
+          Add
+        </button>
       </div>
-
-      <div class="dropdown" id="source-name-dropdown" style="display: none">
-        <input
-          id="source-search"
-          class="dropdown-field"
-          name="source"
-          type="text"
-          value="{{ sourceName }}"
-          placeholder="Source Name..."
-        />
-        <div id="source-options" class="dropdown-content"></div>
-      </div>
-    </div>
-
-    <!-- Quality Dropdown -->
-    <div class="column">
-      <div class="dropdown">
-        <input
-          id="quality-select"
-          class="dropdown-field"
-          name="quality"
-          type="text"
-          value="{{ quality }}"
-          placeholder="Quality..."
-          readonly="true"
-        />
-        <div class="dropdown-content">
-          <button class="change-quality" type="button" name="goddard">Goddard</button>
-          <button class="change-quality" type="button" name="gold">Gold</button>
-          <button class="change-quality" type="button" name="silver">Silver</button>
-          <button class="change-quality" type="button" name="radium">Radium</button>
-          <button class="change-quality" type="button" name="pyrite">Pyrite</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Submit Button -->
-    <div class="column">
-      <button type="submit">Search</button>
-    </div>
+    </form>
   </div>
-
-  <!-- Advanced Search Button -->
-  <button type="button" id="advance-search-btn">Advanced Search</button>
-
-  <!-- Advanced Search Section -->
-  <div id="advanced-search" style="display: none">
-    <div class="row">
-      <div class="column">
-        <label for="ra">RA:</label>
-        <input id="ra" class="dropdown-field" name="ra" type="text" placeholder="Right Ascension..." />
-      </div>
-      <div class="column">
-        <label for="dec">DEC:</label>
-        <input id="dec" class="dropdown-field" name="dec" type="text" placeholder="Declination..." />
-      </div>
-      <div class="column">
-        <label for="tstart_tt">TStart_TT:</label>
-        <input id="tstart_tt" class="dropdown-field" name="tstart_tt" type="text" placeholder="Tstart_tt..." />
-      </div>
-      <div class="column">
-        <label for="tstop_tt">TStop_TT:</label>
-        <input id="tstop_tt" class="dropdown-field" name="tstop_tt" type="text" placeholder="Tstop_tt..." />
-      </div>
-      <div class="column">
-        <label for="ndets_used">ndets_used</label>
-        <input id="ndets_used" class="dropdown-field" name="ndets_used" type="text" placeholder="ndets_used..." />
-      </div>
-      <div class="column">
-        <label for="ushoot_net_rate">Undershoot</label>
-        <input
-          id="ushoot_net_rate"
-          class="dropdown-field"
-          name="ushoot_net_rate"
-          type="text"
-          placeholder="Undershoot..."
-        />
-      </div>
-      <div class="column">
-        <label for="oshoot_net_rate">Overshoot</label>
-        <input
-          id="oshoot_net_rate"
-          class="dropdown-field"
-          name="oshoot_net_rate"
-          type="text"
-          placeholder="Overshoot..."
-        />
-      </div>
-    </div>
-  </div>
-</form>
-
-<div id="obs-info" class="info-container hide">
-  <table id="obs-info-table" class="info-table obs-id-table"></table>
-</div>
-
-<div id="plots"></div>
-
-<div id="remove-obs"></div>
-
-<form id="add-obs" method="post" class="hide">
-  {% csrf_token %}
-  <button id="add-obs-btn" type="button">Add Another Observation</button>
-  <div id="add-obs-dropdown" class="hide dropdown">
-    <input
-      id="additional-observation-search"
-      class="dropdown-field"
-      name="obs_id"
-      type="text"
-      value="{{ obsID }}"
-      placeholder="Enter Observation ID..."
-    />
-    <div class="dropdown-content"></div>
-    <button type="submit">Add</button>
-  </div>
-</form>
+</section>
 {% endblock %}

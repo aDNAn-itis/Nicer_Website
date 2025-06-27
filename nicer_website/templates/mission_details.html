@@ -1,0 +1,386 @@
+{% extends "base.html" %} {% block title %}Mission Details - NASA NICER{% endblock %} {% block content %}
+<!-- Hero Section -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <h1>NICER Mission Details</h1>
+      <p class="hero-subtitle">
+        Comprehensive information about NASA's Neutron star Interior Composition Explorer mission
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Mission Overview -->
+<section class="section">
+  <div class="container">
+    <div class="feature">
+      <div class="feature-content">
+        <h2>Mission Overview</h2>
+        <p>
+          The Neutron star Interior Composition Explorer (NICER) is a NASA Astrophysics Mission of Opportunity within
+          the Explorer program. Launched on June 3, 2017, aboard a SpaceX Falcon 9 rocket, NICER was installed on the
+          International Space Station (ISS) as an external payload.
+        </p>
+        <p>
+          NICER represents a breakthrough in X-ray timing instrumentation, providing scientists with unprecedented
+          capabilities to study neutron stars—the collapsed cores of massive stars that pack more mass than our Sun into
+          a sphere only about 20 kilometers across.
+        </p>
+        <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 8px; margin-top: 2rem">
+          <h4 style="margin-bottom: 1rem; color: var(--nicer-blue)">
+            <i class="fas fa-bullseye" style="margin-right: 0.5rem"></i>
+            Primary Mission Objective
+          </h4>
+          <p style="margin: 0; font-style: italic">
+            Measure neutron star radii to within 5% precision to constrain the equation of state of matter at nuclear
+            densities, providing insights into the fundamental physics of the universe's densest observable matter.
+          </p>
+        </div>
+      </div>
+      <div class="feature-image">
+        <i class="fas fa-rocket" style="font-size: 4rem; color: var(--nicer-gold)"></i>
+        <div style="margin-top: 1rem; text-align: center">Mission Launch</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Mission Timeline -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Mission Timeline</h2>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-date">2013</div>
+        <div class="timeline-content">
+          <h4>Mission Selection</h4>
+          <p>NICER selected as a NASA Mission of Opportunity under the Explorer program</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">2017</div>
+        <div class="timeline-content">
+          <h4>Launch & Installation</h4>
+          <p>Launched June 3rd aboard SpaceX CRS-11, installed on ISS Japanese Experiment Module</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">2017</div>
+        <div class="timeline-content">
+          <h4>First Light</h4>
+          <p>First X-ray observations began in late June, commissioning completed by end of 2017</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">2018-Present</div>
+        <div class="timeline-content">
+          <h4>Science Operations</h4>
+          <p>Continuous science operations with regular data releases to the public archive</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Technical Specifications -->
+<section class="section">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Technical Specifications</h2>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3 class="card-title">
+          <i class="fas fa-microscope" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+          X-ray Timing Instrument
+        </h3>
+        <div style="margin-top: 1rem">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Detector Type:</span>
+            <strong>Silicon Drift Detectors (SDD)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Number of Detectors:</span>
+            <strong>56</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Energy Range:</span>
+            <strong>0.2 - 12 keV</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Energy Resolution:</span>
+            <strong>85 eV @ 1 keV</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Timing Resolution:</span>
+            <strong>~100 ns</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between">
+            <span>Effective Area:</span>
+            <strong>1900 cm² @ 1.5 keV</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">
+          <i class="fas fa-eye" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+          X-ray Concentrators
+        </h3>
+        <div style="margin-top: 1rem">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Optic Type:</span>
+            <strong>Wolter-I Concentrators</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Number of Optics:</span>
+            <strong>56</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Focal Length:</span>
+            <strong>1.1 meters</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Field of View:</span>
+            <strong>~30 arcmin diameter</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Angular Resolution:</span>
+            <strong>~2.5 arcmin HPD</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between">
+            <span>Coating:</span>
+            <strong>Gold</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">
+          <i class="fas fa-satellite-dish" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+          Platform & Operations
+        </h3>
+        <div style="margin-top: 1rem">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Host Platform:</span>
+            <strong>International Space Station</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Installation:</span>
+            <strong>JEM-EF (External Facility)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Orbital Altitude:</span>
+            <strong>~408 km</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Orbital Period:</span>
+            <strong>92.9 minutes</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Mass:</span>
+            <strong>375 kg</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between">
+            <span>Power:</span>
+            <strong>335 W average</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">
+          <i class="fas fa-database" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+          Data Products
+        </h3>
+        <div style="margin-top: 1rem">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Time Resolution:</span>
+            <strong>Down to 100 ns</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Data Modes:</span>
+            <strong>Event, Binned</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Telemetry Rate:</span>
+            <strong>~1 Mbps science</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Archive:</span>
+            <strong>HEASARC</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem">
+            <span>Data Rights:</span>
+            <strong>Public after 1 year</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between">
+            <span>File Format:</span>
+            <strong>FITS</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Key Capabilities -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Key Scientific Capabilities</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-stopwatch"></i>
+        </div>
+        <h3 class="card-title">Precision Timing</h3>
+        <p>
+          Microsecond-level timing precision enables detailed studies of neutron star rotation, pulsations, and timing
+          noise. Critical for radius measurements through pulse profile modeling.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-spectrum"></i>
+        </div>
+        <h3 class="card-title">High-Resolution Spectroscopy</h3>
+        <p>
+          Superior energy resolution allows detailed studies of emission lines, absorption features, and continuum
+          spectra from neutron star atmospheres and accretion flows.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-crosshairs"></i>
+        </div>
+        <h3 class="card-title">Flexible Pointing</h3>
+        <p>
+          ISS-based platform provides access to ~80% of the sky, with flexible scheduling allowing rapid response to
+          transient events and coordinated multi-wavelength campaigns.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-clock"></i>
+        </div>
+        <h3 class="card-title">Long-Term Monitoring</h3>
+        <p>
+          Continuous operation enables long-term monitoring of neutron star systems, studying orbital evolution,
+          accretion state changes, and long-term timing stability.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-flash"></i>
+        </div>
+        <h3 class="card-title">High Count Rates</h3>
+        <p>
+          Large effective area and low background enable studies of bright X-ray sources with unprecedented statistics,
+          crucial for detailed timing and spectral analysis.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-eye-low-vision"></i>
+        </div>
+        <h3 class="card-title">Low Background</h3>
+        <p>
+          Excellent background rejection through coincidence shielding and energy discrimination enables sensitive
+          observations of faint sources and detailed background modeling.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Mission Team -->
+<section class="section">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Mission Team & Partners</h2>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3 class="card-title">
+          <i class="fas fa-building" style="color: var(--nasa-blue); margin-right: 0.5rem"></i>
+          Lead Institution
+        </h3>
+        <p>
+          <strong>NASA Goddard Space Flight Center</strong> leads the NICER mission, providing project management,
+          instrument development, mission operations, and data processing.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">
+          <i class="fas fa-users" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+          Principal Investigator
+        </h3>
+        <p>
+          <strong>Dr. Keith Gendreau</strong> serves as the Principal Investigator, leading the science team and
+          overseeing mission operations and scientific objectives.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">
+          <i class="fas fa-globe" style="color: var(--nicer-gold); margin-right: 0.5rem"></i>
+          International Partners
+        </h3>
+        <p>
+          Collaboration with institutions worldwide, including universities in the US, Canada, Europe, and Asia,
+          contributing to instrument development and scientific analysis.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">
+          <i class="fas fa-industry" style="color: var(--nebula-purple); margin-right: 0.5rem"></i>
+          Industry Partners
+        </h3>
+        <p>
+          Partnership with aerospace and technology companies for instrument fabrication, testing, and integration,
+          ensuring mission success and reliability.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Call to Action -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <div style="text-align: center; max-width: 800px; margin: 0 auto">
+      <h2>Explore NICER Data</h2>
+      <p style="font-size: 1.125rem; margin-bottom: 2rem">
+        Ready to dive into NICER's treasure trove of neutron star data? Start exploring with our interactive analysis
+        tools or browse the complete data archive.
+      </p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap">
+        {% url 'plots:plots' as plots_url %}
+        <a href="{{ plots_url }}" class="btn btn-primary">
+          <i class="fas fa-chart-line"></i>
+          Interactive Analysis
+        </a>
+        {% url 'file_mgr:directory' '/' as file_mgr_url %}
+        <a href="{{ file_mgr_url }}" class="btn btn-outline">
+          <i class="fas fa-database"></i>
+          Data Archive
+        </a>
+        {% url 'science_details' as science_details_url %}
+        <a href="{{ science_details_url }}" class="btn btn-outline">
+          <i class="fas fa-atom"></i>
+          Science Goals
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

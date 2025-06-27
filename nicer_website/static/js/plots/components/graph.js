@@ -206,6 +206,7 @@ export function showPlotSelectionPopup(obsID) {
   // Add plot type options
   const plotTypes = [
     { id: 'spectrum', name: 'Spectrum' },
+    { id: 'summed-spectrum', name: 'Summed Spectrum' },
     { id: 'light-curve', name: 'Light Curve' },
     { id: 'power-density-spectrum', name: 'Power Density Spectrum' },
     { id: 'hardness-intensity-diagram', name: 'Hardness Intensity Diagram' },
@@ -341,6 +342,7 @@ export function fetchGraphPlots(refresh = false, event) {
       // Process plots only if plot types were requested
       const hasPlotTypes =
         serializedData.includes('spectrum=') ||
+        serializedData.includes('summed-spectrum=') ||
         serializedData.includes('light-curve=') ||
         serializedData.includes('power-density-spectrum=') ||
         serializedData.includes('hardness-intensity-diagram=');

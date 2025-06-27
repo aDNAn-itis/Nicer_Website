@@ -1,0 +1,396 @@
+{% extends "base.html" %} {% block title %}Science Details - NASA NICER{% endblock %} {% block content %}
+<!-- Hero Section -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <h1>NICER Science Goals</h1>
+      <p class="hero-subtitle">
+        Exploring the fundamental physics of neutron stars and extreme matter through precision X-ray observations
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Primary Science Objectives -->
+<section class="section">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Primary Science Objectives</h2>
+
+    <div class="feature">
+      <div class="feature-content">
+        <h3>
+          <i class="fas fa-ruler" style="color: var(--nicer-gold); margin-right: 0.75rem"></i>
+          Neutron Star Radius Measurements
+        </h3>
+        <p>
+          NICER's primary goal is to measure neutron star radii with unprecedented precision (better than 5%). By
+          analyzing the modulation of X-rays as neutron stars rotate, we can map the surface emission patterns and infer
+          the star's size. These measurements are crucial for understanding the equation of state (EOS) of nuclear
+          matter.
+        </p>
+        <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem">
+          <h4 style="color: var(--nicer-blue); margin-bottom: 1rem">Why Radius Matters</h4>
+          <p style="margin: 0">
+            The relationship between a neutron star's mass and radius directly constrains how matter behaves under
+            extreme conditions that cannot be replicated on Earth. Different theoretical models of nuclear physics
+            predict different mass-radius relationships, making precise measurements a key test of fundamental physics.
+          </p>
+        </div>
+      </div>
+      <div class="feature-image">
+        <i class="fas fa-bullseye" style="font-size: 4rem; color: var(--nicer-gold)"></i>
+        <div style="margin-top: 1rem; text-align: center">Precision Measurements</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Key Science Areas -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Key Science Areas</h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-atom"></i>
+        </div>
+        <h3 class="card-title">Nuclear Physics</h3>
+        <p>
+          Study matter under extreme conditions with densities 2-10 times nuclear density. NICER observations help
+          constrain the nuclear equation of state, testing theoretical predictions about the behavior of matter in
+          neutron star cores.
+        </p>
+        <ul style="list-style: none; padding: 0; margin-top: 1rem">
+          <li style="display: flex; align-items: center; margin-bottom: 0.5rem">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Equation of state constraints
+          </li>
+          <li style="display: flex; align-items: center; margin-bottom: 0.5rem">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Phase transitions in dense matter
+          </li>
+          <li style="display: flex; align-items: center">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Exotic matter states
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-expand-arrows-alt"></i>
+        </div>
+        <h3 class="card-title">General Relativity</h3>
+        <p>
+          Test Einstein's theory in the strong-field regime where spacetime curvature is extreme. Neutron stars provide
+          natural laboratories for testing relativistic effects that cannot be studied elsewhere.
+        </p>
+        <ul style="list-style: none; padding: 0; margin-top: 1rem">
+          <li style="display: flex; align-items: center; margin-bottom: 0.5rem">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Gravitational redshift measurements
+          </li>
+          <li style="display: flex; align-items: center; margin-bottom: 0.5rem">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Frame-dragging effects
+          </li>
+          <li style="display: flex; align-items: center">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Strong-field tests of GR
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-magnet"></i>
+        </div>
+        <h3 class="card-title">Magnetic Field Physics</h3>
+        <p>
+          Study the behavior of matter in ultra-strong magnetic fields (10⁸ - 10¹⁵ Gauss), investigating how magnetic
+          fields affect emission processes, plasma physics, and the structure of neutron star atmospheres.
+        </p>
+        <ul style="list-style: none; padding: 0; margin-top: 1rem">
+          <li style="display: flex; align-items: center; margin-bottom: 0.5rem">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Magnetospheric dynamics
+          </li>
+          <li style="display: flex; align-items: center; margin-bottom: 0.5rem">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Cyclotron resonance features
+          </li>
+          <li style="display: flex; align-items: center">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Quantum electrodynamics in strong fields
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-fire"></i>
+        </div>
+        <h3 class="card-title">Accretion Physics</h3>
+        <p>
+          Investigate how matter falls onto neutron stars, studying accretion disk dynamics, thermonuclear explosions,
+          and the physics of matter under extreme gravitational and magnetic forces.
+        </p>
+        <ul style="list-style: none; padding: 0; margin-top: 1rem">
+          <li style="display: flex; align-items: center; margin-bottom: 0.5rem">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            X-ray burst mechanisms
+          </li>
+          <li style="display: flex; align-items: center; margin-bottom: 0.5rem">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Accretion disk instabilities
+          </li>
+          <li style="display: flex; align-items: center">
+            <i class="fas fa-check" style="color: var(--nicer-light-blue); margin-right: 0.5rem"></i>
+            Mass transfer in binary systems
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NICER's Unique Contributions -->
+<section class="section">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">NICER's Unique Scientific Contributions</h2>
+
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-clock"></i>
+        </div>
+        <h3 class="card-title">Pulse Profile Modeling</h3>
+        <p>
+          NICER's exceptional timing precision allows detailed modeling of pulse profiles from rotating neutron stars.
+          By fitting sophisticated models to the observed pulse shapes, we can infer the star's mass, radius, and
+          surface emission patterns.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-wave-square"></i>
+        </div>
+        <h3 class="card-title">Thermonuclear Burst Oscillations</h3>
+        <p>
+          Study millisecond oscillations during X-ray bursts, providing insights into neutron star structure and the
+          physics of thermonuclear burning on neutron star surfaces. These oscillations reveal information about the
+          star's spin and magnetic field.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-sync-alt"></i>
+        </div>
+        <h3 class="card-title">Spin and Orbital Evolution</h3>
+        <p>
+          Long-term monitoring of neutron star systems enables studies of how neutron stars spin up or down over time,
+          and how binary orbits evolve due to mass transfer and gravitational wave emission.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <h3 class="card-title">Multi-wavelength Coordination</h3>
+        <p>
+          NICER coordinates with other observatories across the electromagnetic spectrum, from radio to gamma-rays,
+          providing comprehensive studies of neutron star emission mechanisms and their environments.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-bolt"></i>
+        </div>
+        <h3 class="card-title">Rapid Transient Response</h3>
+        <p>
+          The ISS platform enables rapid response to transient events like X-ray bursts, magnetar flares, and new pulsar
+          discoveries, capturing crucial early-time behavior that other missions might miss.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">
+          <i class="fas fa-microscope"></i>
+        </div>
+        <h3 class="card-title">High-Resolution Spectroscopy</h3>
+        <p>
+          Superior energy resolution enables detailed studies of absorption and emission lines from neutron star
+          atmospheres, providing diagnostics of surface composition, temperature, and magnetic field strength.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Key Scientific Results -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Key Scientific Results</h2>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <div style="display: flex; align-items: center; margin-bottom: 1rem">
+          <i class="fas fa-trophy" style="color: var(--nicer-gold); font-size: 1.5rem; margin-right: 1rem"></i>
+          <h3 style="margin: 0">First Neutron Star Radius Measurements</h3>
+        </div>
+        <p>
+          NICER achieved its primary goal by measuring the radius of pulsar PSR J0030+0451 to be 13.02 km (±1.24 km),
+          providing the first model-independent constraint on neutron star radius and ruling out several theoretical
+          equations of state.
+        </p>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; align-items: center; margin-bottom: 1rem">
+          <i class="fas fa-star" style="color: var(--nicer-light-blue); font-size: 1.5rem; margin-right: 1rem"></i>
+          <h3 style="margin: 0">Discovery of Millisecond Pulsars</h3>
+        </div>
+        <p>
+          NICER has discovered and characterized numerous millisecond pulsars, including some with the most precise
+          timing measurements ever achieved, enabling tests of general relativity and studies of neutron star interiors.
+        </p>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; align-items: center; margin-bottom: 1rem">
+          <i class="fas fa-fire" style="color: var(--nasa-red); font-size: 1.5rem; margin-right: 1rem"></i>
+          <h3 style="margin: 0">X-ray Burst Studies</h3>
+        </div>
+        <p>
+          Detailed observations of thermonuclear X-ray bursts have revealed new insights into nuclear burning processes
+          on neutron star surfaces and provided independent measurements of neutron star properties.
+        </p>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; align-items: center; margin-bottom: 1rem">
+          <i class="fas fa-magnet" style="color: var(--nebula-purple); font-size: 1.5rem; margin-right: 1rem"></i>
+          <h3 style="margin: 0">Magnetar Observations</h3>
+        </div>
+        <p>
+          NICER has observed multiple magnetar outbursts, providing insights into the physics of ultra-strong magnetic
+          fields and the mechanisms driving magnetar activity and evolution.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Future Science Goals -->
+<section class="section">
+  <div class="container">
+    <h2 style="text-align: center; margin-bottom: 3rem">Future Science Goals</h2>
+
+    <div class="feature">
+      <div class="feature-content">
+        <h3>Expanding the Sample</h3>
+        <p>
+          NICER continues to observe additional neutron stars to build a statistically significant sample of radius
+          measurements. Each new measurement helps refine our understanding of the nuclear equation of state and
+          provides additional tests of theoretical models.
+        </p>
+
+        <h3 style="margin-top: 2rem">Multi-messenger Astronomy</h3>
+        <p>
+          Future observations will coordinate with gravitational wave detectors and neutrino observatories to provide
+          comprehensive studies of neutron star mergers and other extreme events, opening new windows into fundamental
+          physics.
+        </p>
+
+        <h3 style="margin-top: 2rem">Advanced Data Analysis</h3>
+        <p>
+          Development of new analysis techniques, including machine learning approaches, will enable extraction of even
+          more detailed information from NICER's high-quality datasets, pushing the boundaries of what we can learn from
+          X-ray timing observations.
+        </p>
+      </div>
+      <div class="feature-image">
+        <i class="fas fa-telescope" style="font-size: 4rem; color: var(--nicer-blue)"></i>
+        <div style="margin-top: 1rem; text-align: center">Future Discoveries</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Scientific Impact -->
+<section class="section" style="background: var(--bg-secondary)">
+  <div class="container">
+    <div style="text-align: center">
+      <h2 style="margin-bottom: 2rem">Scientific Impact</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-number">400+</span>
+          <div class="stat-label">Scientific Publications</div>
+          <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+            Peer-reviewed papers based on NICER data
+          </p>
+        </div>
+
+        <div class="stat-card">
+          <span class="stat-number">12+</span>
+          <div class="stat-label">Neutron Stars Studied</div>
+          <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+            Detailed observations with radius constraints
+          </p>
+        </div>
+
+        <div class="stat-card">
+          <span class="stat-number">5%</span>
+          <div class="stat-label">Radius Precision</div>
+          <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+            Target precision achieved for radius measurements
+          </p>
+        </div>
+
+        <div class="stat-card">
+          <span class="stat-number">50+</span>
+          <div class="stat-label">International Collaborations</div>
+          <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem">
+            Institutions worldwide contributing to NICER science
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Call to Action -->
+<section class="section">
+  <div class="container">
+    <div style="text-align: center; max-width: 800px; margin: 0 auto">
+      <h2>Join the Scientific Discovery</h2>
+      <p style="font-size: 1.125rem; margin-bottom: 2rem">
+        NICER's data archive contains a wealth of information waiting to be explored. Whether you're studying neutron
+        star physics, testing general relativity, or investigating accretion processes, NICER's unique capabilities can
+        advance your research.
+      </p>
+      <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap">
+        {% url 'plots:plots' as plots_url %}
+        <a href="{{ plots_url }}" class="btn btn-primary">
+          <i class="fas fa-chart-line"></i>
+          Start Analysis
+        </a>
+        {% url 'file_mgr:directory' '/' as file_mgr_url %}
+        <a href="{{ file_mgr_url }}" class="btn btn-outline">
+          <i class="fas fa-database"></i>
+          Browse Data
+        </a>
+        {% url 'mission_details' as mission_details_url %}
+        <a href="{{ mission_details_url }}" class="btn btn-outline">
+          <i class="fas fa-satellite"></i>
+          Mission Details
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

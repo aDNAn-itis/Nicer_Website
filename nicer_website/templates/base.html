@@ -2,14 +2,127 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>{% block title %}Nicer Dataset{% endblock %}</title>
-    {% block head %} {% endblock %}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}NASA NICER - Neutron star Interior Composition Explorer{% endblock %}</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Fira+Code:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Styles -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/main.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/plot.css' %}" />
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <!-- Meta tags -->
+    <meta
+      name="description"
+      content="NASA NICER mission data analysis and visualization platform for X-ray timing and spectroscopy of neutron stars"
+    />
+    <meta name="keywords" content="NASA, NICER, neutron stars, X-ray astronomy, timing, spectroscopy" />
+    <meta name="author" content="NASA NICER Team" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{% url 'index' %}" />
+    <meta
+      property="og:title"
+      content="{% block og_title %}NASA NICER - Neutron star Interior Composition Explorer{% endblock %}"
+    />
+    <meta
+      property="og:description"
+      content="Explore neutron star physics through NASA's NICER mission data. Interactive analysis tools for X-ray timing and spectroscopy."
+    />
+    <meta property="og:image" content="/static/images/nicer-og-image.jpg" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="{% url 'index' %}" />
+    <meta property="twitter:title" content="{% block twitter_title %}NASA NICER Data Platform{% endblock %}" />
+    <meta
+      property="twitter:description"
+      content="Interactive analysis platform for NASA NICER X-ray timing and spectroscopy data."
+    />
+    <meta property="twitter:image" content="/static/images/nicer-twitter-image.jpg" />
+
+    <!-- Additional meta tags -->
+    <meta name="robots" content="index, follow" />
+    <meta name="googlebot" content="index, follow" />
+    <link rel="canonical" href="{% url 'index' %}" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="{% static 'manifest.json' %}" />
+    <meta name="theme-color" content="#0B3D91" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="NASA NICER" />
+
+    <!-- Favicon -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%230B3D91'/><path d='M30 35h40v30H30z' fill='white'/><circle cx='50' cy='50' r='8' fill='%230B3D91'/></svg>"
+    />
+
+    {% block head %}{% endblock %}
   </head>
-  <script>
-    const CSRF_TOKEN = '{{ csrf_token }}';
-  </script>
   <body>
+    <script>
+      const CSRF_TOKEN = '{{ csrf_token }}';
+    </script>
+
+    <!-- Loading Screen Script (load immediately) -->
+    <script src="{% static 'js/loading-screen.js' %}"></script>
+
     {% include 'navbar.html' %}
-    <main>{% block content %} {% endblock %}</main>
+
+    <main>{% block content %}{% endblock %}</main>
+
+    <!-- Conditionally include footer -->
+    {% if not request.path|slice:":7" == "/plots/" %} {% include 'footer.html' %} {% endif %}
+
+    <!-- Scripts -->
+    <script src="{% static 'js/performance.js' %}"></script>
+    <script src="{% static 'js/ui-enhancements.js' %}"></script>
+    <script src="{% static 'js/theme-manager.js' %}"></script>
+    <script src="{% static 'js/global-search.js' %}"></script>
+    <script>
+      // Add smooth scrolling and fade-in animations
+      document.addEventListener('DOMContentLoaded', function () {
+        // Add fade-in class to elements as they come into view
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('fade-in');
+            }
+          });
+        });
+
+        document.querySelectorAll('.card, .feature, .stat-card').forEach((el) => {
+          observer.observe(el);
+        });
+
+        // Show welcome notification only on plots pages
+        setTimeout(() => {
+          if (
+            window.NICEREnhancements &&
+            (window.location.pathname.includes('/plots/') ||
+              document.querySelector('#plot-graph') ||
+              document.querySelector('.plot-container'))
+          ) {
+            window.NICEREnhancements.showNotification('Welcome to NASA NICER Interactive Analysis!', 'info', 4000);
+          }
+        }, 1000);
+      });
+    </script>
+
+    {% block scripts %}{% endblock %}
   </body>
 </html>
