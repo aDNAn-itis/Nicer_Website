@@ -54,13 +54,13 @@ PLOTS: dict[str, dict[str, Any]] = {
     },
     'power_density_spectrum': {
         'exists': False,
-        'min_value': None,
+        'min_value': 10,  # Default min_value for PDS adaptive binning (significance-based)
         'file_type': '-bin.pds',
         'function': get_pds_data_and_plot,
     },
     'hardness_intensity_diagram': {
         'exists': False,
-        'min_value': None,
+        'min_value': 25,  # Default min_value for HID adaptive binning
         'file_type': '.lc.gz',
         'function': get_hid_data_and_plot,
     },
