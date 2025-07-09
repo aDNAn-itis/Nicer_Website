@@ -93,7 +93,10 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
     logger.info(f"[plot_gti START] Received POST data: obs_id='{obs_id}', quality='{quality}', plot_type='{plot_type_str}', gti-search='{gti_query_str}', min_value='{requested_min_value_str}'")
 
-    if not obs_id:
+    # Check if this is a combined observations request
+    is_combined_request = 'combined_obs_ids' in request.POST
+    
+    if not obs_id and not is_combined_request:
         logger.error("[plot_gti] obs_id is missing from POST data.")
         return JsonResponse({'error': 'obs_id is required.'}, status=400)
     if not plot_type_str:

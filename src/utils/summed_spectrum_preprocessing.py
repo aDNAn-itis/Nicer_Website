@@ -270,21 +270,62 @@ def summed_spectrum_data(
         high_rate_sum = np.sum(net_rate[high_energy_mask])
         print(f"High energy (>8 keV) net rate sum: {high_rate_sum:.3e} counts/s/det")
     
-    # Sample data points for verification
-    print(f"\nSAMPLE DATA POINTS (first 10 bins):")
-    print(f"{'Energy (keV)':<12} {'Net Rate':<12} {'Error':<12} {'Background':<12}")
-    print("-" * 50)
-    for i in range(min(10, len(x_bin))):
-        print(f"{x_bin[i]:<12.3f} {net_rate[i]:<12.3e} {net_rate_error[i]:<12.3e} {net_background[i]:<12.3e}")
+    # Print all raw counts data before energy cut-off
+    print(f"\nRAW COUNTS DATA (all {len(x_bin)} bins before energy cut-off):")
+    print(f"{'Bin':<4} {'Energy (keV)':<12} {'Spec Counts':<12} {'BG Counts':<12} {'Net Counts':<12} {'Net Rate':<12} {'Error':<12}")
+    print("-" * 90)
+    
+    # Calculate bin-by-bin raw counts for display
+    bin_spec_counts = []
+    bin_bg_counts = []
+    bin_net_counts = []
+    
+    for i in range(len(bins) - 1):
+        start_idx = bins[i]
+        end_idx = bins[i + 1]
+        spec_counts = np.sum(summed_spec[start_idx:end_idx])
+        bg_counts = np.sum(summed_background[start_idx:end_idx])
+        net_counts = spec_counts - bg_counts
+        bin_spec_counts.append(spec_counts)
+        bin_bg_counts.append(bg_counts)
+        bin_net_counts.append(net_counts)
+        
+        print(f"{i+1:<4} {x_bin[i]:<12.3f} {spec_counts:<12.0f} {bg_counts:<12.0f} {net_counts:<12.0f} {net_rate[i]:<12.3e} {net_rate_error[i]:<12.3e}")
+    
+    # Print totals before energy cut-off
+    total_bin_spec = sum(bin_spec_counts)
+    total_bin_bg = sum(bin_bg_counts)
+    total_bin_net = sum(bin_net_counts)
+    print("-" * 90)
+    print(f"{'TOTAL':<4} {'ALL':<12} {total_bin_spec:<12.0f} {total_bin_bg:<12.0f} {total_bin_net:<12.0f} {np.sum(net_rate):<12.3e} {np.sqrt(np.sum(np.array(net_rate_error)**2)):<12.3e}")
     
     # Apply energy cut-off
     logger.debug(f"Applying energy cut-off: {cut_off[0]}-{cut_off[1]} keV")
+    
+    # Validate energy cut-off bounds
+    if cut_off[0] >= cut_off[1]:
+        raise ValueError(f"Invalid energy cut-off range: {cut_off[0]} >= {cut_off[1]}")
+    
     energy_mask = (x_bin >= cut_off[0]) & (x_bin <= cut_off[1])
     bins_before = len(x_bin)
+    
+    # Check if any data remains after cut-off
+    if not np.any(energy_mask):
+        logger.warning(f"Energy cut-off {cut_off} excludes all data. Data range: {x_bin.min():.3f}-{x_bin.max():.3f} keV")
+        # Apply a more lenient cut-off to retain some data
+        energy_mask = np.ones_like(x_bin, dtype=bool)
+    
+    # Apply energy mask to all arrays
     x_bin = x_bin[energy_mask]
     net_rate = net_rate[energy_mask]
     net_rate_error = net_rate_error[energy_mask]
     net_background = net_background[energy_mask]
+    
+    # Also filter the bin count arrays for accurate comparison
+    filtered_bin_spec_counts = [bin_spec_counts[i] for i in range(len(bin_spec_counts)) if energy_mask[i]]
+    filtered_bin_bg_counts = [bin_bg_counts[i] for i in range(len(bin_bg_counts)) if energy_mask[i]]
+    filtered_bin_net_counts = [bin_net_counts[i] for i in range(len(bin_net_counts)) if energy_mask[i]]
+    
     logger.info(f"Energy cut-off applied: {bins_before} -> {len(x_bin)} bins")
     
     # Print properties after energy cut-off
@@ -294,6 +335,45 @@ def summed_spectrum_data(
     print(f"Net rate range: {net_rate.min():.3e} - {net_rate.max():.3e} counts/s/det")
     print(f"Net rate sum: {np.sum(net_rate):.3e} counts/s/det")
     print(f"Background rate sum: {np.sum(net_background):.3e} counts/s/det")
+    
+    # Print all counts data after energy cut-off
+    print(f"\nFINAL COUNTS DATA (all {len(x_bin)} bins after energy cut-off):")
+    print(f"{'Bin':<4} {'Energy (keV)':<12} {'Net Rate':<12} {'BG Rate':<12} {'Rate Error':<12} {'Net Counts*':<12} {'BG Counts*':<12}")
+    print("-" * 95)
+    
+    # Calculate equivalent counts for display (rate * normalized exposure time)
+    for i in range(len(x_bin)):
+        # Convert rates back to equivalent counts for display
+        equivalent_net_counts = net_rate[i] * summed_52time
+        equivalent_bg_counts = net_background[i] * summed_52time
+        print(f"{i+1:<4} {x_bin[i]:<12.3f} {net_rate[i]:<12.3e} {net_background[i]:<12.3e} {net_rate_error[i]:<12.3e} {equivalent_net_counts:<12.1f} {equivalent_bg_counts:<12.1f}")
+    
+    # Print totals after energy cut-off
+    total_net_rate = np.sum(net_rate)
+    total_bg_rate = np.sum(net_background)
+    total_rate_error = np.sqrt(np.sum(net_rate_error**2))
+    total_equivalent_net = total_net_rate * summed_52time
+    total_equivalent_bg = total_bg_rate * summed_52time
+    print("-" * 95)
+    print(f"{'TOTAL':<4} {'CUT-OFF':<12} {total_net_rate:<12.3e} {total_bg_rate:<12.3e} {total_rate_error:<12.3e} {total_equivalent_net:<12.1f} {total_equivalent_bg:<12.1f}")
+    print("*Equivalent counts = rate × 52-FPM normalized exposure time")
+    
+    # Compare before and after cut-off using aligned data
+    bins_removed = len(bin_spec_counts) - len(x_bin)
+    total_filtered_net = sum(filtered_bin_net_counts)
+    counts_removed = total_bin_net - total_filtered_net
+    print(f"\nENERGY CUT-OFF IMPACT:")
+    print(f"Bins removed: {bins_removed} ({bins_removed/len(bin_spec_counts)*100:.1f}%)")
+    print(f"Net counts removed: {counts_removed:.1f} ({counts_removed/total_bin_net*100:.1f}%)")
+    print(f"Net counts retained: {total_filtered_net:.1f} ({total_filtered_net/total_bin_net*100:.1f}%)")
+    
+    # Verify consistency between different calculation methods
+    rate_based_counts = total_net_rate * summed_52time
+    count_difference = abs(total_filtered_net - rate_based_counts)
+    if count_difference > 1.0:  # Allow for small floating-point differences
+        logger.warning(f"Count calculation discrepancy: direct={total_filtered_net:.1f}, rate-based={rate_based_counts:.1f}, diff={count_difference:.1f}")
+    else:
+        logger.debug(f"Count calculations consistent: direct={total_filtered_net:.1f}, rate-based={rate_based_counts:.1f}")
     
     # Check for any problematic values
     neg_rate_count = np.sum(net_rate < 0)
@@ -307,12 +387,30 @@ def summed_spectrum_data(
     
     if neg_rate_count > 0:
         print(f"WARNING: {neg_rate_count} bins have negative net rates (background > source)")
+    if zero_error_count > 0:
+        print(f"WARNING: {zero_error_count} bins have zero/negative error bars")
+    if inf_count > 0:
+        print(f"ERROR: {inf_count} bins have non-finite values")
+    
+    # Handle edge case where no data remains
+    if len(x_bin) == 0:
+        raise ValueError("No data remaining after energy cut-off and quality checks")
     
     print("="*80)
     print()
     
-    # Calculate x_error (half bin width)
-    x_error = np.full_like(x_bin, energy_bin_width / 2)
+    # Calculate x_error using actual bin widths for better accuracy
+    if len(x_bin) > 1:
+        # Calculate individual bin widths
+        x_widths = np.diff(x_bin)
+        # For the last bin, use the same width as the previous bin
+        x_widths = np.append(x_widths, x_widths[-1])
+        x_error = x_widths / 2
+    else:
+        # Fallback to energy_bin_width for single bin
+        x_error = np.array([energy_bin_width / 2])
+    
+    logger.debug(f"X-error calculation: min={x_error.min():.6f}, max={x_error.max():.6f}, mean={x_error.mean():.6f} keV")
     
     total_time = time.time() - start_time
     logger.info(f"Summed spectrum processing completed in {total_time:.3f}s")
@@ -420,6 +518,25 @@ def summed_spectrum_plot(
         data_time = time.time() - plot_start_time
         logger.info(f"Data processing completed in {data_time:.3f}s")
         
+        # Calculate total exposure times from already processed data by re-reading headers efficiently
+        logger.debug("Reading exposure times for final summary")
+        total_exposure = 0.0
+        total_52time = 0.0
+        
+        # More efficient: read only headers, not full data
+        for path in valid_paths:
+            try:
+                with fits.open(path) as spec_file:
+                    spectrum_info = spec_file[1].header
+                    response = spectrum_info['RESPFILE']
+                    nfpm = int(re.search(r'_d(\d+)', response).group(1))
+                    gti_time = float(spectrum_info['EXPOSURE'])
+                    total_exposure += gti_time
+                    total_52time += gti_time * nfpm / 52.0
+            except Exception as e:
+                logger.warning(f"Could not read exposure from {path}: {e}")
+                continue
+        
         # Create plot with both net spectrum and background
         if len(valid_gtis) > 1:
             gti_range = f"GTI {min(valid_gtis)}-{max(valid_gtis)} ({len(valid_gtis)} GTIs)"
@@ -430,28 +547,76 @@ def summed_spectrum_plot(
         logger.info(f"Plot data summary: {len(x_bin)} energy bins, net_rate range: {net_rate.min():.3e} to {net_rate.max():.3e}")
         logger.info(f"Background range: {net_background.min():.3e} to {net_background.max():.3e}")
         
-        # Print final plot data summary
-        print("\n" + "="*60)
+        # Print final plot data summary with error handling
+        print("\n" + "="*80)
         print("FINAL PLOT DATA SUMMARY")
-        print("="*60)
+        print("="*80)
         print(f"Observation ID: {obs_id}")
         print(f"GTI range: {gti_range}")
         print(f"Energy range plotted: {x_bin.min():.3f} - {x_bin.max():.3f} keV")
         print(f"Number of data points: {len(x_bin)}")
+        
+        # Verify we have valid exposure times
+        if total_52time > 0:
+            print(f"Total exposure time: {total_exposure:.3f} s")
+            print(f"52-FPM normalized exposure: {total_52time:.3f} s")
+            
+            # Calculate equivalent counts from final rates
+            equivalent_total_net = np.sum(net_rate) * total_52time
+            equivalent_total_bg = np.sum(net_background) * total_52time
+            
+            print(f"Final plot counts (within energy range):")
+            print(f"  Equivalent net counts: {equivalent_total_net:.1f}")
+            print(f"  Equivalent background counts: {equivalent_total_bg:.1f}")
+            print(f"  Equivalent total counts: {equivalent_total_net + equivalent_total_bg:.1f}")
+        else:
+            logger.warning("Could not calculate exposure times - equivalent counts unavailable")
+        
+        # Basic statistics (always available)
         print(f"Net rate statistics:")
         print(f"  Min: {net_rate.min():.3e} counts/s/det")
         print(f"  Max: {net_rate.max():.3e} counts/s/det")
         print(f"  Mean: {net_rate.mean():.3e} counts/s/det")
         print(f"  Median: {np.median(net_rate):.3e} counts/s/det")
+        print(f"  Sum: {np.sum(net_rate):.3e} counts/s/det")
         print(f"Background statistics:")
         print(f"  Min: {net_background.min():.3e} counts/s/det")
         print(f"  Max: {net_background.max():.3e} counts/s/det")
         print(f"  Mean: {net_background.mean():.3e} counts/s/det")
-        print(f"Peak energy bin: {x_bin[np.argmax(net_rate)]:.3f} keV (rate: {net_rate.max():.3e})")
-        print("="*60)
+        print(f"  Sum: {np.sum(net_background):.3e} counts/s/det")
+        
+        # Check for valid peak
+        if len(net_rate) > 0:
+            peak_idx = np.argmax(net_rate)
+            print(f"Peak energy bin: {x_bin[peak_idx]:.3f} keV (rate: {net_rate[peak_idx]:.3e})")
+        
+        # Print all final plot data points with bounds checking
+        print(f"\nALL FINAL PLOT DATA POINTS ({len(x_bin)} bins):")
+        print(f"{'Bin':<4} {'Energy':<10} {'Net Rate':<12} {'BG Rate':<12} {'Error':<12}")
+        print("-" * 60)
+        for i in range(len(x_bin)):
+            print(f"{i+1:<4} {x_bin[i]:<10.3f} {net_rate[i]:<12.3e} {net_background[i]:<12.3e} {net_rate_error[i]:<12.3e}")
+        print("-" * 60)
+        
+        # Safe calculation of combined error
+        combined_error = np.sqrt(np.sum(net_rate_error**2)) if len(net_rate_error) > 0 else 0.0
+        print(f"{'SUM':<4} {'ALL':<10} {np.sum(net_rate):<12.3e} {np.sum(net_background):<12.3e} {combined_error:<12.3e}")
+        print("="*80)
         print()
         
         plot_creation_start = time.time()
+        
+        # Validate data before plotting
+        if len(x_bin) == 0 or len(net_rate) == 0:
+            raise ValueError("No data available for plotting after processing")
+        
+        if not np.all(np.isfinite(x_bin)) or not np.all(np.isfinite(net_rate)):
+            logger.warning("Non-finite values detected in plot data - replacing with zeros")
+            x_bin = np.nan_to_num(x_bin)
+            net_rate = np.nan_to_num(net_rate)
+            net_rate_error = np.nan_to_num(net_rate_error)
+            net_background = np.nan_to_num(net_background)
+        
         result = data_plot(
             gti_numbers=[0],  # Single trace for summed data
             x_data_list=[x_bin],

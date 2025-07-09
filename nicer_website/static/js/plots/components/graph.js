@@ -377,6 +377,13 @@ export function fetchGraphPlots(refresh = false, event) {
                 value: $('#quality-select').val().toLowerCase(),
               }),
             );
+            $COMBINE_FORM.append(
+              $('<input>', {
+                type: 'hidden',
+                name: 'obs_id',
+                value: '',
+              }),
+            );
             const $COMBINE_BUTTON = $('<button>', {
               type: 'submit',
               text: 'Combine GTIs from All Observations',
