@@ -1,8 +1,41 @@
 """
 Misc functions used elsewhere
 """
+from typing import Any
+
 import numpy as np
 from numpy import ndarray
+
+
+def progress_bar(i: int, total: int, text: str = '', **kwargs: Any) -> None:
+    """
+    Terminal progress bar
+
+    Parameters
+    ----------
+    i : int
+        Current progress
+    total : int
+        Completion number
+    text : str, default = ''
+        Optional text to place at the end of the progress bar
+
+    **kwargs
+        Optional keyword arguments to pass to print
+    """
+    filled: int
+    length: int = 50
+    percent: float
+    bar_fill: str
+    i += 1
+
+    filled = int(i * length / total)
+    percent = i * 100 / total
+    bar_fill = '█' * filled + '-' * (length - filled)
+    print(f'\rProgress: |{bar_fill}| {int(percent)}%\t{text}\t', end='', **kwargs)
+
+    if i == total:
+        print()
 
 
 def min_bin(min_value: int, data: ndarray) -> ndarray:
@@ -23,10 +56,10 @@ def min_bin(min_value: int, data: ndarray) -> ndarray:
     """
     if len(data) == 0:
         return np.array([0])
-    
+
     if min_value <= 0:
         return np.arange(len(data) + 1)
-    
+
     i: int
     bin_counts: float
     count: float = 0.0
@@ -79,7 +112,7 @@ def binning(
     """
     if len(bins) < 2:
         raise ValueError("Need at least 2 bin edges")
-    
+
     bin_width: float
     bin_counts: float
     data_bin: ndarray
@@ -107,16 +140,16 @@ def binning(
     # Loop through array except for the last bin, and bins data
     for i, idx in enumerate(bins[:-1]):
         end_idx = bins[i + 1]
-        
+
         # Ensure indices are within bounds
         idx = max(0, min(idx, data.shape[0] - 1))
         end_idx = max(idx + 1, min(end_idx, data.shape[0]))
-        
+
         bin_width = np.sum(weights[idx:end_idx])
         bin_counts = np.sum(data[idx:end_idx], axis=0)
 
         bin_widths = np.append(bin_widths, bin_width)
-        
+
         # Avoid division by zero
         if bin_width > 0:
             data_bin = np.vstack((data_bin, bin_counts / bin_width))
