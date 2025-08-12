@@ -95,7 +95,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
     # Check if this is a combined observations request
     is_combined_request = 'combined_obs_ids' in request.POST
-    
+
     if not obs_id and not is_combined_request:
         logger.error("[plot_gti] obs_id is missing from POST data.")
         return JsonResponse({'error': 'obs_id is required.'}, status=400)
@@ -122,7 +122,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     else:
         min_value = default_min_value
         logger.info(f"[plot_gti] min_value not in request or empty. Using default: {min_value}")
-    
+
     logger.info(f"[plot_gti] Final min_value for plotting: {min_value}")
 
     # Handle combined observations case - Assuming this part is okay for now based on logs
@@ -152,7 +152,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
                     all_file_names.append(full_path_combined)
                     all_gti_list.append(gti_num_combined)
                     gti_obs_mapping.append(current_obs_id_combined)
-        
+
         if not all_file_names:
             logger.error("[plot_gti] Combined: No GTI files found.")
             return JsonResponse({'error': 'No GTI files found for the specified combined observations'})
@@ -167,7 +167,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         }
         if 'is_combined_obs' in PLOTS[plot_type].get('optional_params', []):
             plot_kwargs['is_combined_obs'] = True
-        
+
         try:
             plot_divs = PLOTS[plot_type]['function'](**plot_kwargs)
             logger.info(f"[plot_gti] Combined: Successfully generated plot divs.")
@@ -180,7 +180,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     # Handle single observation case
     logger.info(f"[plot_gti] Handling single observation for obs_id: {obs_id}")
     single_obs_dir_path_relative = os.path.join(obs_id, 'jspipe/')
-    
+
     files_qs = Item.objects.filter(
         name__contains=quality,
         path=single_obs_dir_path_relative,
@@ -215,7 +215,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
     final_file_paths_to_plot: list[str] = []
     final_gti_numbers_for_plot_func: list[int] = []
-    
+
     full_dir_path_for_files = os.path.join(settings.DATA_DIR, single_obs_dir_path_relative)
 
     if gti_list_parsed:
@@ -230,7 +230,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
                 final_gti_numbers_for_plot_func.append(gti_num)
             else:
                 logger.warning(f"[plot_gti] No file found for GTI '{gti_num}' with plot type '{plot_type}'")
-    
+
     logger.info(f"[plot_gti] Files selected based on gti_list_parsed: {final_file_paths_to_plot}")
 
     if not final_file_paths_to_plot:
@@ -257,13 +257,13 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'error': 'No data files could be selected for plotting.'}, status=404)
 
     logger.info(f"[plot_gti] Calling plotting function for '{plot_type}' with: min_value={min_value}, obs_id='{obs_id}', file_paths={final_file_paths_to_plot}, gti_numbers={final_gti_numbers_for_plot_func}")
-    
+
     # Special handling for summed spectrum - use all available GTI files regardless of selection
     if plot_type == 'summed_spectrum':
         logger.info(f"[plot_gti] Summed spectrum detected - using all available GTI files instead of selection")
         all_gti_files = []
         all_gti_numbers = []
-        
+
         for file_item in plot_specific_files_qs.order_by('name'):
             file_path = os.path.join(full_dir_path_for_files, file_item.name)
             all_gti_files.append(file_path)
@@ -273,18 +273,18 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
                 all_gti_numbers.append(int(gti_match.group(1)))
             else:
                 all_gti_numbers.append(0)  # fallback
-        
+
         final_file_paths_to_plot = all_gti_files
         final_gti_numbers_for_plot_func = all_gti_numbers
         logger.info(f"[plot_gti] Summed spectrum using {len(all_gti_files)} GTI files: GTIs {all_gti_numbers}")
-    
+
     try:
         # The plotting function expects: min_value, obs_id, data_paths (list of full paths), gti_numbers (list of ints)
         plot_function_start = time.time()
         plot_divs_html = PLOTS[plot_type]['function'](
-            min_value, 
-            obs_id, 
-            final_file_paths_to_plot, 
+            min_value,
+            obs_id,
+            final_file_paths_to_plot,
             final_gti_numbers_for_plot_func
         )
         plot_function_time = time.time() - plot_function_start
@@ -292,7 +292,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     except Exception as e:
         logger.exception(f"[plot_gti] Error during plot generation for '{plot_type}': {e}")
         return JsonResponse({'error': f'Error generating plot: {str(e)}'}, status=500)
-        
+
     return JsonResponse({'plotDivs': [plot_divs_html]})
 
 
@@ -413,8 +413,11 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             if gti not in available_gti:
                 break
             file_name = re.sub(r'js_\d+_', f'js_{obs_id}_', file_names[indices][gti])
-            file_name = dir_path + file_name
-            info = np.char.replace(np.loadtxt(file_name, dtype=str, unpack=True), "'", '')
+            info = np.char.replace(np.loadtxt(
+                os.path.join(dir_path, file_name),
+                dtype=str,
+                unpack=True,
+            ), "'", '')
             info_dict = dict(zip(*info))
             infos.append(info_dict | {'GTI': f'GTI{gti}'})
 
@@ -435,13 +438,13 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                     max_gti.append(len(file_names))
 
                     plot_function_start = time.time()
-                    
+
                     # Special handling for summed spectrum - include all GTI files
                     if plot_type == 'summed_spectrum':
                         # Get all GTI files for summed spectrum
                         all_file_paths = []
                         all_gti_numbers = []
-                        
+
                         for file_item in file_names.order_by('name'):
                             all_file_paths.append(dir_path + file_item.name)
                             # Extract GTI number from filename
@@ -450,9 +453,9 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                                 all_gti_numbers.append(int(gti_match.group(1)))
                             else:
                                 all_gti_numbers.append(0)  # fallback
-                        
+
                         logger.info(f"[plot_data] Summed spectrum using {len(all_file_paths)} GTI files: GTIs {all_gti_numbers}")
-                        
+
                         plot_div = plot_info['function'](
                             plot_info['min_value'],
                             obs_id,
@@ -469,10 +472,10 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                             [dir_path + file_name],
                             [0],
                         )
-                    
+
                     plot_function_time = time.time() - plot_function_start
                     logger.info(f"[plot_data] {plot_type} function completed in {plot_function_time:.3f}s")
-                    
+
                     plot_divs.append(plot_div)
                 else:
                     logger.warning(f"[plot_data] No files found for plot type: {plot_type}")
@@ -580,16 +583,16 @@ def interactive_plot(request: HttpRequest) -> HttpResponse:
 def create_gti_archive(obs_id, gti_list, base_path):
     """Create a zip archive of GTI files"""
     logger.info(f"Creating GTI archive for OBS_ID {obs_id}, GTIs: {gti_list}")
-    
+
     jspipe_dir = base_path / obs_id / 'jspipe'
-    
+
     if not jspipe_dir.exists():
         return HttpResponse(f'Directory not found: {jspipe_dir}', status=404)
 
     with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
         with zipfile.ZipFile(tmp.name, 'w') as archive:
             files_added = False
-            
+
             if not gti_list:
                 for file in jspipe_dir.glob(f'js_ni{obs_id}*_GTI*'):
                     logger.info(f"Adding file to archive: {file}")
@@ -617,7 +620,7 @@ def download_data(request: HttpRequest):
     data_type = request.GET.get('type')
     obs_id = request.GET.get('obs_id')
     gti_numbers_str = request.GET.get('gti_numbers')
-    quality = request.GET.get('quality') 
+    quality = request.GET.get('quality')
 
     logger.info(f"Download request - Type: {data_type}, OBS_ID: {obs_id}, GTI: {gti_numbers_str}, Quality: {quality}")
 
@@ -626,7 +629,7 @@ def download_data(request: HttpRequest):
 
     if not quality:
         return HttpResponse('Quality is required', status=400)
-    
+
     quality = quality.lower()
 
     try:
@@ -706,7 +709,7 @@ def download_data(request: HttpRequest):
 
         elif data_type == 'obs':
             return create_obs_archive(obs_id, base_path)
-        
+
         else:
             return HttpResponse('Invalid data type', status=400)
 

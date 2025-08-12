@@ -2,7 +2,7 @@
 Functions to plot graphs
 """
 import logging
-from typing import Any, Optional, List
+from typing import Any
 
 import plotly.graph_objs as go
 from numpy import ndarray
@@ -10,74 +10,100 @@ from plotly.offline import plot
 from plotly.colors import qualitative
 
 def data_plot(
-        gti_numbers: Optional[List[int]] = None,
-        x_data_list: Optional[List[ndarray]] = None,
-        y_data_list: Optional[List[ndarray]] = None,
         plot_type: str = 'markers',
-        x_errors: Optional[List[ndarray]] = None,
-        y_uncertainties: Optional[List[ndarray]] = None,
-        x_background_list: Optional[List[ndarray]] = None,
-        background_list: Optional[List[ndarray]] = None,
-        color_data: Optional[ndarray] = None,
-        plot_kwargs: Optional[dict] = None,
-        layout_kwargs: Optional[dict] = None,
-        gti_labels: Optional[List[str]] = None) -> str:
+        gti_numbers: list[int] | None = None,
+        gti_labels: list[str] | None = None,
+        colors: list[str] | None = None,
+        x_errors: list[ndarray] | None = None,
+        x_data_list: list[ndarray] | None = None,
+        y_data_list: list[ndarray] | None = None,
+        y_uncertainties: list[ndarray] | None = None,
+        background_list: list[ndarray] | None = None,
+        x_background_list: list[ndarray] | None = None,
+        plot_kwargs: dict[str, Any] | None = None,
+        layout_kwargs: dict[str, Any] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
+        color_data: ndarray | None = None,
+        fig: go.Figure | None = None) -> str:
     """
     Plots data with uncertainties and background if provided.
 
     Parameters
     ----------
-    gti_numbers : Optional[List[int]]
-        List of GTI numbers
-    x_data_list : Optional[List[ndarray]]
-        List of x-axis data
-    y_data_list : Optional[List[ndarray]]
-        List of y-axis data
     plot_type : str, default = markers
         Plot marker type, can be markers, lines, or lines+markers
-    x_errors : Optional[List[ndarray]]
-        List of x error bars
-    y_uncertainties : Optional[List[ndarray]]
-        List of y-axis uncertainties
-    x_background_list : Optional[List[ndarray]]
-        List of x-axis data for background
-    background_list : Optional[List[ndarray]]
-        List of y-axis data for background
-    color_data : Optional[ndarray]
-        Single array of color data for scatter plots
-    plot_kwargs : Optional[dict]
-        Additional keyword arguments to pass to go.Scatter
-    layout_kwargs : Optional[dict]
-        Additional keyword arguments to pass to fig.update_layout
-    gti_labels : Optional[List[str]]
+    gti_numbers : list[int] | None, default = None
+        List of GTI numbers
+    gti_labels : list[str] | None, default = None
         List of labels for each GTI
+    colors : list[str] | None, default = None
+        List of colors for each GTI, if None uses qualitative.Plotly
+    x_errors : list[ndarray] | None, default = None
+        List of x error bars
+    x_data_list : list[ndarray] | None, default = None
+        List of x-axis data
+    y_data_list : list[ndarray] | None, default = None
+        List of y-axis data
+    y_uncertainties : list[ndarray] | None, default = None
+        List of y-axis uncertainties
+    background_list : list[ndarray] | None, default = None
+        List of y-axis data for background
+    x_background_list : list[ndarray] | None, default = None
+        List of x-axis data for background
+    plot_kwargs : dict[str, Any] | None, default = None
+        Additional keyword arguments to pass to go.Scatter
+    layout_kwargs : dict[str, Any] | None, default = None
+        Additional keyword arguments to pass to fig.update_layout
+    subplot_kwargs : dict[str, Any] | None, default = None
+        Additional keyword arguments to pass to fig.add_trace
+    color_data : ndarray | None, default = None
+        Single array of color data for scatter plots
+    fig : go.Figure | None, default = None
+        Existing figure to add traces to, if None a new figure will be created
 
     Returns
     -------
     str
         Plot as HTML
     """
+    trace_kwargs: dict[str, Any]
     logger: logging.Logger = logging.getLogger(__name__)
-    fig: go.Figure = go.Figure()
-
     plot_kwargs = plot_kwargs or {}
     layout_kwargs = layout_kwargs or {}
+    fig = fig or go.Figure()
 
     if not gti_numbers:
         gti_numbers = [0]
 
     # Ensure all data lists have the same length
-    data_lists = [x_data_list, y_data_list, x_errors, y_uncertainties, x_background_list, background_list]
+    data_lists = [
+        x_data_list,
+        y_data_list,
+        x_errors,
+        y_uncertainties,
+        x_background_list,
+        background_list,
+    ]
     data_lists = [lst if lst is not None else [None] * len(gti_numbers) for lst in data_lists]
 
     if gti_labels is None:
         gti_labels = [f'GTI{number}' for number in gti_numbers]
 
-    for label, number, x_data, y_data, x_error, y_uncertainty, x_background, background, color in zip(
-            gti_labels,
-            gti_numbers,
-            *data_lists,
-            qualitative.Plotly * (len(gti_numbers) // len(qualitative.Plotly) + 1),
+    for (
+        label,
+        number,
+        x_data,
+        y_data,
+        x_error,
+        y_uncertainty,
+        x_background,
+        background,
+        color,
+    ) in zip(
+        gti_labels,
+        gti_numbers,
+        *data_lists,
+        colors or qualitative.Plotly * (len(gti_numbers) // len(qualitative.Plotly) + 1),
     ):
         if x_data is None or y_data is None:
             logger.warning(f"Missing data for GTI {number}. Skipping.")
@@ -116,7 +142,7 @@ def data_plot(
         # Update with any additional plot-specific kwargs
         trace_kwargs.update(plot_kwargs)
 
-        fig.add_trace(go.Scatter(**trace_kwargs))
+        fig.add_trace(go.Scatter(**trace_kwargs), **subplot_kwargs or {})
 
         # Add background trace if provided
         if x_background is not None and background is not None:
@@ -128,7 +154,7 @@ def data_plot(
                 opacity=0.8,
                 line={'color': color},
                 legendgroup=number,
-            ))
+            ), **subplot_kwargs or {})
 
     fig.update_layout(**layout_kwargs)
 

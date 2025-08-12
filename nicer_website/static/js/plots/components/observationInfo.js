@@ -350,6 +350,7 @@ export function displayInfo(info) {
 
   // Show the obs-info container if it was hidden
   $('#obs-info').show();
+  MathJax.typeset();
 
   return $CONTAINER;
 }
@@ -599,7 +600,6 @@ async function fetchSourceSummary(observations) {
 
         if (values.length > 0) {
           processedData.stats[key].values.push(...values);
-          print(values);
         }
       });
 

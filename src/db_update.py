@@ -13,7 +13,6 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from numpy import ndarray
 
-
 from src.utils.utils import progress_bar
 
 

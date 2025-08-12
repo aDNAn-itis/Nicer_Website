@@ -38,7 +38,9 @@ def progress_bar(i: int, total: int, text: str = '', **kwargs: Any) -> None:
         print()
 
 
-def min_bin(min_value: int, data: ndarray) -> ndarray:
+def min_bin(
+        min_value: int,
+        data: ndarray[tuple[int], np.dtype[np.float_]]) -> ndarray[tuple[int], np.dtype[np.int_]]:
     """
     Calculates the bin indices to ensure each bin has the minimum number of counts.
 
@@ -54,16 +56,16 @@ def min_bin(min_value: int, data: ndarray) -> ndarray:
     ndarray
         Bin indices
     """
+    i: int
+    bin_counts: float
+    count: float = 0.0
+    bins: ndarray[tuple[int], np.dtype[np.int_]] = np.array([0])
+
     if len(data) == 0:
         return np.array([0])
 
     if min_value <= 0:
         return np.arange(len(data) + 1)
-
-    i: int
-    bin_counts: float
-    count: float = 0.0
-    bins: ndarray = np.array([0])
 
     for i, bin_counts in enumerate(data[:-1]):
         count += bin_counts
@@ -84,14 +86,16 @@ def min_bin(min_value: int, data: ndarray) -> ndarray:
     # Ensure we have at least one bin
     if len(bins) < 2:
         bins = np.array([0, len(data)])
-
     return bins
 
 
 def binning(
-        bins: ndarray,
-        data: ndarray,
-        weights: ndarray | None = None) -> tuple[ndarray, ndarray, ndarray]:
+        bins: ndarray[tuple[int], np.dtype[np.int_]],
+        data: ndarray[tuple[int] | tuple[int, int], np.dtype[np.float_]],
+        weights: ndarray[tuple[int], np.dtype[np.float_]] | None = None) -> tuple[
+            ndarray[tuple[int, int], np.dtype[np.float_]],
+            ndarray[tuple[int], np.dtype[np.float_]],
+            ndarray[tuple[int, int], np.dtype[np.float_]]]:
     """
     Bin data into bins.
 
@@ -110,14 +114,14 @@ def binning(
     tuple[ndarray, ndarray, ndarray]
         Binned data, bin widths and Poisson uncertainty
     """
+    bin_width: float
+    bin_counts: ndarray[tuple[int], np.dtype[np.float_]]
+    bin_widths: ndarray[tuple[int], np.dtype[np.float_]] = np.array(())
+    data_bin: ndarray[tuple[int, int], np.dtype[np.float_]] = np.empty((0, len(data)))
+    uncertainty: ndarray[tuple[int, int], np.dtype[np.float_]] = np.empty((0, len(data)))
+
     if len(bins) < 2:
         raise ValueError("Need at least 2 bin edges")
-
-    bin_width: float
-    bin_counts: float
-    data_bin: ndarray
-    uncertainty: ndarray
-    bin_widths: ndarray = np.array(())
 
     # Swaps axes for easier indexing and ensures data is 2D
     if len(data.shape) > 1:
@@ -128,9 +132,6 @@ def binning(
     # Check if data is empty
     if data.shape[0] == 0:
         return np.array([]), np.array([]), np.array([])
-
-    data_bin = np.empty((0, data.shape[1]))
-    uncertainty = np.empty((0, data.shape[1]))
 
     if weights is None:
         weights = np.ones(data.shape[0])
@@ -145,7 +146,7 @@ def binning(
         idx = max(0, min(idx, data.shape[0] - 1))
         end_idx = max(idx + 1, min(end_idx, data.shape[0]))
 
-        bin_width = np.sum(weights[idx:end_idx])
+        bin_width = float(np.sum(weights[idx:end_idx]))
         bin_counts = np.sum(data[idx:end_idx], axis=0)
 
         bin_widths = np.append(bin_widths, bin_width)
