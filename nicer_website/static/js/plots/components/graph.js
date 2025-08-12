@@ -377,13 +377,6 @@ export function fetchGraphPlots(refresh = false, event) {
                 value: $('#quality-select').val().toLowerCase(),
               }),
             );
-            $COMBINE_FORM.append(
-              $('<input>', {
-                type: 'hidden',
-                name: 'obs_id',
-                value: '',
-              }),
-            );
             const $COMBINE_BUTTON = $('<button>', {
               type: 'submit',
               text: 'Combine GTIs from All Observations',
@@ -399,13 +392,15 @@ export function fetchGraphPlots(refresh = false, event) {
             // Create plot div with unique ID
             const $PLOT_DIV = $(plotDiv).attr('id', PLOT_ID);
 
-            // Add GTI selection form
-            const GTI_FORM = GTISelection(
-              response.maxGTI[i],
-              response.obsID,
-              TYPE,
-            );
-            $PLOT_DIV.append(GTI_FORM);
+            // Add GTI selection form (but not for summed spectrum plots as they already have combined GTIs)
+            if (TYPE !== 'summed_spectrum') {
+              const GTI_FORM = GTISelection(
+                response.maxGTI[i],
+                response.obsID,
+                TYPE,
+              );
+              $PLOT_DIV.append(GTI_FORM);
+            }
             $(`#${TYPE}-section`).append($PLOT_DIV);
           }
           updateCombineButtonVisibility(TYPE);

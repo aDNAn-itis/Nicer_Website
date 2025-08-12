@@ -735,8 +735,6 @@ export function combineAndPlotGTIs(event) {
   ).val()}`;
   serializedData += `&quality=${$('#quality-select').val().toLowerCase()}`;
   serializedData += `&combined_obs_ids=${Array.from(obsIDs).join(',')}`;
-  // Add obs_id as empty string for combined observations to satisfy backend validation
-  serializedData += `&obs_id=`;
 
   // Show loading state
   const LOADING = $('<div>', {

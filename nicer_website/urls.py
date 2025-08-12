@@ -24,6 +24,8 @@ urlpatterns = [
     path('about/', views.about, name='about'),
     path('mission-details/', views.mission_details, name='mission_details'),
     path('science-details/', views.science_details, name='science_details'),
+    path('download_exported_spectra/<str:file_pattern>/', views.download_exported_spectra, name='download_exported_spectra'),
+    path('download_all_exported_spectra/', views.download_all_exported_spectra, name='download_all_exported_spectra'),
     path('manager/', include('nicer_website.apps.file_mgr.urls')),
     path('plots/', include('nicer_website.apps.plots.urls')),
 ]
