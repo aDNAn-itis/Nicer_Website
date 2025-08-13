@@ -384,3 +384,192 @@ th label {
     transform: rotate(360deg);
   }
 }
+
+/* Actions column styles for GTI tables */
+.actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  min-width: 120px;
+  padding: 4px;
+}
+
+.actions-container button {
+  width: 100px; /* Same uniform width as main observation buttons */
+  padding: 6px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-weight: 500;
+  text-transform: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.actions-container .btn-primary {
+  background-color: var(--nicer-light-blue);
+  border-color: var(--nicer-light-blue);
+  color: white;
+}
+
+.actions-container .btn-primary:hover {
+  background-color: var(--nicer-blue);
+  border-color: var(--nicer-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.actions-container .btn-secondary {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  color: white;
+}
+
+.actions-container .btn-secondary:hover {
+  background-color: #5a6268;
+  border-color: #545b62;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.actions-container .btn-sm {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.actions-container i {
+  font-size: 11px;
+}
+
+/* Ensure GTI table actions column has proper width */
+.gti-table th:last-child,
+.gti-table td:last-child {
+  width: 130px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Main observation table actions styling */
+.obs-row .actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  min-width: 120px;
+  padding: 6px;
+}
+
+.obs-row .actions-container button {
+  width: 100px; /* Fixed uniform width for all buttons */
+  padding: 6px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-weight: 500;
+  text-transform: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.obs-row .actions-container .btn-primary {
+  background-color: var(--nicer-light-blue);
+  border-color: var(--nicer-light-blue);
+  color: white;
+}
+
+.obs-row .actions-container .btn-primary:hover {
+  background-color: var(--nicer-blue);
+  border-color: var(--nicer-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.obs-row .actions-container .btn-secondary {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  color: white;
+}
+
+.obs-row .actions-container .btn-secondary:hover {
+  background-color: #5a6268;
+  border-color: #545b62;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.obs-row .actions-container .btn-sm {
+  padding: 5px 8px;
+  font-size: 11px;
+}
+
+.obs-row .actions-container i {
+  font-size: 11px;
+}
+
+/* Ensure main observation table actions column has proper width */
+.obs-id-table th:last-child,
+.obs-id-table td:last-child {
+  width: 130px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Responsive design for actions column */
+@media (max-width: 768px) {
+  .actions-container {
+    min-width: 110px;
+    gap: 4px;
+  }
+  
+  .actions-container button {
+    width: 85px; /* Same uniform width as main observation buttons on mobile */
+    font-size: 9px;
+    padding: 4px 6px;
+    gap: 2px;
+  }
+  
+  .actions-container i {
+    font-size: 8px;
+  }
+  
+  .gti-table th:last-child,
+  .gti-table td:last-child {
+    width: 110px;
+  }
+  
+  .obs-row .actions-container {
+    min-width: 120px;
+    gap: 4px;
+  }
+  
+  .obs-row .actions-container button {
+    width: 85px; /* Smaller uniform width for mobile */
+    font-size: 9px;
+    padding: 4px 6px;
+    gap: 2px;
+  }
+  
+  .obs-row .actions-container i {
+    font-size: 8px;
+  }
+  
+  .obs-id-table th:last-child,
+  .obs-id-table td:last-child {
+    width: 110px;
+  }
+}

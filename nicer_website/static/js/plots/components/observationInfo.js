@@ -36,6 +36,7 @@ export function displayInfo(info) {
       String.raw`Undershoot Rate \((s^{-1})\)`,
       String.raw`Overshoot Rate \((s^{-1})\)`,
       String.raw`COR SAX \((GeV\ c^{-1})\)`,
+      'Actions',
     ],
     keys: [
       null,
@@ -46,8 +47,9 @@ export function displayInfo(info) {
       'USHOOT_NET_RATE',
       'OSHOOT_NET_RATE',
       'COR_SAX',
+      null,
     ],
-    precision: [null, null, 5, 2, 0, 2, 4, 3],
+    precision: [null, null, 5, 2, 0, 2, 4, 3, null],
   };
 
   const $CONTAINER = $('#obs-info');
@@ -98,35 +100,28 @@ export function displayInfo(info) {
         $OBS_ID_ROW.append($(`<td>${value || '-'}</td>`));
       });
 
-      // Add download button for full observation
-      const $downloadCell = $('<td>');
+      // Actions column with Show GTIs, Plot, and Download buttons
+      const $actionsCell = $('<td>');
+      const $actionsContainer = $('<div class="actions-container">');
+
+      const $SHOW_GTI_BUTTON = $('<button>')
+        .addClass('btn btn-primary btn-sm toggle-details')
+        .attr('data-obs-id', obsID)
+        .html('<i class="fas fa-eye"></i> Show GTIs');
+
+      const $PLOT_BUTTON = $('<button>')
+        .addClass('btn btn-primary btn-sm plot-button')
+        .attr('data-obs-id', obsID)
+        .html('<i class="fas fa-chart-line"></i> Plot');
+
       const $downloadBtn = $('<button>')
-        .addClass('btn btn-sm btn-secondary download-data')
+        .addClass('btn btn-secondary btn-sm download-data')
         .attr('data-type', 'obs')
         .attr('data-obs-id', obsID)
-        .html('<i class="fas fa-download"></i> Download Obs');
-      $downloadCell.append($downloadBtn);
-      $OBS_ID_ROW.append($downloadCell);
+        .html('<i class="fas fa-download"></i> Download');
 
-      // Actions column with both Show GTIs and Plot buttons
-      const $actionsCell = $('<td>');
-
-      const $SHOW_GTI_BUTTON = $('<button>', {
-        class: 'toggle-details',
-        'data-obs-id': obsID,
-        text: 'Show GTIs',
-      });
-
-      const $PLOT_BUTTON = $('<button>', {
-        class: 'plot-button',
-        'data-obs-id': obsID,
-        text: 'Plot',
-      });
-
-      $actionsCell.append($SHOW_GTI_BUTTON);
-      $actionsCell.append(' ');
-      $actionsCell.append($PLOT_BUTTON);
-
+      $actionsContainer.append($SHOW_GTI_BUTTON, $PLOT_BUTTON, $downloadBtn);
+      $actionsCell.append($actionsContainer);
       $OBS_ID_ROW.append($actionsCell);
 
       const EXISTING_ROW = $OBS_ID_TABLE.find(
@@ -167,7 +162,7 @@ export function displayInfo(info) {
           $CHECKBOX_CELL.append($CHECKBOX);
           $GTI_ROW.append($CHECKBOX_CELL);
 
-          GTI_INFO.keys.slice(1).forEach((key, keyIdx) => {
+          GTI_INFO.keys.slice(1, -1).forEach((key, keyIdx) => {
             let value = gti[key];
             if (
               GTI_INFO.precision[keyIdx + 1] !== null &&
@@ -178,24 +173,27 @@ export function displayInfo(info) {
             $GTI_ROW.append($(`<td>${value || '-'}</td>`));
           });
 
-          // Add action buttons cell
+          // Add Actions column with Plot and Download buttons
           const $actionCell = $('<td>');
-          const $buttonGroup = $('<div class="btn-group btn-group-sm">');
+          const $buttonContainer = $('<div class="actions-container">');
 
           // Plot button
           const $plotBtn = $('<button>')
-            .addClass('btn btn-primary plot-gti')
+            .addClass('btn btn-primary btn-sm plot-gti')
+            .attr('data-obs-id', obsID)
+            .attr('data-gti', gti.GTI)
             .html('<i class="fas fa-chart-line"></i> Plot');
 
           // Download button
           const $downloadGtiBtn = $('<button>')
-            .addClass('btn btn-secondary download-data')
+            .addClass('btn btn-secondary btn-sm download-data')
             .attr('data-type', 'gti')
             .attr('data-obs-id', obsID)
+            .attr('data-gti', gti.GTI)
             .html('<i class="fas fa-download"></i> Download');
 
-          $buttonGroup.append($plotBtn, $downloadGtiBtn);
-          $actionCell.append($buttonGroup);
+          $buttonContainer.append($plotBtn, $downloadGtiBtn);
+          $actionCell.append($buttonContainer);
           $GTI_ROW.append($actionCell);
 
           $GTI_TABLE.append($GTI_ROW);
@@ -334,7 +332,7 @@ export function displayInfo(info) {
         e.preventDefault();
         const $detailsRow = $(this).closest('tr').next('.details-row');
         const isVisible = $detailsRow.is(':visible');
-        $(this).text(isVisible ? 'Show GTIs' : 'Hide GTIs');
+        $(this).html(isVisible ? '<i class="fas fa-eye"></i> Show GTIs' : '<i class="fas fa-eye-slash"></i> Hide GTIs');
         $detailsRow.toggle();
       });
     });

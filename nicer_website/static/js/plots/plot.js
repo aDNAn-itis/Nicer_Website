@@ -102,7 +102,11 @@ document.addEventListener('DOMContentLoaded', () => {
   $(document).on('click', '.download-data', function () {
     const dataType = $(this).data('type');
     const obsId = $(this).data('obs-id');
-    const gtiNum = $(this).closest('tr').data('gti')?.replace('GTI', '');
+    // First try to get GTI from button data attribute, then fallback to table row
+    let gtiNum = $(this).data('gti');
+    if (!gtiNum) {
+      gtiNum = $(this).closest('tr').data('gti')?.replace('GTI', '');
+    }
     const quality = $('#quality-select').val();
 
     if (dataType === 'gti' && gtiNum) {
@@ -110,6 +114,24 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       downloadData(dataType, obsId, null, null, quality);
     }
+  });
+
+  $(document).on('click', '.plot-gti', function (event) {
+    event.preventDefault();
+    
+    const obsId = $(this).data('obs-id');
+    const gtiNum = $(this).data('gti');
+    
+    console.log(`[DEBUG plot.js] GTI Plot button clicked. ObsID: ${obsId}, GTI: ${gtiNum}`);
+    
+    // Store the GTI number for later use when the plot selection is made
+    window.selectedGTI = gtiNum;
+    window.selectedGTIObsId = obsId;
+    
+    console.log(`[DEBUG plot.js] Stored GTI values. selectedGTI: ${window.selectedGTI}, selectedGTIObsId: ${window.selectedGTIObsId}`);
+    
+    // Show the plot selection popup
+    showPlotSelectionPopup(obsId);
   });
 
   $(document).on('change', '.gti-checkbox', function () {

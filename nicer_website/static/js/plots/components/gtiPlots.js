@@ -466,14 +466,21 @@ export function fetchGTIPlot(event) {
     );
   }
 
-  // If no plots are open (neither specific nor fallback), show the plot selection popup
+  // If no plots are open and no GTI search, show the plot selection popup
   if (openPlotTypes.length === 0 && !gtiSearch) {
-    // Also check if gtiSearch was empty, as popup is for selecting plot *types*
     console.log(
       `[DEBUG gtiPlots.js fetchGTIPlot] No open plots found for ${currentObsID} and no specific GTI search. Showing GTI plot selection popup.`,
     );
     showGTIPlotSelectionPopup(currentObsID, selectedGTIs);
     return; // Stop further execution as popup will handle next steps
+  }
+
+  // If no plots are open but we have a GTI search (from popup submission), use the plot type from the form
+  if (openPlotTypes.length === 0 && gtiSearch && plotType) {
+    openPlotTypes.push(plotType);
+    console.log(
+      `[DEBUG gtiPlots.js fetchGTIPlot] No open plots but have GTI search. Creating new plot for type: ${plotType}`,
+    );
   }
 
   // Create a loading indicator for each open plot
@@ -614,36 +621,105 @@ export function fetchGTIPlot(event) {
               plotContainer.html(data.plotDivs[0]);
             }
           }
-
-          // Re-run MathJax for any math expressions
-          if (typeof MathJax !== 'undefined' && MathJax.typeset) {
-            MathJax.typeset();
+        } else if (!plotContainer && data.plotDivs && data.plotDivs.length > 0) {
+          // No existing plot container found, create new plot section and container
+          console.log(
+            `[DEBUG gtiPlots.js updatePlot] Creating new plot section for ${currentPlotType}`,
+          );
+          
+          // Extract plot ID from the response using the same method as fetchGraphPlots
+          const REGEX = /"title":\{"text":"(.+?)"\}/;
+          const match = REGEX.exec(data.plotDivs[0]);
+          if (!match) {
+            console.error(`[DEBUG gtiPlots.js updatePlot] Could not extract plot ID from response for ${currentPlotType}`);
+            return;
           }
-
-          // Re-initialize synchronized selection for the updated plot
-          setTimeout(() => {
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Re-initializing synchronized selection for ${currentPlotType}`,
+          
+          const plotId = match[1].toLowerCase().replaceAll(' ', '-');
+          const plotTypeForId = plotId.replace(`-${currentObsID}`, '');
+          
+          console.log(`[DEBUG gtiPlots.js updatePlot] Extracted plot ID: ${plotId}, plot type: ${plotTypeForId}`);
+          
+          // Create plot section if it doesn't exist
+          if (!$(`#${plotTypeForId}-section`).length) {
+            const $plotSection = $('<div>', {
+              id: `${plotTypeForId}-section`,
+              class: 'plot-type-section',
+            });
+            $plotSection.append(
+              $('<h3>', {
+                text: plotTypeForId.replace('-', ' ').toUpperCase(),
+              }),
             );
-            if (typeof initSynchronizedSelection !== 'undefined') {
-              initSynchronizedSelection();
-            }
-            if (typeof updateAllSelections !== 'undefined') {
-              updateAllSelections();
-            }
-          }, 300);
-        } else if (!plotContainer) {
+            $('#plots').append($plotSection);
+            console.log(
+              `[DEBUG gtiPlots.js updatePlot] Created plot section: ${plotTypeForId}-section`,
+            );
+          }
+          
+          // Create plot div with unique ID if it doesn't exist
+          if (!$(`#${plotId}`).length) {
+            const $plotDiv = $(data.plotDivs[0]).attr('id', plotId);
+            $(`#${plotTypeForId}-section`).append($plotDiv);
+            console.log(
+              `[DEBUG gtiPlots.js updatePlot] Created plot div: ${plotId}`,
+            );
+          }
+        } else {
           console.error(
             `[DEBUG gtiPlots.js updatePlot] Could not find plot container for ${currentPlotType}-${currentObsID}. Tried selectors:`,
             plotContainerSelectors,
           );
-        } else {
-          console.error(
-            '[DEBUG gtiPlots.js updatePlot] No plotDivs in response for ',
-            currentPlotType,
-            data,
-          );
+          if (!data.plotDivs || data.plotDivs.length === 0) {
+            console.error(
+              '[DEBUG gtiPlots.js updatePlot] No plotDivs in response for ',
+              currentPlotType,
+              data,
+            );
+          }
         }
+
+        // Re-run MathJax for any math expressions (for both update and new plot scenarios)
+        if (typeof MathJax !== 'undefined' && MathJax.typeset) {
+          console.log(`[DEBUG gtiPlots.js updatePlot] Running MathJax.typeset()`);
+          MathJax.typeset();
+        }
+
+        // Re-initialize synchronized selection for the updated plot
+        setTimeout(() => {
+          console.log(
+            `[DEBUG gtiPlots.js updatePlot] Re-initializing synchronized selection for ${currentPlotType}`,
+          );
+          if (typeof initSynchronizedSelection !== 'undefined') {
+            initSynchronizedSelection();
+          }
+          if (typeof updateAllSelections !== 'undefined') {
+            updateAllSelections();
+          }
+          
+          // Check if the plot was actually created
+          const plotExists = $(`#${currentPlotType.replace('_', '-')}-${currentObsID}`).length > 0;
+          console.log(`[DEBUG gtiPlots.js updatePlot] Plot exists after creation: ${plotExists}`);
+          
+          // Check if plots container is visible
+          const plotsVisible = $('#plots').is(':visible');
+          console.log(`[DEBUG gtiPlots.js updatePlot] Plots container visible: ${plotsVisible}`);
+          
+          // Scroll to the new plot if it was created
+          if (plotExists && plotsVisible) {
+            const plotElement = $(`#${currentPlotType.replace('_', '-')}-${currentObsID}`)[0];
+            if (plotElement) {
+              console.log(`[DEBUG gtiPlots.js updatePlot] Scrolling to new plot`);
+              plotElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          }
+          
+          // Show plots container if it's hidden
+          if (!plotsVisible) {
+            console.log(`[DEBUG gtiPlots.js updatePlot] Showing plots container`);
+            $('#plots').show();
+          }
+        }, 300);
       },
       error: function (xhr, status, error) {
         console.error(

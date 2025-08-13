@@ -5,6 +5,7 @@ import {
   initSynchronizedSelection,
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
+import { fetchGTIPlot } from './gtiPlots.js';
 
 /**
  *  CSS styles for the popup to the document head
@@ -258,8 +259,64 @@ export function showPlotSelectionPopup(obsID) {
     event.preventDefault();
     $popup.fadeOut(200);
 
-    // Call fetchGraphPlots with the form
-    fetchGraphPlots(false, event);
+    // Check if a specific GTI was selected from GTI plot button
+    if (window.selectedGTI && window.selectedGTIObsId === obsID) {
+      // Handle GTI-specific plotting
+      const selectedPlotTypes = [];
+      $(this).find('input[type="checkbox"]:checked').each(function() {
+        selectedPlotTypes.push($(this).attr('name'));
+      });
+
+      if (selectedPlotTypes.length === 0) {
+        alert('Please select at least one plot type.');
+        return;
+      }
+
+      // Create forms for each selected plot type and submit to GTI plotting endpoint
+      selectedPlotTypes.forEach(plotType => {
+        console.log(`[DEBUG graph.js] Creating GTI form for plot type: ${plotType}, GTI: ${window.selectedGTI}, ObsID: ${obsID}`);
+        const $gtiForm = $('<form>');
+        $gtiForm.append($('<input>', {
+          name: 'gti-search',
+          type: 'hidden',
+          value: window.selectedGTI
+        }));
+        $gtiForm.append($('<input>', {
+          name: 'plot_type',
+          type: 'hidden',
+          value: plotType.replace(/-/g, '_') // Convert dashes to underscores for backend
+        }));
+        $gtiForm.append($('<input>', {
+          name: 'obs_id',
+          type: 'hidden',
+          value: obsID
+        }));
+        $gtiForm.append($('<input>', {
+          name: 'min_value',
+          type: 'hidden',
+          value: '1'
+        }));
+
+        console.log(`[DEBUG graph.js] Form data for ${plotType}:`, $gtiForm.serialize());
+
+        // Create mock event for fetchGTIPlot
+        const mockEvent = {
+          preventDefault: () => {},
+          target: $gtiForm[0]
+        };
+
+        // Call fetchGTIPlot directly
+        console.log(`[DEBUG graph.js] Calling fetchGTIPlot for ${plotType}`);
+        fetchGTIPlot(mockEvent);
+      });
+      
+      // Clear the stored GTI values
+      delete window.selectedGTI;
+      delete window.selectedGTIObsId;
+    } else {
+      // Call fetchGraphPlots for regular observation plotting
+      fetchGraphPlots(false, event);
+    }
   });
 
   $content.append($form);
