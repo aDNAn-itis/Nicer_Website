@@ -104,19 +104,20 @@ function addPopupStyles() {
         
         .plot-submit-btn {
             background-color: #666666;
-            color: white;
+            color: black;
             border: none;
             padding: 10px 20px;
             border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
             margin-top: 10px;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, color 0.2s;
             width: 100%;
         }
         
         .plot-submit-btn:hover {
             background-color: #555555;
+            color: white;
         }
         
         .loading-indicator {
