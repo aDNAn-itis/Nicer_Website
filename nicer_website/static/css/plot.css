@@ -161,12 +161,42 @@ th {
   margin: 1.5rem 0;
   border-radius: 0.75rem;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  /* Enhanced scrolling for small screens */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nicer-light-blue) var(--bg-color);
+}
+
+/* Custom scrollbar styling for webkit browsers */
+.info-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.info-container::-webkit-scrollbar-track {
+  background: var(--bg-color);
+  border-radius: 4px;
+}
+
+.info-container::-webkit-scrollbar-thumb {
+  background: var(--nicer-light-blue);
+  border-radius: 4px;
+}
+
+.info-container::-webkit-scrollbar-thumb:hover {
+  background: var(--nicer-blue);
 }
 
 /* Main Info Table styles */
 .info-table {
   margin-bottom: 1.5rem;
   font-size: 14px;
+  table-layout: fixed;
+  min-width: 650px; /* Minimum width to ensure table doesn't get too cramped */
+}
+
+.info-table th,
+.info-table td {
+  padding: 0.75rem 0.5rem; /* Reduced horizontal padding for more compact layout */
 }
 
 .info-table th {
@@ -521,6 +551,37 @@ th label {
   font-size: 11px;
 }
 
+/* Column width optimization for observation table */
+.info-table {
+  table-layout: fixed;
+}
+
+/* Specific column widths for better space utilization */
+.obs-id-table th:nth-child(1),
+.obs-id-table td:nth-child(1) {
+  width: 120px; /* ObsID */
+}
+
+.obs-id-table th:nth-child(2),
+.obs-id-table td:nth-child(2) {
+  width: 80px; /* Total GTIs */
+}
+
+.obs-id-table th:nth-child(3),
+.obs-id-table td:nth-child(3) {
+  width: 90px; /* RA */
+}
+
+.obs-id-table th:nth-child(4),
+.obs-id-table td:nth-child(4) {
+  width: 90px; /* DEC */
+}
+
+.obs-id-table th:nth-child(5),
+.obs-id-table td:nth-child(5) {
+  width: 120px; /* Source */
+}
+
 /* Ensure main observation table actions column has proper width */
 .obs-id-table th:last-child,
 .obs-id-table td:last-child {
@@ -531,6 +592,11 @@ th label {
 
 /* Responsive design for actions column */
 @media (max-width: 768px) {
+  /* Keep table scrollable instead of shrinking columns too much */
+  .info-table {
+    min-width: 600px; /* Slightly smaller minimum on mobile but still scrollable */
+  }
+  
   .actions-container {
     min-width: 110px;
     gap: 4px;
@@ -568,8 +634,52 @@ th label {
     font-size: 8px;
   }
   
+  /* Slightly adjusted column widths for mobile but maintain readability */
+  .obs-id-table th:nth-child(1),
+  .obs-id-table td:nth-child(1) {
+    width: 110px; /* ObsID - slightly smaller on mobile */
+  }
+
+  .obs-id-table th:nth-child(2),
+  .obs-id-table td:nth-child(2) {
+    width: 70px; /* Total GTIs - smaller on mobile */
+  }
+
+  .obs-id-table th:nth-child(3),
+  .obs-id-table td:nth-child(3) {
+    width: 80px; /* RA - smaller on mobile */
+  }
+
+  .obs-id-table th:nth-child(4),
+  .obs-id-table td:nth-child(4) {
+    width: 80px; /* DEC - smaller on mobile */
+  }
+
+  .obs-id-table th:nth-child(5),
+  .obs-id-table td:nth-child(5) {
+    width: 110px; /* Source - smaller on mobile */
+  }
+  
   .obs-id-table th:last-child,
   .obs-id-table td:last-child {
     width: 110px;
+  }
+}
+
+/* Additional responsive breakpoint for very small screens */
+@media (max-width: 480px) {
+  .info-container {
+    margin: 1rem 0;
+    border-radius: 0.5rem;
+  }
+  
+  .info-table {
+    min-width: 550px; /* Even smaller minimum for very small screens */
+    font-size: 12px; /* Slightly smaller font */
+  }
+  
+  .info-table th,
+  .info-table td {
+    padding: 0.5rem 0.25rem; /* More compact padding on very small screens */
   }
 }
