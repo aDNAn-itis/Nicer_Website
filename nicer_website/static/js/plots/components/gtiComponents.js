@@ -1,4 +1,5 @@
 import { columnLayout } from '../utils/utils.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js';
 
 /**
  * Generates a GTI selection field for a specific plot
@@ -50,12 +51,16 @@ export function GTISelection(maxGTI, obsID, plotType) {
 
   // Update slider value on change and trigger form submission
   $MIN_SLIDER.on('input', function () {
+    const newValue = $(this).val();
     console.log(
-      `[DEBUG gtiComponents.js] Slider input changed for ${plotType}. New value: ${$(
-        this,
-      ).val()}`,
+      `[DEBUG gtiComponents.js] Slider input changed for ${plotType}. New value: ${newValue}`,
     );
-    $(`#${plotType}-min-value`).html(`Value: ${$(this).val()} counts`);
+    $(`#${plotType}-min-value`).html(`Value: ${newValue} counts`);
+    
+    // Start status tracking for binning change
+    const operationId = 'binning-change-' + Date.now();
+    startOperation(operationId, 'Updating ' + plotType.replace(/_/g, ' ') + ' plot with binning value ' + newValue + '...');
+    
     console.log(
       `[DEBUG gtiComponents.js] About to submit form for slider change`,
     );
@@ -65,11 +70,16 @@ export function GTISelection(maxGTI, obsID, plotType) {
   });
 
   $SEARCH.on('change', function () {
+    const newGTIs = $(this).val();
     console.log(
-      `[DEBUG gtiComponents.js] GTI search input changed for ${plotType}. New value: ${$(
-        this,
-      ).val()}`,
+      `[DEBUG gtiComponents.js] GTI search input changed for ${plotType}. New value: ${newGTIs}`,
     );
+    
+    // Start status tracking for GTI change
+    const operationId = 'gti-change-' + Date.now();
+    const gtiText = newGTIs ? 'GTI ' + newGTIs : 'selected GTIs';
+    startOperation(operationId, 'Updating ' + plotType.replace(/_/g, ' ') + ' plot for ' + gtiText + '...');
+    
     console.log(
       `[DEBUG gtiComponents.js] About to submit form for GTI search change`,
     );

@@ -4,6 +4,7 @@ import {
   updateCombineButtonVisibility,
   showPlotSelectionPopup,
 } from './graph.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js';
 
 export function displayInfo(info) {
   console.log('displayInfo called with:', info);
@@ -275,11 +276,10 @@ export function displayInfo(info) {
         ).val()}`;
         formData += `&quality=${$('#quality-select').val().toLowerCase()}`;
 
-        const $loadingIndicator = $('<div>', {
-          class: 'loading-indicator',
-          text: 'Generating plot...',
-        });
-        $(this).append($loadingIndicator);
+        // Start operation tracking
+        const operationId = 'single-plot-' + Date.now();
+        const plotTypeText = formData.match(/plot_type=([^&]+)/)?.[1] || 'plot';
+        startOperation(operationId, 'Generating ' + plotTypeText.replace(/_/g, ' ') + '...');
 
         $.ajax({
           type: 'POST',
@@ -288,6 +288,7 @@ export function displayInfo(info) {
           success: (response) => {
             if (response.error) {
               console.error('Server error:', response.error);
+              errorOperation(operationId, `Error: ${response.error}`);
               alert(response.error);
               return;
             }
@@ -301,15 +302,19 @@ export function displayInfo(info) {
                 .replaceWith(response.plotDivs[0]);
 
               MathJax.typeset();
+              completeOperation(operationId, plotType.replace(/_/g, ' ') + ' plot updated successfully');
+            } else {
+              completeOperation(operationId, 'Plot data processed');
             }
           },
           error: (xhr, status, error) => {
             console.error('Error fetching GTI plot:', error);
             console.error('Server response:', xhr.responseText);
+            errorOperation(operationId, 'Error fetching GTI plot');
             alert('Error fetching GTI plot. Please try again.');
           },
           complete: () => {
-            $loadingIndicator.remove();
+            // Operation completion is handled in success/error callbacks
           },
         });
       });
@@ -529,6 +534,10 @@ export function handleMultipleObservations(observations, sourceName) {
 async function fetchSourceSummary(observations) {
   console.log('Fetching source summary for observations:', observations);
 
+  // Start status tracking for source summary
+  const operationId = 'source-summary-' + Date.now();
+  startOperation(operationId, 'Loading source summary for ' + observations.length + ' observation(s)...');
+
   const $container = $('<div class="source-summary-container">');
   const $table = $('<table class="info-table source-summary-table">');
 
@@ -684,8 +693,10 @@ async function fetchSourceSummary(observations) {
     });
 
     $container.append($table);
+    completeOperation(operationId, 'Source summary loaded successfully');
   } catch (error) {
     console.error('Error fetching source summary data:', error);
+    errorOperation(operationId, 'Error loading source summary');
     $container.html(
       '<div class="error">Error loading source summary. Please try again.</div>',
     );

@@ -1,3 +1,5 @@
+import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+
 export async function downloadData(
   dataType,
   obsId,
@@ -5,6 +7,18 @@ export async function downloadData(
   gtiNumbers = null,
   quality
 ) {
+  // Start status tracking for download
+  const operationId = 'download-' + Date.now();
+  let downloadDescription = 'Preparing download';
+  
+  if (dataType === 'gti' && gtiNumbers && gtiNumbers.length > 0) {
+    downloadDescription = 'Downloading GTI ' + gtiNumbers.join(', ') + ' data for observation ' + obsId;
+  } else {
+    downloadDescription = 'Downloading ' + dataType + ' data for observation ' + obsId;
+  }
+  
+  startOperation(operationId, downloadDescription + '...');
+  
   try {
     console.log('Download called with:', {
       dataType,
@@ -54,8 +68,11 @@ export async function downloadData(
     a.click();
     window.URL.revokeObjectURL(url);
     a.remove();
+    
+    completeOperation(operationId, 'Successfully downloaded ' + filename);
   } catch (error) {
     console.error('Download failed:', error);
+    errorOperation(operationId, 'Download failed: ' + error.message);
     alert(`Failed to download data: ${error.message}`);
   }
 }

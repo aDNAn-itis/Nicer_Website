@@ -6,6 +6,7 @@ import {
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
 import { fetchGTIPlot } from './gtiPlots.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js';
 
 /**
  *  CSS styles for the popup to the document head
@@ -119,15 +120,6 @@ function addPopupStyles() {
         .plot-submit-btn:hover {
             background-color: #555555;
             color: white;
-        }
-        
-        .loading-indicator {
-            margin: 20px 0;
-            padding: 10px;
-            background-color: #f5f5f5;
-            border-left: 4px solid #666666;
-            border-radius: 4px;
-            color: #333;
         }
     `;
 
@@ -349,12 +341,10 @@ export function fetchGraphPlots(refresh = false, event) {
   ).val()}`;
   serializedData += `&quality=${$('#quality-select').val().toLowerCase()}`;
 
-  // Show loading indicator
-  const $loadingIndicator = $('<div>', {
-    class: 'loading-indicator',
-    text: 'Loading data...',
-  });
-  $('#obs-info').before($loadingIndicator);
+  // Generate unique operation ID and start status tracking
+  const operationId = 'fetch-plots-' + Date.now();
+  const obsId = serializedData.match(/obs_id=([^&]+)/)?.[1] || 'unknown';
+  startOperation(operationId, 'Loading data for observation ' + obsId + '...');
 
   // Sends an asynchronous request to fetch data
   $.ajax({
@@ -372,17 +362,20 @@ export function fetchGraphPlots(refresh = false, event) {
 
       if (response.error) {
         console.error('Error received:', response.error);
+        errorOperation(operationId, 'Error: ' + response.error);
         alert(`${response.error}`);
         return;
       }
 
       if (response.multiple_observations) {
+        completeOperation(operationId, 'Found multiple observations');
         handleMultipleObservations(response.obs_ids, response.source);
         return;
       }
 
       if (!response.info) {
         console.error('Unexpected response format:', response);
+        errorOperation(operationId, 'Unexpected response from server');
         alert('Unexpected response from server.');
         return;
       }
@@ -478,6 +471,10 @@ export function fetchGraphPlots(refresh = false, event) {
           // Initialize interactive linking between spectrum and light curve
           initInteractiveLinking();
         }, 800);
+
+        completeOperation(operationId, 'Successfully loaded ' + response.plotDivs.length + ' plot(s) for observation ' + response.obsID);
+      } else {
+        completeOperation(operationId, 'Successfully loaded observation data for ' + (response.obsID || obsId));
       }
 
       // Add observation removal functionality
@@ -497,10 +494,11 @@ export function fetchGraphPlots(refresh = false, event) {
     },
     error: function (_, textStatus, errorThrown) {
       console.error('AJAX error:', textStatus, errorThrown);
+      errorOperation(operationId, 'Network error occurred');
       alert('An error occurred while fetching data. Please try again.');
     },
     complete: function () {
-      $loadingIndicator.remove();
+      // Operation completion is handled in success/error callbacks
     },
   });
 }

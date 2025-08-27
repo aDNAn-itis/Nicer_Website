@@ -7,6 +7,7 @@ import {
   initSynchronizedSelection,
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js';
 
 /**
  * Shows a popup for selecting which plot types to generate for selected GTIs
@@ -121,15 +122,6 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
       
       .plot-submit-btn:hover {
         background-color: #555555;
-      }
-      
-      .loading-indicator {
-        margin: 20px 0;
-        padding: 10px;
-        background-color: #f5f5f5;
-        border-left: 4px solid #666666;
-        border-radius: 4px;
-        color: #333;
       }
     `;
     const styleSheet = document.createElement('style');
@@ -270,15 +262,16 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
       return;
     }
 
-    // Create a loading indicator
-    const $loadingIndicator = $('<div>', {
-      class: 'loading-indicator',
-      text: 'Generating plots...',
+    // Create operation IDs for each plot type
+    const operationIds = selectedPlotTypes.map(plotType => {
+      const operationId = 'gti-plot-' + plotType + '-' + Date.now();
+      const gtiText = selectedGTIs.length > 1 ? selectedGTIs.length + ' GTIs' : 'GTI ' + selectedGTIs[0];
+      startOperation(operationId, 'Generating ' + plotType.replace(/-/g, ' ') + ' for ' + gtiText + '...');
+      return operationId;
     });
-    $form.append($loadingIndicator);
 
     // Function to update a single plot
-    const updatePlot = (plotType) => {
+    const updatePlot = (plotType, operationId) => {
       let formData = new FormData();
       formData.append('plot_type', plotType);
       formData.append('obs_id', obsID);
@@ -299,23 +292,29 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
     };
 
     // Update all selected plots
-    Promise.all(selectedPlotTypes.map(updatePlot))
+    Promise.all(selectedPlotTypes.map((plotType, index) => 
+      updatePlot(plotType, operationIds[index])
+    ))
       .then((responses) => {
         responses.forEach((response, index) => {
+          const operationId = operationIds[index];
+          const plotType = selectedPlotTypes[index];
+          
           if (response.error) {
             console.error('Server error:', response.error);
+            errorOperation(operationId, 'Error: ' + response.error);
             alert(response.error);
             return;
           }
+          
           if (response.plotDivs && response.plotDivs.length > 0) {
-            const plotType = selectedPlotTypes[index];
-            const plotID = `${plotType}-${obsID}`;
+            const plotID = plotType + '-' + obsID;
 
             // Create plot section if it doesn't exist
-            let $section = $(`#${plotType}-section`);
+            let $section = $('#' + plotType + '-section');
             if (!$section.length) {
               $section = $('<div>', {
-                id: `${plotType}-section`,
+                id: plotType + '-section',
                 class: 'plot-type-section',
               });
               $section.append(
@@ -330,7 +329,7 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
             }
 
             // Create or update plot container
-            let $plotContainer = $(`#${plotID}`);
+            let $plotContainer = $('#' + plotID);
             if (!$plotContainer.length) {
               $plotContainer = $('<div>', {
                 id: plotID,
@@ -340,9 +339,13 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
             }
 
             $plotContainer.html(response.plotDivs[0]);
+            completeOperation(operationId, plotType.replace(/-/g, ' ') + ' plot generated successfully');
+          } else {
+            completeOperation(operationId, plotType.replace(/-/g, ' ') + ' plot processed');
           }
         });
 
+        // Typeset any math expressions
         MathJax.typeset();
 
         // Update synchronized selections after all plots are updated
@@ -358,10 +361,11 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
       })
       .catch((error) => {
         console.error('Error fetching GTI plots:', error);
+        // Mark all operations as failed
+        operationIds.forEach(operationId => {
+          errorOperation(operationId, 'Error generating GTI plots');
+        });
         alert('Error fetching GTI plots. Please try again.');
-      })
-      .finally(() => {
-        $loadingIndicator.remove();
       });
   });
 
@@ -483,43 +487,8 @@ export function fetchGTIPlot(event) {
     );
   }
 
-  // Create a loading indicator for each open plot
-  const $loadingIndicators = $('<div>', {
-    class: 'loading-indicator',
-    text: 'Updating plots...',
-  });
-
-  // Try to place loading indicator in a visible location
-  let loadingPlaced = false;
-
-  // First, try to place it in an existing plot container
-  for (const plotType of openPlotTypes) {
-    const plotContainerSelector = `#${plotType.replace(
-      '_',
-      '-',
-    )}-${currentObsID}`;
-    const plotContainer = $(plotContainerSelector);
-    if (plotContainer.length > 0) {
-      console.log(
-        `[DEBUG gtiPlots.js fetchGTIPlot] Placing loading indicator in: ${plotContainerSelector}`,
-      );
-      plotContainer.prepend($loadingIndicators.clone());
-      loadingPlaced = true;
-      break;
-    }
-  }
-
-  // Fallback: place near the form if no plot container found
-  if (!loadingPlaced) {
-    console.log(
-      `[DEBUG gtiPlots.js fetchGTIPlot] Placing loading indicator near form`,
-    );
-    $form.after($loadingIndicators);
-    loadingPlaced = true;
-  }
-
   // Function to update a single plot
-  const updatePlot = (currentPlotType) => {
+  const updatePlot = (currentPlotType, currentOperationId) => {
     console.log(
       `[DEBUG gtiPlots.js updatePlot] Updating plot: ${currentPlotType} for Obs ID: ${currentObsID}`,
     );
@@ -720,6 +689,11 @@ export function fetchGTIPlot(event) {
             $('#plots').show();
           }
         }, 300);
+        
+        // Complete the operation for this plot type
+        if (currentOperationId) {
+          completeOperation(currentOperationId, `Successfully updated ${currentPlotType} plot`);
+        }
       },
       error: function (xhr, status, error) {
         console.error(
@@ -760,31 +734,20 @@ export function fetchGTIPlot(event) {
             `[DEBUG gtiPlots.js updatePlot] Could not find plot container to show error message for ${currentPlotType}-${currentObsID}`,
           );
         }
+        
+        // Handle error operation completion
+        if (currentOperationId) {
+          errorOperation(currentOperationId, `Failed to update ${currentPlotType} plot`);
+        }
       },
     });
   };
 
-  // Update all relevant plots
-  Promise.all(openPlotTypes.map(updatePlot))
-    .then((responses) => {
-      console.log(
-        '[DEBUG gtiPlots.js fetchGTIPlot] All plots updated successfully:',
-        responses,
-      );
-    })
-    .catch((error) => {
-      console.error(
-        '[DEBUG gtiPlots.js fetchGTIPlot] Error updating one or more plots:',
-        error,
-      );
-    })
-    .finally(() => {
-      console.log(
-        '[DEBUG gtiPlots.js fetchGTIPlot] Finished plot update process. Removing loading indicators.',
-      );
-      // Remove all loading indicators
-      $('.loading-indicator').remove();
-    });
+  // Update all relevant plots with individual operation IDs
+  openPlotTypes.forEach(plotType => {
+    const individualOperationId = startOperation(`Updating ${plotType.replace(/_/g, ' ')} plot`);
+    updatePlot(plotType, individualOperationId);
+  });
 }
 
 /**
@@ -810,14 +773,11 @@ export function combineAndPlotGTIs(event) {
     "input[name='csrfmiddlewaretoken']",
   ).val()}`;
   serializedData += `&quality=${$('#quality-select').val().toLowerCase()}`;
-  serializedData += `&combined_obs_ids=${Array.from(obsIDs).join(',')}`;
+  serializedData += '&combined_obs_ids=' + Array.from(obsIDs).join(',');
 
-  // Show loading state
-  const LOADING = $('<div>', {
-    class: 'loading-message',
-    text: 'Combining GTIs...',
-  });
-  $(`#${TYPE}-section`).prepend(LOADING);
+  // Start status tracking for combining GTIs
+  const operationId = 'combine-gtis-' + Date.now();
+  startOperation(operationId, 'Combining GTIs from ' + obsIDs.size + ' observations...');
 
   // Make the AJAX request
   $.ajax({
@@ -827,17 +787,18 @@ export function combineAndPlotGTIs(event) {
     success: function (data) {
       if (data.error) {
         console.error('Error:', data.error);
+        errorOperation(operationId, 'Error combining GTIs: ' + data.error);
         alert('Error combining GTIs: ' + data.error);
         return;
       }
 
       // Create or update combined plot container
-      const PLOT_ID = `${TYPE}-combined`;
-      let combinedContainer = $(`#${PLOT_ID}-container`);
+      const PLOT_ID = TYPE + '-combined';
+      let combinedContainer = $('#' + PLOT_ID + '-container');
 
       if (!combinedContainer.length) {
         combinedContainer = $('<div>', {
-          id: `${PLOT_ID}-container`,
+          id: PLOT_ID + '-container',
           class: 'combined-plot-container',
         });
         combinedContainer.append('<h4>', { text: 'Combined GTIs Plot' });
@@ -851,7 +812,7 @@ export function combineAndPlotGTIs(event) {
         });
 
         combinedContainer.append($REMOVE_BUTTON);
-        $(`#${TYPE}-section`).append(combinedContainer);
+        $('#' + TYPE + '-section').append(combinedContainer);
       }
 
       // Update plot
@@ -871,18 +832,23 @@ export function combineAndPlotGTIs(event) {
           // Then apply any existing selections
           updateAllSelections();
         }, 500);
+
+        completeOperation(operationId, 'Successfully combined GTIs from ' + obsIDs.size + ' observations');
+      } else {
+        completeOperation(operationId, 'Combined GTI data processed');
       }
     },
     error: function (xhr, _, error) {
       console.error('Error combining GTIs:', error);
       console.error('Server response:', xhr.responseText);
+      errorOperation(operationId, 'Error combining GTIs');
       alert(
         'Error combining GTIs: ' +
           (xhr.responseJSON?.error || 'Please try again.'),
       );
     },
     complete: function () {
-      LOADING.remove();
+      // Operation completion is handled in success/error callbacks
     },
   });
 }

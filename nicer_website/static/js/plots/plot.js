@@ -19,8 +19,12 @@ import {
   initInteractiveLinking,
   diagnosePlotlyGraphs,
 } from './components/interactiveLinking.js';
+import { StatusBar } from './components/statusBar.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize the status bar
+  StatusBar.getInstance();
+
   // Ensure jQuery is loaded
   if (typeof $ === 'undefined') {
     console.error(
