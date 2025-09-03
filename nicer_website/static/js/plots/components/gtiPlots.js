@@ -7,7 +7,7 @@ import {
   initSynchronizedSelection,
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
-import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+import { startOperation, completeOperation, errorOperation, completeOperationsByPattern, clearOperationsByPattern } from './statusBar.js';
 
 /**
  * Shows a popup for selecting which plot types to generate for selected GTIs
@@ -487,6 +487,12 @@ export function fetchGTIPlot(event) {
     );
   }
 
+  // Complete any existing operations for all plot types that will be updated
+  openPlotTypes.forEach(plotTypeToComplete => {
+    const pattern = 'gti-change-' + plotTypeToComplete + '-' + currentObsID;
+    completeOperationsByPattern(pattern);
+  });
+
   // Function to update a single plot
   const updatePlot = (currentPlotType, currentOperationId) => {
     console.log(
@@ -694,6 +700,10 @@ export function fetchGTIPlot(event) {
         if (currentOperationId) {
           completeOperation(currentOperationId, `Successfully updated ${currentPlotType} plot`);
         }
+        
+        // Also complete any operations for this plot type
+        const pattern = 'gti-change-' + currentPlotType + '-' + currentObsID;
+        completeOperationsByPattern(pattern);
       },
       error: function (xhr, status, error) {
         console.error(
@@ -739,14 +749,20 @@ export function fetchGTIPlot(event) {
         if (currentOperationId) {
           errorOperation(currentOperationId, `Failed to update ${currentPlotType} plot`);
         }
+        
+        // Also complete any operations for this plot type
+        const pattern = 'gti-change-' + currentPlotType + '-' + currentObsID;
+        completeOperationsByPattern(pattern);
       },
     });
   };
 
-  // Update all relevant plots with individual operation IDs
+  // Update all relevant plots with consistent operation IDs that match clearing patterns
   openPlotTypes.forEach(plotType => {
-    const individualOperationId = startOperation(`Updating ${plotType.replace(/_/g, ' ')} plot`);
-    updatePlot(plotType, individualOperationId);
+    // Use consistent operation ID pattern that matches the clearing patterns
+    const operationId = 'gti-change-' + plotType + '-' + currentObsID;
+    startOperation(operationId, 'Updating ' + plotType.replace(/_/g, ' ') + ' plot...');
+    updatePlot(plotType, operationId);
   });
 }
 

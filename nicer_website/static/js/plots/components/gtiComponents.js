@@ -1,5 +1,5 @@
 import { columnLayout } from '../utils/utils.js';
-import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+import { startOperation, completeOperation, errorOperation, updateOperationMessage, clearOperationsByPattern, completeOperationsByPattern } from './statusBar.js';
 
 /**
  * Generates a GTI selection field for a specific plot
@@ -14,10 +14,11 @@ import { startOperation, completeOperation, errorOperation } from './statusBar.j
 export function GTISelection(maxGTI, obsID, plotType) {
   // Constants
   const $FORM = $('<form>', { class: 'fetch-gti' });
+  const cleanPlotType = plotType.replace(`-${obsID}`, '');
   const $TYPE = $('<input>', {
     name: 'plot_type',
     type: 'hidden',
-    value: plotType.replace(`-${obsID}`, ''),
+    value: cleanPlotType,
   });
   const $OBS_ID = $('<input>', {
     name: 'obs_id',
@@ -30,7 +31,7 @@ export function GTISelection(maxGTI, obsID, plotType) {
     placeholder: `GTI numbers (,) and/or range (-) between 0 and ${maxGTI - 1}`,
   });
   const $MIN_SLIDER = $(`<input>`, {
-    id: `${plotType}-min-slider`,
+    id: `${cleanPlotType}-min-slider`,
     name: 'min_value',
     type: 'range',
     min: 1,
@@ -38,8 +39,8 @@ export function GTISelection(maxGTI, obsID, plotType) {
     value: 1,
   });
   const $MIN_VALUE = $('<p>', {
-    id: `${plotType}-min-value`,
-    text: 'Value: 1 counts',
+    id: `${cleanPlotType}-min-value`,
+    text: 'Binning: 1 counts',
   });
   const $SUBMIT = $('<button>', { type: 'submit', text: 'Submit' });
 
@@ -50,41 +51,75 @@ export function GTISelection(maxGTI, obsID, plotType) {
   $FORM.append(columnLayout([$MIN_SLIDER, $MIN_VALUE]));
 
   // Update slider value on change and trigger form submission
+  let sliderTimeout;
+  let currentBinningOperationId = null;
+  let lastSliderValue = 1;
+  
   $MIN_SLIDER.on('input', function () {
     const newValue = $(this).val();
     console.log(
-      `[DEBUG gtiComponents.js] Slider input changed for ${plotType}. New value: ${newValue}`,
+      `[DEBUG gtiComponents.js] Slider input changed for ${cleanPlotType}. New value: ${newValue}`,
     );
-    $(`#${plotType}-min-value`).html(`Value: ${newValue} counts`);
+    $(`#${cleanPlotType}-min-value`).html(`Binning: ${newValue} counts`);
+    lastSliderValue = newValue;
     
-    // Start status tracking for binning change
-    const operationId = 'binning-change-' + Date.now();
-    startOperation(operationId, 'Updating ' + plotType.replace(/_/g, ' ') + ' plot with binning value ' + newValue + '...');
+    // Clear previous timeout
+    if (sliderTimeout) {
+      clearTimeout(sliderTimeout);
+    }
     
-    console.log(
-      `[DEBUG gtiComponents.js] About to submit form for slider change`,
-    );
-    // Automatically submit the form when the slider value changes
-    // This will trigger the fetchGTIPlot function
-    $FORM.submit();
+    // Debounce the form submission
+    sliderTimeout = setTimeout(() => {
+      // Complete any existing binning operations for this plot type before creating a new one
+      const binningPattern = 'gti-change-' + cleanPlotType + '-' + obsID;
+      completeOperationsByPattern(binningPattern);
+      
+      // Start a new operation
+      currentBinningOperationId = 'gti-change-' + cleanPlotType + '-' + obsID;
+      startOperation(currentBinningOperationId, 'Updating ' + cleanPlotType.replace(/_/g, ' ') + ' plot...');
+      
+      console.log(
+        `[DEBUG gtiComponents.js] About to submit form for slider change`,
+      );
+      // Automatically submit the form when the slider value changes
+      // This will trigger the fetchGTIPlot function
+      $FORM.submit();
+    }, 300); // 300ms debounce
   });
 
-  $SEARCH.on('change', function () {
+  let gtiTimeout;
+  let currentGtiOperationId = null;
+  let lastGtiValue = '';
+  
+  $SEARCH.on('input', function () {
     const newGTIs = $(this).val();
     console.log(
-      `[DEBUG gtiComponents.js] GTI search input changed for ${plotType}. New value: ${newGTIs}`,
+      `[DEBUG gtiComponents.js] GTI search input changed for ${cleanPlotType}. New value: ${newGTIs}`,
     );
+    lastGtiValue = newGTIs;
     
-    // Start status tracking for GTI change
-    const operationId = 'gti-change-' + Date.now();
-    const gtiText = newGTIs ? 'GTI ' + newGTIs : 'selected GTIs';
-    startOperation(operationId, 'Updating ' + plotType.replace(/_/g, ' ') + ' plot for ' + gtiText + '...');
+    // Clear previous timeout
+    if (gtiTimeout) {
+      clearTimeout(gtiTimeout);
+    }
     
-    console.log(
-      `[DEBUG gtiComponents.js] About to submit form for GTI search change`,
-    );
-    // Automatically submit the form when the search input changes
-    $FORM.submit();
+    // Debounce the form submission
+    gtiTimeout = setTimeout(() => {
+      // Complete any existing GTI operations for this plot type before creating a new one
+      const gtiPattern = 'gti-change-' + cleanPlotType + '-' + obsID;
+      completeOperationsByPattern(gtiPattern);
+      
+      // Start a new operation
+      currentGtiOperationId = 'gti-change-' + cleanPlotType + '-' + obsID;
+      const gtiText = lastGtiValue ? 'GTI ' + lastGtiValue : 'selected GTIs';
+      startOperation(currentGtiOperationId, 'Updating ' + cleanPlotType.replace(/_/g, ' ') + ' plot...');
+      
+      console.log(
+        `[DEBUG gtiComponents.js] About to submit form for GTI search change`,
+      );
+      // Automatically submit the form when the search input changes
+      $FORM.submit();
+    }, 500); // 500ms debounce for text input
   });
 
   return $FORM;

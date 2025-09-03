@@ -336,6 +336,47 @@ export class StatusBar {
     this.hide();
   }
 
+  completeOperationsByPattern(pattern) {
+    let completed = 0;
+    this.operations.forEach((operation, id) => {
+      if (id.includes(pattern) && operation.status === 'loading') {
+        operation.status = 'completed';
+        operation.endTime = Date.now();
+        completed++;
+        
+        // Auto-remove completed operations after 2 seconds
+        setTimeout(() => {
+          this.removeOperation(id);
+        }, 2000);
+      }
+    });
+    if (completed > 0) {
+      this.updateDisplay();
+    }
+    return completed;
+  }
+
+  clearOperationsByPattern(pattern) {
+    let cleared = 0;
+    this.operations.forEach((operation, id) => {
+      if (id.includes(pattern)) {
+        cleared++;
+        this.removeOperation(id);
+      }
+    });
+    return cleared;
+  }
+
+  updateOperationMessage(id, newMessage) {
+    const operation = this.operations.get(id);
+    if (operation && operation.status === 'loading') {
+      operation.message = newMessage;
+      this.updateDisplay();
+      return true;
+    }
+    return false;
+  }
+
   hasActiveOperations() {
     return Array.from(this.operations.values()).some(op => op.status === 'loading');
   }
@@ -360,6 +401,18 @@ export function removeOperation(id) {
 
 export function clearAllOperations() {
   return StatusBar.getInstance().clear();
+}
+
+export function completeOperationsByPattern(pattern) {
+  return StatusBar.getInstance().completeOperationsByPattern(pattern);
+}
+
+export function clearOperationsByPattern(pattern) {
+  return StatusBar.getInstance().clearOperationsByPattern(pattern);
+}
+
+export function updateOperationMessage(id, newMessage) {
+  return StatusBar.getInstance().updateOperationMessage(id, newMessage);
 }
 
 export function hasActiveOperations() {
