@@ -4,24 +4,30 @@ structure of the specified directory found in config.txt
 """
 import os
 import json
-import sqlite3
 import subprocess
+from io import StringIO
 from threading import Lock
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
+import psycopg2
 import numpy as np
+import pandas as pd
 from numpy import ndarray
+from psycopg2.extras import execute_values
 
 from src.utils.utils import progress_bar
+from nicer_website.settings import DATABASES, BASE_DIR
 
 
-def table_insert(data: dict[str, list[int | float | str | None]], batch_size: int = 100) -> None:
+def table_insert(data: dict[str, list[int | float | str | None]], batch_size: int = 10000) -> None:
     """
     Add folder and file data to the database, including additional metadata fields.
 
     Parameters
     ----------
+    db_config : dict[str, str]
+        Dictionary containing database connection parameters such as host, port, user, password,
     data : dict[str, list[int | float | str | None]]
         Dictionary containing the data to be inserted into the database, keys are column names and
         values are lists of corresponding values.
@@ -29,21 +35,41 @@ def table_insert(data: dict[str, list[int | float | str | None]], batch_size: in
         How many entries to insert into the database per execution
     """
     i: int
-    update: str = f'INSERT OR REPLACE INTO file_mgr_item ({", ".join(data)})' \
-                  f'VALUES ({", ".join(["?"] * len(data))})'
+    # PostgreSQL does not support INSERT OR REPLACE, use ON CONFLICT for upsert
+    update: str = f'INSERT INTO file_mgr_item ({", ".join(data)}) ' \
+                  f'VALUES %s ON CONFLICT (name, path, type) DO UPDATE SET ' + \
+                  ', '.join(
+                      [f'{col}=EXCLUDED.{col}' for col in data
+                       if col not in ['name', 'path', 'type']],
+                  )
     batch: ndarray[tuple[int, int], np.dtype[np.object_]]
     batches: list[ndarray[tuple[int, int], np.dtype[np.object_]]] = np.array_split(
         np.array(list(data.values())),
         int(len(list(data.values())[0]) / batch_size),
         axis=-1,
     )
+    db_config: dict[str, str] = {
+        'host': DATABASES['default'].get('HOST', 'localhost'),
+        'port': DATABASES['default'].get('PORT', '5432'),
+        'dbname': DATABASES['default'].get('NAME', ''),
+        'user': DATABASES['default'].get('USER', ''),
+        'password': DATABASES['default'].get('PASSWORD', ''),
+        }
 
-    # Connect to the database
-    with sqlite3.connect('db.sqlite3') as conn:
-        # Insert data into the database
-        for i, batch in enumerate(batches):
-            conn.executemany(update, batch.swapaxes(0, 1))
-            progress_bar(i, len(batches))
+    # Connect to the PostgreSQL database
+    with psycopg2.connect(**db_config) as conn:
+        with conn.cursor() as cur:
+            # df = pd.DataFrame.from_dict(data)
+            # sio = StringIO()
+            # df.to_csv(sio, index=False, header=False)
+            # sio.seek(0)
+
+            # cur.copy_expert(f'COPY file_mgr_item ({", ".join(data)}) FROM STDIN WITH CSV', sio)
+
+            for i, batch in enumerate(batches):
+                execute_values(cur, update, batch.swapaxes(0, 1), page_size=batch.shape[-1])
+                # cur.executemany(update, batch.swapaxes(0, 1))
+                progress_bar(i, len(batches))
 
 
 def linux_count(directory: str) -> int:
@@ -129,10 +155,9 @@ def process_dir(
     min_num: int = 1000
     file: str
     root: str = root_file[0]
-    relative_root: str = root.replace(data_dir, '')
-    dir_name: str = os.path.basename(relative_root)
-    parent_dir: str = os.path.dirname(relative_root) + '/'
-    relative_root += '/'
+    relative_root: str = root.replace(data_dir, '') or '/'
+    dir_name: str = os.path.basename(relative_root) or '/'
+    parent_dir: str = os.path.dirname(relative_root) or '/'
     data: dict[str, list[int | float | str | None]] = {key: [] for key in [
         'name',
         'path',
@@ -245,11 +270,10 @@ def main() -> None:
     result: dict[str, list[int | float | str | None]]
     lock: Lock = Lock()
     partial_func: partial[dict[str, list[int | float | str | None]]]
-    os.chdir('../')
 
     # Get data directory location from config.txt
-    with open('config.txt', mode='r', encoding='utf-8') as config:
-        data_dir = json.load(config)['data_dir']
+    with open(os.path.join(BASE_DIR, 'config.txt'), mode='r', encoding='utf-8') as config:
+        data_dir = os.path.join(BASE_DIR, json.load(config)['data_dir'])
 
     # Calculate the total number of folders and files
     for root, _, files in os.walk(data_dir):
@@ -259,7 +283,7 @@ def main() -> None:
         if total[0] % min_num == 0:
             print(f'\rCount: {total[0]}', end='', flush=True)
 
-    if not total:
+    if not total[0]:
         raise ValueError(f'No files or folders found, check parent directory is correct: '
                          f'{data_dir}')
 

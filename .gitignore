@@ -11,3 +11,5 @@
 **/*[Tt][Ee][Ss][Tt]*
 **/*[Tt][Ee][Mm][Pp]*.*
 /node_modules/
+config.txt
+db_user.json

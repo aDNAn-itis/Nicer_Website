@@ -74,8 +74,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#search-type').change(function () {
-    $('#obs-id-dropdown').toggle();
-    $('#source-name-dropdown').toggle();
+    const OBS_SEARCH = $(this).val() === 'true';
+    $('#obs-id-dropdown').toggle(OBS_SEARCH);
+    $('#source-name-dropdown').toggle(!OBS_SEARCH);
   });
 
   $('#advance-search-btn').click(function () {
@@ -122,18 +123,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $(document).on('click', '.plot-gti', function (event) {
     event.preventDefault();
-    
+
     const obsId = $(this).data('obs-id');
     const gtiNum = $(this).data('gti');
-    
-    console.log(`[DEBUG plot.js] GTI Plot button clicked. ObsID: ${obsId}, GTI: ${gtiNum}`);
-    
+
+    console.log(
+      `[DEBUG plot.js] GTI Plot button clicked. ObsID: ${obsId}, GTI: ${gtiNum}`,
+    );
+
     // Store the GTI number for later use when the plot selection is made
     window.selectedGTI = gtiNum;
     window.selectedGTIObsId = obsId;
-    
-    console.log(`[DEBUG plot.js] Stored GTI values. selectedGTI: ${window.selectedGTI}, selectedGTIObsId: ${window.selectedGTIObsId}`);
-    
+
+    console.log(
+      `[DEBUG plot.js] Stored GTI values. selectedGTI: ${window.selectedGTI}, selectedGTIObsId: ${window.selectedGTIObsId}`,
+    );
+
     // Show the plot selection popup
     showPlotSelectionPopup(obsId);
   });

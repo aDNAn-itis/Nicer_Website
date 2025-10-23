@@ -10,10 +10,11 @@ class Item(models.Model):
     """
     dir = 'dir'
     file = 'file'
+    root = '/'
     item_type = [(dir, 'Dir'), (file, 'File')]
 
     name = models.CharField(max_length=64)
-    path = models.CharField(max_length=100, default='/')
+    path = models.CharField(max_length=100, default=root)
     type = models.CharField(max_length=4, choices=item_type, default=dir)
     source = models.CharField(max_length=100, blank=True)
 

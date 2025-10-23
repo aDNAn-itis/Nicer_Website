@@ -20,9 +20,14 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
+            // "module": "${command:extension.commandvariable.file.relativeFileDotsNoExtension}",
+            "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "cwd": "${fileDirname}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ]
 }

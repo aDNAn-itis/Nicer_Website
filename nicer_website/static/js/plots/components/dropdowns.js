@@ -6,13 +6,13 @@
  * and container for options
  */
 export function addOption(value, $container) {
-    const $OPTION = $('<button>', { type: 'button', text: value });
+  const $OPTION = $('<button>', { type: 'button', text: value });
 
-    $OPTION.on('click', () => {
-        $container.find('.dropdown-field').val(value);
-    });
+  $OPTION.on('click', () => {
+    $container.find('.dropdown-field').val(value);
+  });
 
-    $container.find('.dropdown-content').append($OPTION);
+  $container.find('.dropdown-content').append($OPTION);
 }
 
 /**
@@ -26,11 +26,12 @@ export function addOption(value, $container) {
  * and container for options
  */
 export function fetchOptions(request, $container) {
-    fetch(`/plots/fetch_observations?${request}`)
-        .then((response) => response.json())
-        .then((data) => {
-            // Generates buttons for each observation ID that matches the search field
-            $container.find('.dropdown-content').html('');
-            data.dir_suggestions.forEach((value) => addOption(value, $container));
-        });
+  fetch(`/plots/fetch_observations?${request}`)
+    .then((response) => response.json())
+    .then((data) => {
+      if (!data) return;
+      // Generates buttons for each observation ID that matches the search field
+      $container.find('.dropdown-content').html('');
+      data.suggestions.forEach((value) => addOption(value, $container));
+    });
 }

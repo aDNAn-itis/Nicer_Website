@@ -29,6 +29,10 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+# SECURITY WARNING: keep database login secret!
+with open(os.path.join(BASE_DIR, 'db_user.json'), mode='r', encoding='utf8') as file:
+    DB_USER = json.load(file)
+
 ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0']
 
 
@@ -81,9 +85,11 @@ WSGI_APPLICATION = 'nicer_website.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'pdb',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    } | DB_USER
 }
 
 
