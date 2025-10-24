@@ -1,2 +1,7 @@
-Django~=5.1.1
+numpy~=2.3.4
+pandas~=2.3.3
+Django~=5.2.7
+astropy~=7.1.1
+psycopg2~=2.9.11
+matplotlib~=3.10.7
 python-decouple~=3.8

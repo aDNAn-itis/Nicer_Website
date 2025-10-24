@@ -13,3 +13,4 @@
 /node_modules/
 config.txt
 db_user.json
+/exported_spectra/*

@@ -15,12 +15,12 @@ from src.utils.plots import data_plot
 def light_curve_data(
         min_value: int,
         data_path: str) -> tuple[
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]]]:
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]]]:
     """
     Fetches and corrects binned light curve data
 
@@ -39,16 +39,16 @@ def light_curve_data(
     dets: int
     time_diff: float
     min_bins: ndarray[tuple[int], np.dtype[np.int_]]
-    x_bin: ndarray[tuple[int], np.dtype[np.float_]]
-    y_bin: ndarray[tuple[int], np.dtype[np.float_]]
-    bg_bin: ndarray[tuple[int], np.dtype[np.float_]]
-    counts: ndarray[tuple[int], np.dtype[np.float_]]
-    x_width: ndarray[tuple[int], np.dtype[np.float_]]
-    x_error: ndarray[tuple[int], np.dtype[np.float_]]
-    bg_x_bin: ndarray[tuple[int], np.dtype[np.float_]]
-    background: ndarray[tuple[int], np.dtype[np.float_]]
-    data: ndarray[tuple[int, int], np.dtype[np.float_]]
-    uncertainty: ndarray[tuple[int, int], np.dtype[np.float_]]
+    x_bin: ndarray[tuple[int], np.dtype[np.float64]]
+    y_bin: ndarray[tuple[int], np.dtype[np.float64]]
+    bg_bin: ndarray[tuple[int], np.dtype[np.float64]]
+    counts: ndarray[tuple[int], np.dtype[np.float64]]
+    x_width: ndarray[tuple[int], np.dtype[np.float64]]
+    x_error: ndarray[tuple[int], np.dtype[np.float64]]
+    bg_x_bin: ndarray[tuple[int], np.dtype[np.float64]]
+    background: ndarray[tuple[int], np.dtype[np.float64]]
+    data: ndarray[tuple[int, int], np.dtype[np.float64]]
+    uncertainty: ndarray[tuple[int, int], np.dtype[np.float64]]
 
     data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
     background = np.loadtxt(data_path.replace('.lc.gz', '.bg-lc.gz'), usecols=2)
@@ -83,12 +83,12 @@ def align_light_curves(
         data_paths: list[str],
         gti_numbers: list[int],
 ) -> tuple[
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]]]:
+    list[ndarray[tuple[int], np.dtype[np.float64]]],
+    list[ndarray[tuple[int], np.dtype[np.float64]]],
+    list[ndarray[tuple[int], np.dtype[np.float64]]],
+    list[ndarray[tuple[int], np.dtype[np.float64]]],
+    list[ndarray[tuple[int], np.dtype[np.float64]]],
+    list[ndarray[tuple[int], np.dtype[np.float64]]]]:
     """
     Aligns multiple light curves by ensuring correct GTI interval separation and grouping by GTI
     number
@@ -110,19 +110,19 @@ def align_light_curves(
     gti_num: int
     max_duration: float
     data_path: str
-    group: list[dict[str, ndarray[tuple[int], np.dtype[np.float_]]]]
-    aligned_group: list[dict[str, ndarray[tuple[int], np.dtype[np.float_]]]]
-    x_data: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    y_data: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    x_errors: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    background: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    x_background: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    uncertainties: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    data: tuple[ndarray[tuple[int], np.dtype[np.float_]], ...]
-    gti_groups: dict[int, list[dict[str, ndarray[tuple[int], np.dtype[np.float_]]]]] = {}
-    aligned_gti_groups: dict[int, list[dict[str, ndarray[tuple[int], np.dtype[np.float_]]]]] = {}
-    group_data: dict[str, ndarray[tuple[int], np.dtype[np.float_]]]
-    aligned_group_data: dict[str, ndarray[tuple[int], np.dtype[np.float_]]]
+    group: list[dict[str, ndarray[tuple[int], np.dtype[np.float64]]]]
+    aligned_group: list[dict[str, ndarray[tuple[int], np.dtype[np.float64]]]]
+    x_data: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    y_data: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    x_errors: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    x_background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    uncertainties: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    data: tuple[ndarray[tuple[int], np.dtype[np.float64]], ...]
+    gti_groups: dict[int, list[dict[str, ndarray[tuple[int], np.dtype[np.float64]]]]] = {}
+    aligned_gti_groups: dict[int, list[dict[str, ndarray[tuple[int], np.dtype[np.float64]]]]] = {}
+    group_data: dict[str, ndarray[tuple[int], np.dtype[np.float64]]]
+    aligned_group_data: dict[str, ndarray[tuple[int], np.dtype[np.float64]]]
 
     for data_path, gti_num in zip(data_paths, gti_numbers):
         data = light_curve_data(min_value, data_path)
@@ -204,12 +204,12 @@ def light_curve_plot(
     """
     plot: str = ''
     subplot_kwargs: list[dict[str, Any]] = [{'row': 1, 'col': 1}]
-    x_data: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    y_data: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    x_error: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    background: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    x_background: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    y_uncertainties: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
+    x_data: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    y_data: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    x_error: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    x_background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    y_uncertainties: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
 
     if gti_labels is None:
         gti_labels = [f'GTI{gti}' for gti in gti_numbers]
