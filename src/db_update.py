@@ -4,9 +4,12 @@ structure of the specified directory found in config.txt
 """
 import os
 import json
+import argparse
 import subprocess
+from time import time
 from io import StringIO
 from threading import Lock
+from typing import Callable
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
@@ -20,22 +23,61 @@ from src.utils.utils import progress_bar
 from nicer_website.settings import DATABASES, BASE_DIR
 
 
-def table_insert(data: dict[str, list[int | float | str | None]], batch_size: int = 10000) -> None:
+DB_CONFIG: dict[str, str] = {
+    'host': DATABASES['default'].get('HOST', 'localhost'),
+    'port': DATABASES['default'].get('PORT', '5432'),
+    'dbname': DATABASES['default'].get('NAME', ''),
+    'user': DATABASES['default'].get('USER', ''),
+    'password': DATABASES['default'].get('PASSWORD', ''),
+}
+
+
+def create_table(data: dict[str, list[str | None]], batch_size: int = 10000) -> None:
     """
     Add folder and file data to the database, including additional metadata fields.
 
     Parameters
     ----------
-    db_config : dict[str, str]
-        Dictionary containing database connection parameters such as host, port, user, password,
-    data : dict[str, list[int | float | str | None]]
+    data : dict[str, list[str | None]]
         Dictionary containing the data to be inserted into the database, keys are column names and
-        values are lists of corresponding values.
+        values are lists of corresponding values
+    batch_size : int, default = 10000
+        How many entries to insert into the database per execution
+    """
+    i: int
+    df = pd.DataFrame.from_dict(data)
+    df.fillna('null', inplace=True)
+
+    # Connect to the PostgreSQL database
+    with psycopg2.connect(**DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            for i in range(0, len(df), batch_size):
+                batch = df.iloc[i:i + batch_size]
+                sio = StringIO()
+                batch.to_csv(sio, index=False, header=False)
+                sio.seek(0)
+
+                cur.copy_expert(
+                    f"COPY file_mgr_item ({', '.join(df)}) FROM STDIN WITH "
+                    f"(FORMAT CSV, NULL 'null');",
+                    sio,
+                )
+                progress_bar(i + len(batch), len(df))
+
+
+def table_insert(data: dict[str, list[str | None]], batch_size: int = 10000) -> None:
+    """
+    Add folder and file data to the database, including additional metadata fields.
+
+    Parameters
+    ----------
+    data : dict[str, list[str | None]]
+        Dictionary containing the data to be inserted into the database, keys are column names and
+        values are lists of corresponding values
     batch_size : int, default = 100
         How many entries to insert into the database per execution
     """
     i: int
-    # PostgreSQL does not support INSERT OR REPLACE, use ON CONFLICT for upsert
     update: str = f'INSERT INTO file_mgr_item ({", ".join(data)}) ' \
                   f'VALUES %s ON CONFLICT (name, path, type) DO UPDATE SET ' + \
                   ', '.join(
@@ -45,30 +87,15 @@ def table_insert(data: dict[str, list[int | float | str | None]], batch_size: in
     batch: ndarray[tuple[int, int], np.dtype[np.object_]]
     batches: list[ndarray[tuple[int, int], np.dtype[np.object_]]] = np.array_split(
         np.array(list(data.values())),
-        int(len(list(data.values())[0]) / batch_size),
+        max(int(len(list(data.values())[0]) / batch_size), 1),
         axis=-1,
     )
-    db_config: dict[str, str] = {
-        'host': DATABASES['default'].get('HOST', 'localhost'),
-        'port': DATABASES['default'].get('PORT', '5432'),
-        'dbname': DATABASES['default'].get('NAME', ''),
-        'user': DATABASES['default'].get('USER', ''),
-        'password': DATABASES['default'].get('PASSWORD', ''),
-        }
 
     # Connect to the PostgreSQL database
-    with psycopg2.connect(**db_config) as conn:
+    with psycopg2.connect(**DB_CONFIG) as conn:
         with conn.cursor() as cur:
-            # df = pd.DataFrame.from_dict(data)
-            # sio = StringIO()
-            # df.to_csv(sio, index=False, header=False)
-            # sio.seek(0)
-
-            # cur.copy_expert(f'COPY file_mgr_item ({", ".join(data)}) FROM STDIN WITH CSV', sio)
-
             for i, batch in enumerate(batches):
                 execute_values(cur, update, batch.swapaxes(0, 1), page_size=batch.shape[-1])
-                # cur.executemany(update, batch.swapaxes(0, 1))
                 progress_bar(i, len(batches))
 
 
@@ -128,7 +155,7 @@ def process_dir(
         count: list[int],
         total: list[int],
         root_file: tuple[str, ndarray[tuple[int], np.dtype[np.str_]]],
-        lock: Lock) -> dict[str, list[int | float | str | None]]:
+        lock: Lock) -> dict[str, list[str | None]]:
     """
     Process a directory and its files to extract metadata and prepare for database insertion.
 
@@ -148,8 +175,8 @@ def process_dir(
 
     Returns
     -------
-    dict[str, list[int | float | str]]
-        A dictionary containing metadata extracted from the directory and files.
+    pd.DataFrame
+        A DataFrame containing metadata extracted from the directory and files.
     """
     dets: int = 52
     min_num: int = 1000
@@ -158,10 +185,7 @@ def process_dir(
     relative_root: str = root.replace(data_dir, '') or '/'
     dir_name: str = os.path.basename(relative_root) or '/'
     parent_dir: str = os.path.dirname(relative_root) or '/'
-    data: dict[str, list[int | float | str | None]] = {key: [] for key in [
-        'name',
-        'path',
-        'type',
+    keys: tuple[str, ...] = (
         'source',
         'tstart_tt',
         'tstop_tt',
@@ -170,11 +194,12 @@ def process_dir(
         'ndets_used',
         'ushoot_net_rate',
         'oshoot_net_rate',
-        'changegoodx_5_12_rate',
-    ]}
-    summary: ndarray[tuple[int], np.dtype[np.str_]]
+        'goodx_0p5_12_rate',
+    )
     files: ndarray[tuple[int], np.dtype[np.str_]] = root_file[1]
     summaries: ndarray[tuple[int], np.dtype[np.str_]] = files[np.char.endswith(files, '.summary')]
+    data: dict[str, list[str | None]]
+    summary: dict[str, list[str | None]]
 
     # Remove ARF and RMF files from the list of files and decrement the total count as these
     # aren't needed for now
@@ -186,59 +211,26 @@ def process_dir(
         files = np.delete(np.array(files), np.char.find(files, '.arf') != -1)
         files = np.delete(np.array(files), np.char.find(files, '.rmf') != -1)
 
-    # Find source name if in a destination that contains source information
     if len(summaries):
-        summary = np.loadtxt(f'{root}/{summaries[0]}', dtype=str)
-        data['source'].extend([
-            summary[:, 1][summary[:, 0] == 'OBJECT'][0].strip("'")
-        ] * (len(files) + bool(dir_name)))
-        data['tstart_tt'].extend([
-            float(summary[:, 1][summary[:, 0] == 'TSTART_TT'][0].strip())
-        ] * (len(files) + bool(dir_name)))
-        data['tstop_tt'].extend([
-            float(summary[:, 1][summary[:, 0] == 'TSTOP_TT'][0].strip())
-        ] * (len(files) + bool(dir_name)))
-        data['ra'].extend([
-            float(summary[:, 1][summary[:, 0] == 'RA'][0].strip())
-        ] * (len(files) + bool(dir_name)))
-        data['dec'].extend([
-            float(summary[:, 1][summary[:, 0] == 'DEC'][0].strip())
-        ] * (len(files) + bool(dir_name)))
-        data['ndets_used'].extend([
-            float(summary[:, 1][summary[:, 0] == 'NDETS_USED'][0].strip())
-        ] * (len(files) + bool(dir_name)))
-        data['ushoot_net_rate'].extend([
-            float(summary[:, 1][summary[:, 0] == 'USHOOT_NET_RATE'][0].strip()),
-        ] * (len(files) + bool(dir_name)))
-        data['oshoot_net_rate'].extend([
-            float(summary[:, 1][summary[:, 0] == 'OSHOOT_NET_RATE'][0].strip()),
-        ] * (len(files) + bool(dir_name)))
-        data['changegoodx_5_12_rate'].extend([
-            float(summary[:, 1][summary[:, 0] == 'GOODX_0p5_12_RATE'][0].strip()) * dets,
-        ] * (len(files) + bool(dir_name)))
+        summary = {key.lower(): [val.strip("'")] for key, val in np.loadtxt(
+            os.path.join(root, summaries[0]),
+            dtype=str,
+        ) if key.lower() in keys or key.lower() == 'object'}
+        summary['source'] = summary.pop('object')
+
+        if summary['goodx_0p5_12_rate'][0]:
+            summary['goodx_0p5_12_rate'][0] = str(float(summary['goodx_0p5_12_rate'][0]) * dets)
     else:
-        # Default values for additional metadata if not available
-        data['source'].extend([''] * (len(files) + bool(dir_name)))
-        data['tstart_tt'].extend([None] * (len(files) + bool(dir_name)))
-        data['tstop_tt'].extend([None] * (len(files) + bool(dir_name)))
-        data['ra'].extend([None] * (len(files) + bool(dir_name)))
-        data['dec'].extend([None] * (len(files) + bool(dir_name)))
-        data['ndets_used'].extend([None] * (len(files) + bool(dir_name)))
-        data['ushoot_net_rate'].extend([None] * (len(files) + bool(dir_name)))
-        data['oshoot_net_rate'].extend([None] * (len(files) + bool(dir_name)))
-        data['changegoodx_5_12_rate'].extend([None] * (len(files) + bool(dir_name)))
+        summary = {key: ['' if key == 'source' else None] for key in keys}
 
-    # If not top-level directory, add folder to the database
-    if dir_name:
-        data['name'].append(dir_name)
-        data['path'].append(parent_dir)
-        data['type'].append('dir')
+    # Load data
+    data = {'name': [dir_name], 'path': [parent_dir], 'type': ['dir']}
 
-        with lock:
-            count[0] += 1
+    with lock:
+        count[0] += 1
 
-            if count[0] % min_num == 0:
-                progress_bar(count[0], total[0])
+        if count[0] % min_num == 0:
+            progress_bar(count[0], total[0])
 
     # Add file to the database
     for file in files:
@@ -251,25 +243,45 @@ def process_dir(
 
             if count[0] % min_num == 0:
                 progress_bar(count[0], total[0])
+
+    for key, value in summary.items():
+        data[key] = value * len(data['name'])
     return data
 
 
-def main() -> None:
+def main(update: bool = False, batch: int = int(1e5), limit: int = -1) -> None:
     """
     Main function for updating the database
+
+    Parameters
+    ----------
+    update : bool, default = False
+        Whether to update existing entries in the database
+    batch : int, default = 100000
+        Batch size for database insertion
+    limit : int, default = -1
+        Limit the number of files/folders processed, -1 for no limit
     """
     min_num: int = 1000
-    key: str
+    ti: float = time()
     data_dir: str
     count: list[int] = [0]
     total: list[int] = [0]
-    value: list[int | float | str | None]
     root_files: list[tuple[str, ndarray[tuple[int], np.dtype[np.str_]]]] = []
-    results: list[dict[str, list[int | float | str | None]]]
-    data: dict[str, list[int | float | str | None]]
-    result: dict[str, list[int | float | str | None]]
+    results: list[dict[str, list[str | None]]]
+    data: dict[str, list[str | None]]
+    func: Callable[[dict[str, list[str | None]], int], None]
     lock: Lock = Lock()
-    partial_func: partial[dict[str, list[int | float | str | None]]]
+    partial_func: partial[dict[str, list[str | None]]]
+
+    if not update:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT EXISTS (SELECT 1 FROM file_mgr_item LIMIT 1);")
+                if cur.fetchone()[0]:
+                    raise ValueError('Database already populated, use update=True to update '
+                                     'existing entries or clear database with: python manage.py '
+                                     'flush')
 
     # Get data directory location from config.txt
     with open(os.path.join(BASE_DIR, 'config.txt'), mode='r', encoding='utf-8') as config:
@@ -283,26 +295,63 @@ def main() -> None:
         if total[0] % min_num == 0:
             print(f'\rCount: {total[0]}', end='', flush=True)
 
+        if limit > 0 and total[0] >= limit:
+            print(f'\nLimit of {limit} reached, stopping count early...')
+            break
+
     if not total[0]:
         raise ValueError(f'No files or folders found, check parent directory is correct: '
                          f'{data_dir}')
 
-    print(f'\rTotal number of files and folders: {total[0]}')
+    print(f'\rTotal number of files and folders: {total[0]}\tTime taken: {time() - ti:.2f} s')
+    ti = time()
+    partial_func = partial(process_dir, data_dir, count, total, lock=lock)
+    print('\nProcessing files and folders...')
 
     with ThreadPoolExecutor() as executor:
-        partial_func = partial(process_dir, data_dir, count, total, lock=lock)
         results = list(executor.map(partial_func, root_files))
 
-    progress_bar(count[0], total[0])
-    data = {key: [] for key in results[0].keys()}
+    progress_bar(count[0], total[0], text=f'Time taken: {time() - ti:.2f} s')
+    ti = time()
+    print('\nCombining results...')
+    data = {}
 
     for result in results:
-        for key, value in result.items():
-            data[key].extend(value)
+        if not data:
+            for key, val in result.items():
+                data[key] = val
+        else:
+            for key, val in result.items():
+                data[key].extend(val)
+
+    print(f'\nData combining complete, time taken: {time() - ti:.2f} s')
 
     # Insert data into database
-    table_insert(data)
+    ti = time()
+    print('\nInserting data into database...')
+    func = table_insert if update else create_table
+    func(data, batch_size=batch)
+    print(f'\nDatabase update complete\tTime taken: {time() - ti:.2f} s')
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description="Update the file_mgr database.")
+    parser.add_argument(
+        '--update',
+        action='store_true',
+        help='Whether to update existing entries in the database',
+    )
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=int(1e5),
+        help='Batch size for database insertion',
+    )
+    parser.add_argument(
+        '--limit',
+        type=int,
+        default=-1,
+        help='Limit the number of files/folders processed, -1 for no limit',
+    )
+    args = parser.parse_args()
+    main(update=args.update, batch=args.batch_size, limit=args.limit)
