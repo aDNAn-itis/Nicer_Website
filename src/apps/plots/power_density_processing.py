@@ -8,7 +8,7 @@ import numpy as np
 from numpy import ndarray
 from astropy.io import fits
 
-from src.utils.plots import data_plot
+from src.apps.plots.plots import data_plot
 from src.utils.utils import min_bin, binning
 
 
@@ -177,46 +177,46 @@ def get_pds_data_and_plot(
             pds_data = pds_data_list[0]
             rsp_data = rsp_data_list[0]
             freq_center, power_density, error_density = process_pds_data(pds_data, rsp_data)
-            
+
             # Apply adaptive binning if min_value is specified and > 0
             if min_value and min_value > 0:
                 # For PDS, we need to bin in logarithmic frequency space
                 # Use the statistical significance of the power measurement as the "count"
                 # Power density error gives us the uncertainty, so significance = power/error
-                
+
                 # Calculate statistical significance for each frequency bin
                 with np.errstate(divide='ignore', invalid='ignore'):
                     significance = power_density / error_density
                     significance = np.where(np.isfinite(significance), significance, 0)
-                
+
                 # Convert significance to a count-like quantity for binning
                 # Higher significance should contribute more to the binning decision
                 pseudo_counts = significance ** 2  # Square for count-like behavior
-                
+
                 # Check if we have enough data points to bin
                 if len(pseudo_counts) > 2 and np.sum(pseudo_counts) > 0:
                     # Logarithmic binning: create bins in log-frequency space
                     log_freq = np.log10(freq_center)
-                    
+
                     # Apply adaptive binning based on pseudo-counts
                     min_bins = min_bin(min_value, pseudo_counts)
-                    
+
                     # Apply binning to log-frequency and power data
                     data_stack = np.stack([log_freq, power_density, error_density, freq_center])
                     (binned_log_freq, binned_power, binned_error, binned_freq_linear), _, _ = binning(
                         min_bins,
                         data_stack,
                     )
-                    
+
                     # Use binned data
                     freq_center = binned_freq_linear  # Use the binned linear frequency
                     power_density = binned_power
                     error_density = binned_error
-                    
+
                     print(f"PDS adaptive binning GTI{gti_number}: {len(pseudo_counts)} points -> {len(freq_center)} bins (min_value={min_value})")
                 else:
                     print(f"PDS GTI{gti_number}: Insufficient data for adaptive binning ({len(pseudo_counts)} points, sum={np.sum(pseudo_counts):.1f})")
-            
+
             x_data_list.append(freq_center)
             y_data_list.append(power_density)
             y_uncertainties.append(error_density)

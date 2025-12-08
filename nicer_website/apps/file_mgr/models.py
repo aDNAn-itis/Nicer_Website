@@ -17,6 +17,7 @@ class Item(models.Model):
     path = models.CharField(max_length=100, default=root)
     type = models.CharField(max_length=4, choices=item_type, default=dir)
     source = models.CharField(max_length=100, blank=True)
+    obsid = models.BigIntegerField(null=True, blank=True)
 
     tstart_tt = models.FloatField(null=True, blank=True)
     tstop_tt = models.FloatField(null=True, blank=True)

@@ -2,12 +2,12 @@
 Utilities to correct HID (Hardness-Intensity Diagram)
 """
 import os
-from typing import List, Tuple, Any
+from typing import List, Tuple
 
 import numpy as np
 from numpy import ndarray
 
-from src.utils.plots import data_plot
+from src.apps.plots.plots import data_plot
 from src.utils.utils import min_bin, binning
 
 def normalize_path(path: str) -> str:
@@ -131,7 +131,7 @@ def get_hid_data_and_plot(
         all_time.extend(time[mask].tolist())
         all_hardness.extend(hardness[mask].tolist())
         all_intensity.extend(intensity[mask].tolist())
-        
+
         # For adaptive binning, we need the counts rather than rates
         # The intensity is already in counts/s, so multiply by time bin width to get counts
         # The lightcurve data comes in 8-second bins (1/8 second samples)
@@ -141,7 +141,7 @@ def get_hid_data_and_plot(
         # hardness = hard/soft, so hard_counts ≈ hardness * soft_counts
         # Assume soft_counts ≈ intensity_counts / 2 (rough approximation)
         hardness_counts = hardness[mask] * intensity_counts / 2.0
-        
+
         all_hardness_counts.extend(hardness_counts.tolist())
         all_intensity_counts.extend(intensity_counts.tolist())
 
@@ -164,22 +164,22 @@ def get_hid_data_and_plot(
         all_time = all_time[sort_indices]
         all_hardness_counts = all_hardness_counts[sort_indices]
         all_intensity_counts = all_intensity_counts[sort_indices]
-        
+
         # Use intensity counts for determining bin boundaries (more stable than hardness)
         min_bins = min_bin(min_value, all_intensity_counts)
-        
+
         # Apply binning to all arrays
         data_stack = np.stack([all_hardness, all_intensity, all_time])
         (binned_hardness, binned_intensity, binned_time), _, _ = binning(
             min_bins,
             data_stack,
         )
-        
+
         # Use binned data
         all_hardness = binned_hardness
         all_intensity = binned_intensity
         all_time = binned_time
-        
+
         print(f"HID adaptive binning: {len(sort_indices)} points -> {len(all_hardness)} bins (min_value={min_value})")
 
     # Remove any remaining invalid values after binning
@@ -187,7 +187,7 @@ def get_hid_data_and_plot(
     all_hardness = all_hardness[final_mask]
     all_intensity = all_intensity[final_mask]
     all_time = all_time[final_mask]
-    
+
     if len(all_hardness) == 0:
         return "No valid data to plot after binning"
 

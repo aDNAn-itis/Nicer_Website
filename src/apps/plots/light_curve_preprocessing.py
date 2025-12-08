@@ -9,7 +9,7 @@ from plotly.colors import qualitative
 from plotly.subplots import make_subplots
 
 from src.utils.utils import min_bin, binning
-from src.utils.plots import data_plot
+from src.apps.plots.plots import data_plot
 
 
 def light_curve_data(

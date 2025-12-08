@@ -8,7 +8,7 @@ import pandas as pd
 from numpy import ndarray
 from astropy.io import fits
 
-from src.utils.plots import data_plot
+from src.apps.plots.plots import data_plot
 from src.utils.utils import min_bin, binning
 
 

@@ -1,6 +1,6 @@
 """
-Updates the database using Sqlite to match the folder
-structure of the specified directory found in config.txt
+Updates the PostgreSQL database using psycopg2 to match the folder structure of the specified
+directory found in config.txt
 """
 import os
 import json
@@ -187,6 +187,7 @@ def process_dir(
     parent_dir: str = os.path.dirname(relative_root) or '/'
     keys: tuple[str, ...] = (
         'source',
+        'obsid',
         'tstart_tt',
         'tstop_tt',
         'ra',
@@ -278,6 +279,7 @@ def main(update: bool = False, batch: int = int(1e5), limit: int = -1) -> None:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT EXISTS (SELECT 1 FROM file_mgr_item LIMIT 1);")
+
                 if cur.fetchone()[0]:
                     raise ValueError('Database already populated, use update=True to update '
                                      'existing entries or clear database with: python manage.py '
