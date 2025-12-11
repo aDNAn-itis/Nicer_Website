@@ -7,7 +7,343 @@ import {
   initSynchronizedSelection,
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
-import { startOperation, completeOperation, errorOperation, completeOperationsByPattern, clearOperationsByPattern } from './statusBar.js';
+import {
+  startOperation,
+  completeOperation,
+  errorOperation,
+  completeOperationsByPattern,
+  clearOperationsByPattern,
+} from './statusBar.js';
+
+// expand GTI ranges (e.g., "0-2" -> ["0", "1", "2"])
+function expandGTIRange(gtiInputList) {
+  const expanded = new Set();
+  gtiInputList.forEach((item) => {
+    if (item.includes('-')) {
+      const parts = item.split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parseInt(parts[1], 10);
+      if (!isNaN(start) && !isNaN(end) && start <= end) {
+        for (let i = start; i <= end; i++) {
+          expanded.add(i.toString());
+        }
+      }
+    } else {
+      expanded.add(item.trim());
+    }
+  });
+  return Array.from(expanded);
+}
+
+// generate a light-to-dark colorscale for a given hex color
+function generateGradientScale(hexColor) {
+  // Convert hex to RGB
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hexColor);
+  if (!result)
+    return [
+      [0, hexColor],
+      [1, hexColor],
+    ];
+
+  const r = parseInt(result[1], 16);
+  const g = parseInt(result[2], 16);
+  const b = parseInt(result[3], 16);
+
+  // start of the time sequence (lower time)
+  // duller the color, the lower the time
+  const r1 = Math.round(r * 0.3);
+  const g1 = Math.round(g * 0.3);
+  const b1 = Math.round(b * 0.3);
+  const dullColor = `rgb(${r1}, ${g1}, ${b1})`;
+
+  // end of the time sequence (higher time)
+  // brighter the color, the higher the time
+  const baseColor = `rgb(${r}, ${g}, ${b})`;
+
+  return [
+    [0, dullColor],
+    [1, baseColor],
+  ];
+}
+
+// extract data from Plotly HTML response
+function extractPlotlyData(htmlContent) {
+  console.log(
+    '[DEBUG gtiPlots.js] Extracting Plotly data from HTML content length:',
+    htmlContent.length,
+  );
+  return new Promise((resolve) => {
+    const tempId =
+      'temp-plot-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    // hidden container
+    const $temp = $('<div>', { id: tempId, style: 'display:none' }).appendTo(
+      'body',
+    );
+
+    // Extract the ID that Plotly uses in the script
+    const idMatch = htmlContent.match(/<div[^>]+id="([^"]+)"/);
+    if (!idMatch) {
+      console.error(
+        '[DEBUG gtiPlots.js] Could not find graph ID in HTML content',
+      );
+      $temp.remove();
+      resolve(null);
+      return;
+    }
+    const graphId = idMatch[1];
+    console.log('[DEBUG gtiPlots.js] Found graph ID:', graphId);
+
+    $temp.html(htmlContent);
+
+    let attempts = 0;
+    const check = setInterval(() => {
+      const el = document.getElementById(graphId);
+      if (el && el.data && el.layout) {
+        console.log(
+          '[DEBUG gtiPlots.js] Successfully extracted Plotly object:',
+          el.data.length,
+          'traces',
+        );
+        clearInterval(check);
+        const result = { data: el.data, layout: el.layout };
+        $temp.remove();
+        resolve(result);
+      } else if (attempts > 20) {
+        console.warn('[DEBUG gtiPlots.js] Timed out waiting for Plotly object');
+        clearInterval(check);
+        $temp.remove();
+        resolve(null);
+      }
+      attempts++;
+    }, 50);
+  });
+}
+
+async function handleMultiGTIHIDPlot(obsID, gtiList, $form, plotType) {
+  console.log(
+    `[DEBUG gtiPlots.js] handleMultiGTIHIDPlot called. ObsID: ${obsID}, GTIs:`,
+    gtiList,
+  );
+  const operationId = 'gti-change-' + plotType + '-' + obsID;
+  startOperation(
+    operationId,
+    `Updating HID with ${gtiList.length} colored GTIs...`,
+  );
+
+  const requests = gtiList.map((gti) => {
+    const formData = new FormData($form[0]); 
+    if (!formData.has('csrfmiddlewaretoken'))
+      formData.append(
+        'csrfmiddlewaretoken',
+        $("input[name='csrfmiddlewaretoken']").val(),
+      );
+    if (!formData.has('quality'))
+      formData.append('quality', $('#quality-select').val().toLowerCase());
+
+    if (formData.has('min_value') && !formData.has('binning')) {
+      formData.set('binning', formData.get('min_value'));
+    }
+
+    formData.set('gti-search', gti);
+    formData.set('plot_type', plotType); 
+    return $.ajax({
+      type: 'POST',
+      url: PLOT_GTI_URL,
+      data: formData,
+      processData: false,
+      contentType: false,
+    })
+      .then((res) => ({ gti, res }))
+      .catch((err) => ({ gti, err }));
+  });
+
+  try {
+    const results = await Promise.all(requests);
+    const validResults = results.filter(
+      (r) => !r.err && r.res.plotDivs && r.res.plotDivs.length > 0,
+    );
+    console.log(
+      `[DEBUG gtiPlots.js] Received ${validResults.length} valid responses out of ${requests.length} requests`,
+    );
+
+    if (validResults.length === 0) {
+      throw new Error('No valid plots received');
+    }
+
+    const combinedData = [];
+    let baseLayout = null;
+    // color palette for GTIs
+    const colors = [
+      '#1f77b4',
+      '#ff7f0e',
+      '#2ca02c',
+      '#d62728',
+      '#9467bd',
+      '#8c564b',
+      '#e377c2',
+      '#7f7f7f',
+      '#bcbd22',
+      '#17becf',
+    ];
+
+    for (let i = 0; i < validResults.length; i++) {
+      const { gti, res } = validResults[i];
+      console.log(`[DEBUG gtiPlots.js] Processing result for GTI ${gti}`);
+      const plotData = await extractPlotlyData(res.plotDivs[0]);
+
+      if (plotData) {
+        if (!baseLayout) {
+          baseLayout = plotData.layout;
+          // legend is enabled in layout
+          baseLayout.showlegend = true;
+          if (baseLayout.coloraxis) delete baseLayout.coloraxis;
+          baseLayout.legend = baseLayout.legend || {};
+          baseLayout.legend.itemclick = 'toggle';
+          baseLayout.legend.itemdoubleclick = 'toggleothers';
+        }
+
+        plotData.data.forEach((trace) => {
+          trace.name = `GTI ${gti}`;
+          // unique legend group for each GTI
+          trace.legendgroup = `GTI ${gti}`;
+
+          const baseColor = colors[i % colors.length];
+
+          trace.marker = trace.marker || {};
+
+          // gradient based on time
+          if (trace.x && trace.x.length > 0) {
+            const colorValues = Array.from(
+              { length: trace.x.length },
+              (_, k) => k,
+            );
+
+            trace.marker.color = colorValues;
+            trace.marker.colorscale = generateGradientScale(baseColor);
+            trace.marker.cmin = 0;
+            trace.marker.cmax = trace.x.length - 1;
+          } else {
+            trace.marker.color = baseColor;
+          }
+
+          trace.marker.showscale = false;
+          if (trace.coloraxis) delete trace.coloraxis;
+
+          trace.showlegend = true;
+          console.log(
+            `[DEBUG gtiPlots.js] Adding trace for GTI ${gti} with base color ${baseColor}`,
+          );
+          combinedData.push(trace);
+        });
+      } else {
+        console.warn(
+          `[DEBUG gtiPlots.js] Failed to extract plot data for GTI ${gti}`,
+        );
+      }
+    }
+
+    console.log(
+      `[DEBUG gtiPlots.js] Combined data has ${combinedData.length} traces`,
+    );
+
+    // Find container
+    let plotContainer = null;
+    const selectors = [
+      `#hardness-intensity-diagram-${obsID}`,
+      `#time-${obsID}`,
+      `#hardness-intensity-diagram-${obsID} .js-plotly-plot`,
+      `#time-${obsID} .js-plotly-plot`,
+      `#hardness-intensity-diagram-${obsID} .plot-container`,
+      `#time-section .plotly-graph-div`,
+      `#hardness-intensity-diagram-section .plotly-graph-div`,
+    ];
+
+    for (const sel of selectors) {
+      const el = $(sel);
+      if (el.length) {
+        // Validation for generic selectors
+        if (sel.includes('.plotly-graph-div')) {
+          const parent = el.closest('.plot-type-section');
+          if (
+            parent.attr('id') === 'time-section' ||
+            parent.attr('id') === 'hardness-intensity-diagram-section'
+          ) {
+            plotContainer = el;
+            break;
+          }
+        } else {
+          plotContainer = el;
+          break;
+        }
+      }
+    }
+
+    if (plotContainer) {
+      console.log(
+        `[DEBUG gtiPlots.js] Found container to update:`,
+        plotContainer,
+      );
+      // Normalize container to the plotly div
+      let target = plotContainer;
+      if (
+        !target.hasClass('js-plotly-plot') &&
+        !target.hasClass('plotly-graph-div')
+      ) {
+        const inner = target.find('.js-plotly-plot, .plotly-graph-div');
+        if (inner.length) target = inner;
+      }
+
+      // Preserve form before Plotly.react
+      const $gtiForm = target.find('form.fetch-gti');
+      const formDetached = $gtiForm.length > 0 ? $gtiForm.detach() : null;
+      if (formDetached)
+        console.log(
+          `[DEBUG gtiPlots.js] Detached GTI form to preserve it during update`,
+        );
+
+      // Update the plot with combined data
+      Plotly.react(target[0], combinedData, baseLayout);
+      console.log(`[DEBUG gtiPlots.js] Plotly.react called`);
+
+      // Restore form
+      if (formDetached) {
+        target.append(formDetached);
+        console.log(`[DEBUG gtiPlots.js] Re-attached GTI form`);
+      }
+
+      // Fix IDs if legacy
+      const wrapper = target.closest('[id^="time-"]');
+      if (wrapper.length) {
+        wrapper.attr('id', `hardness-intensity-diagram-${obsID}`);
+        wrapper
+          .closest('.plot-type-section')
+          .attr('id', 'hardness-intensity-diagram-section')
+          .find('h3')
+          .text('HARDNESS INTENSITY DIAGRAM');
+      }
+
+      completeOperation(
+        operationId,
+        `Updated HID with ${validResults.length} colored GTIs`,
+      );
+
+      // Re-init sync
+      setTimeout(() => {
+        initSynchronizedSelection();
+        updateAllSelections();
+      }, 500);
+    } else {
+      console.error(
+        '[DEBUG gtiPlots.js] Could not find HID container to update. Selectors tried:',
+        selectors,
+      );
+      errorOperation(operationId, 'HID container not found');
+    }
+  } catch (e) {
+    console.error('[DEBUG gtiPlots.js] Error in handleMultiGTIHIDPlot:', e);
+    errorOperation(operationId, 'Error combining GTIs');
+  }
+}
 
 /**
  * Shows a popup for selecting which plot types to generate for selected GTIs
@@ -263,10 +599,16 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
     }
 
     // Create operation IDs for each plot type
-    const operationIds = selectedPlotTypes.map(plotType => {
+    const operationIds = selectedPlotTypes.map((plotType) => {
       const operationId = 'gti-plot-' + plotType + '-' + Date.now();
-      const gtiText = selectedGTIs.length > 1 ? selectedGTIs.length + ' GTIs' : 'GTI ' + selectedGTIs[0];
-      startOperation(operationId, 'Generating ' + plotType.replace(/-/g, ' ') + ' for ' + gtiText + '...');
+      const gtiText =
+        selectedGTIs.length > 1
+          ? selectedGTIs.length + ' GTIs'
+          : 'GTI ' + selectedGTIs[0];
+      startOperation(
+        operationId,
+        'Generating ' + plotType.replace(/-/g, ' ') + ' for ' + gtiText + '...',
+      );
       return operationId;
     });
 
@@ -292,21 +634,23 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
     };
 
     // Update all selected plots
-    Promise.all(selectedPlotTypes.map((plotType, index) => 
-      updatePlot(plotType, operationIds[index])
-    ))
+    Promise.all(
+      selectedPlotTypes.map((plotType, index) =>
+        updatePlot(plotType, operationIds[index]),
+      ),
+    )
       .then((responses) => {
         responses.forEach((response, index) => {
           const operationId = operationIds[index];
           const plotType = selectedPlotTypes[index];
-          
+
           if (response.error) {
             console.error('Server error:', response.error);
             errorOperation(operationId, 'Error: ' + response.error);
             alert(response.error);
             return;
           }
-          
+
           if (response.plotDivs && response.plotDivs.length > 0) {
             const plotID = plotType + '-' + obsID;
 
@@ -339,9 +683,15 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
             }
 
             $plotContainer.html(response.plotDivs[0]);
-            completeOperation(operationId, plotType.replace(/-/g, ' ') + ' plot generated successfully');
+            completeOperation(
+              operationId,
+              plotType.replace(/-/g, ' ') + ' plot generated successfully',
+            );
           } else {
-            completeOperation(operationId, plotType.replace(/-/g, ' ') + ' plot processed');
+            completeOperation(
+              operationId,
+              plotType.replace(/-/g, ' ') + ' plot processed',
+            );
           }
         });
 
@@ -362,7 +712,7 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
       .catch((error) => {
         console.error('Error fetching GTI plots:', error);
         // Mark all operations as failed
-        operationIds.forEach(operationId => {
+        operationIds.forEach((operationId) => {
           errorOperation(operationId, 'Error generating GTI plots');
         });
         alert('Error fetching GTI plots. Please try again.');
@@ -376,8 +726,11 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
 }
 
 export function fetchGTIPlot(event) {
+  console.log(`[DEBUG gtiPlots.js fetchGTIPlot] ===== FUNCTION ENTRY =====`);
+
   event.preventDefault();
   const $form = $(event.target);
+
   const plotType = $form.find('input[name="plot_type"]').val();
   const obsID = $form.find('input[name="obs_id"]').val();
   const gtiSearch = $form.find('input[name="gti-search"]').val();
@@ -387,108 +740,148 @@ export function fetchGTIPlot(event) {
     `[DEBUG gtiPlots.js fetchGTIPlot] Form submitted. Plot Type: ${plotType}, Obs ID: ${obsID}, GTI Search: ${gtiSearch}, Min Value: ${minValue}`,
   );
 
+  // Get the observation ID again, in case it was modified or needs to be reconfirmed
+  const currentObsID = $form.find('input[name="obs_id"]').val();
+
+  // Identify plot container early to help with GTI extraction
+  // First try finding container relative to the form (most reliable)
+  let plotContainer = $form.closest(
+    '.plot-container, .js-plotly-plot, .plotly-graph-div',
+  );
+
+  // If not found relative to form, try selectors
+  if (plotContainer.length === 0) {
+    const possibleSelectors = [
+      `#${plotType.replace('_', '-')}-${currentObsID}`,
+      `#hardness-intensity-diagram-${currentObsID}`, // Standardized HID
+      `#time-${currentObsID}`, // Legacy
+      `[id*="${plotType.replace('_', '-')}"][id*="${currentObsID}"]`, // Partial match
+    ];
+
+    for (const sel of possibleSelectors) {
+      const el = $(sel);
+      if (el.length > 0) {
+        plotContainer = el;
+        break;
+      }
+    }
+  }
+
   let selectedGTIs = [];
   // If gtiSearch is populated from the text input, use that directly.
-  // Otherwise, try to get GTIs from checkboxes (existing logic).
+  // Otherwise, try to get GTIs from checkboxes or the existing plot.
   if (gtiSearch) {
     selectedGTIs = gtiSearch
       .split(',')
       .map((gti) => gti.trim())
       .filter((gti) => gti !== '');
-    console.log(
-      `[DEBUG gtiPlots.js fetchGTIPlot] Using GTIs from search input:`,
-      selectedGTIs,
-    );
   } else {
-    $form
+    // 1. Try to find checkboxes in the observation container
+    let $checkboxes = $form
       .closest('.details-row')
-      .find('.gti-table .gti-checkbox:checked')
-      .each(function () {
-        selectedGTIs.push($(this).closest('tr').data('gti').replace('GTI', ''));
-      });
-    console.log(
-      `[DEBUG gtiPlots.js fetchGTIPlot] Using GTIs from checkboxes:`,
-      selectedGTIs,
-    );
-    // Update the hidden gti-search field if we are using checkboxes,
-    // so it's included in the serialized form data for the AJAX call.
-    $form.find('input[name="gti-search"]').val(selectedGTIs.join(','));
-  }
+      .find('.gti-table .gti-checkbox:checked');
 
-  // Get the observation ID again, in case it was modified or needs to be reconfirmed
-  const currentObsID = $form.find('input[name="obs_id"]').val();
-  console.log(
-    `[DEBUG gtiPlots.js fetchGTIPlot] Current Obs ID for AJAX: ${currentObsID}`,
-  );
+    // If not found, try finding by obs-id attribute
+    if ($checkboxes.length === 0 && currentObsID) {
+      $checkboxes = $(`[data-obs-id="${currentObsID}"]`).find(
+        '.gti-table .gti-checkbox:checked',
+      );
+    }
 
-  // Find all open plot types for this observation
-  const openPlotTypes = [];
-  // Construct the selector for the plot section (sections are organized by plot type, not by obsID)
-  const plotTypeSectionSelector = `#${plotType.replace('_', '-')}-section`;
-  console.log(
-    `[DEBUG gtiPlots.js fetchGTIPlot] Looking for plot section with selector: ${plotTypeSectionSelector}`,
-  );
-
-  // Check if the specific plot section exists AND if there's a plot for this observation in that section
-  const plotContainerSelector = `#${plotType.replace(
-    '_',
-    '-',
-  )}-${currentObsID}`;
-  console.log(
-    `[DEBUG gtiPlots.js fetchGTIPlot] Looking for plot container with selector: ${plotContainerSelector}`,
-  );
-
-  if (
-    $(plotTypeSectionSelector).length > 0 &&
-    $(plotContainerSelector).length > 0
-  ) {
-    openPlotTypes.push(plotType);
-    console.log(
-      `[DEBUG gtiPlots.js fetchGTIPlot] Found specific plot section and container for update: ${plotType}`,
-    );
-  } else {
-    // Fallback: find all plot types that have containers for this observation
-    $('.plot-type-section').each(function () {
-      const sectionId = $(this).attr('id');
-      if (sectionId) {
-        const sectionPlotType = sectionId.replace('-section', '');
-        const potentialContainer = `#${sectionPlotType}-${currentObsID}`;
-        console.log(
-          `[DEBUG gtiPlots.js fetchGTIPlot] Checking for container: ${potentialContainer}`,
-        );
-        if ($(potentialContainer).length > 0) {
-          openPlotTypes.push(sectionPlotType.replace('-', '_'));
-          console.log(
-            `[DEBUG gtiPlots.js fetchGTIPlot] Found plot container for plot type: ${sectionPlotType}`,
-          );
-        }
-      }
+    $checkboxes.each(function () {
+      selectedGTIs.push($(this).closest('tr').data('gti').replace('GTI', ''));
     });
-    console.log(
-      `[DEBUG gtiPlots.js fetchGTIPlot] Fallback: Found open plot types for obsID ${currentObsID}:`,
-      openPlotTypes,
-    );
+
+    // 2. If no checkboxes, try to extract from existing plot traces
+    // This fixes the issue where changing binning resets the view or prompts for selection
+    if (
+      selectedGTIs.length === 0 &&
+      plotContainer &&
+      plotContainer.length > 0
+    ) {
+      console.log(
+        '[DEBUG gtiPlots.js] Attempting to extract GTIs from existing plot',
+      );
+      // Find the plotly div
+      let plotEl = plotContainer.hasClass('js-plotly-plot')
+        ? plotContainer[0]
+        : plotContainer.find('.js-plotly-plot')[0];
+
+      if (plotEl && plotEl.data) {
+        plotEl.data.forEach((trace) => {
+          if (trace.name) {
+            // Match "GTI 1", "GTI1", "GTI 1 (Obs ...)"
+            const match = trace.name.match(/GTI\s*(\d+)/i);
+            if (match) {
+              selectedGTIs.push(match[1]);
+            }
+          }
+        });
+        // Deduplicate
+        selectedGTIs = [...new Set(selectedGTIs)];
+        console.log(
+          '[DEBUG gtiPlots.js] Extracted GTIs from plot:',
+          selectedGTIs,
+        );
+      }
+    }
+
+    // Update the hidden gti-search field if we found GTIs
+    if (selectedGTIs.length > 0) {
+      $form.find('input[name="gti-search"]').val(selectedGTIs.join(','));
+    }
   }
 
-  // If no plots are open and no GTI search, show the plot selection popup
-  if (openPlotTypes.length === 0 && !gtiSearch) {
+  console.log(`[DEBUG gtiPlots.js fetchGTIPlot] Selected GTIs:`, selectedGTIs);
+
+  // Expand ranges for accurate count and individual fetching
+  const expandedGTIs = expandGTIRange(selectedGTIs);
+  console.log(`[DEBUG gtiPlots.js] Expanded GTIs count:`, expandedGTIs.length);
+
+  // Check for HID multi-GTI case to handle coloring
+  const isHID =
+    plotType === 'hardness-intensity-diagram' ||
+    plotType === 'hardness_intensity_diagram' ||
+    plotType === 'time';
+
+  // Use expandedGTIs for the check and the function call
+  if (isHID && expandedGTIs.length > 1) {
     console.log(
-      `[DEBUG gtiPlots.js fetchGTIPlot] No open plots found for ${currentObsID} and no specific GTI search. Showing GTI plot selection popup.`,
+      `[DEBUG gtiPlots.js] Detected multi-GTI HID request. Splitting into individual requests for coloring.`,
     );
+    handleMultiGTIHIDPlot(currentObsID, expandedGTIs, $form, plotType);
+    return;
+  }
+
+  // The plot to update is determined by the plotType from the form.
+  const openPlotTypes = [plotType];
+
+  // If we found the container earlier, we know it exists
+  let containerExists = plotContainer && plotContainer.length > 0;
+
+  console.log(
+    `[DEBUG gtiPlots.js fetchGTIPlot] Container exists: ${containerExists}`,
+  );
+
+  if (!containerExists && !gtiSearch && selectedGTIs.length === 0) {
+    console.log(
+      `[DEBUG gtiPlots.js fetchGTIPlot] No open plot found for ${plotType} and no specific GTI search. Showing GTI plot selection popup.`,
+    );
+
+    // IMPORTANT: We must complete the operation here because we are stopping the flow
+    const pattern = 'gti-change-' + plotType + '-' + currentObsID;
+    completeOperationsByPattern(pattern);
+
     showGTIPlotSelectionPopup(currentObsID, selectedGTIs);
     return; // Stop further execution as popup will handle next steps
   }
 
-  // If no plots are open but we have a GTI search (from popup submission), use the plot type from the form
-  if (openPlotTypes.length === 0 && gtiSearch && plotType) {
-    openPlotTypes.push(plotType);
-    console.log(
-      `[DEBUG gtiPlots.js fetchGTIPlot] No open plots but have GTI search. Creating new plot for type: ${plotType}`,
-    );
-  }
+  console.log(
+    `[DEBUG gtiPlots.js fetchGTIPlot] Proceeding with plot update for: ${openPlotTypes}`,
+  );
 
   // Complete any existing operations for all plot types that will be updated
-  openPlotTypes.forEach(plotTypeToComplete => {
+  openPlotTypes.forEach((plotTypeToComplete) => {
     const pattern = 'gti-change-' + plotTypeToComplete + '-' + currentObsID;
     completeOperationsByPattern(pattern);
   });
@@ -501,6 +894,15 @@ export function fetchGTIPlot(event) {
 
     // Get form data and ensure CSRF token is included
     let formData = $form.serialize();
+
+    // Parse the form data to see what plot_type is actually being sent
+    const parsedData = new URLSearchParams(formData);
+
+    // If there's a mismatch, fix it
+    if (parsedData.get('plot_type') !== currentPlotType) {
+      parsedData.set('plot_type', currentPlotType);
+      formData = parsedData.toString();
+    }
 
     // Add CSRF token if not already included
     const csrfToken = $("input[name='csrfmiddlewaretoken']").val();
@@ -518,24 +920,69 @@ export function fetchGTIPlot(event) {
       formData += `&quality=${quality.toLowerCase()}`;
     }
 
-    // Debug: Check what GTI data is in the form
-    const gtiSearchValue = $form.find('input[name="gti-search"]').val();
-    console.log(
-      `[DEBUG gtiPlots.js updatePlot] GTI search value in form: "${gtiSearchValue}"`,
-    );
-    console.log(
-      `[DEBUG gtiPlots.js updatePlot] Form data for AJAX: ${formData}`,
-    );
+    // Ensure binning parameter is sent if min_value is present
+    const minValue = $form.find('input[name="min_value"]').val();
+    if (minValue && !formData.includes('binning=')) {
+      formData += `&binning=${minValue}`;
+      console.log(
+        `[DEBUG gtiPlots.js updatePlot] Added binning parameter: ${minValue}`,
+      );
+    }
+
+    console.log(`[DEBUG gtiPlots.js updatePlot] Sending AJAX request...`);
 
     return $.ajax({
       type: 'POST',
-      url: PLOT_GTI_URL, // Ensure PLOT_GTI_URL is defined and correct
+      url: PLOT_GTI_URL,
       data: formData,
       success: function (data) {
         console.log(
-          `[DEBUG gtiPlots.js updatePlot] AJAX success for ${currentPlotType}:`,
-          data,
+          `[DEBUG gtiPlots.js updatePlot] AJAX success for ${currentPlotType}`,
         );
+
+        // Update slider if default binning is provided
+        if (data.defaultBinning) {
+          const $slider = $(`#${currentPlotType.replace('_', '-')}-min-slider`);
+          const $sliderValue = $(
+            `#${currentPlotType.replace('_', '-')}-min-value`,
+          );
+
+          if ($slider.length && (!$slider.val() || $slider.val() == 1)) {
+            // Determine label based on plot type
+            let binningLabel = 'Binning';
+            let binningUnit = 'counts';
+
+            if (
+              currentPlotType.includes('light_curve') ||
+              currentPlotType.includes('light-curve')
+            ) {
+              binningLabel = 'Time Binning';
+              binningUnit = 'bins';
+            } else if (
+              currentPlotType.includes('power_density') ||
+              currentPlotType.includes('power-density')
+            ) {
+              binningLabel = 'Significance Threshold';
+              binningUnit = 'sigma';
+            } else if (
+              currentPlotType.includes('hardness_intensity') ||
+              currentPlotType.includes('hardness-intensity')
+            ) {
+              binningLabel = 'Minimum Counts';
+              binningUnit = 'counts/bin';
+            } else if (currentPlotType.includes('spectrum')) {
+              binningLabel = 'Grouping';
+              binningUnit = 'counts';
+            }
+
+            // Only update if slider is at default value of 1
+            $slider.val(data.defaultBinning);
+            $slider.attr('max', Math.max(200, data.defaultBinning * 10));
+            $sliderValue.text(
+              `${binningLabel}: ${data.defaultBinning} ${binningUnit}`,
+            );
+          }
+        }
 
         // Debug: Check if we received plot data
         if (data.plotDivs) {
@@ -547,7 +994,8 @@ export function fetchGTIPlot(event) {
         }
 
         // Try multiple selectors to find the correct plot container
-        const plotContainerSelectors = [
+        // For HID, we need to handle both possible container formats
+        let plotContainerSelectors = [
           `#${currentPlotType.replace('_', '-')}-${currentObsID}`, // Main plot container
           `#${currentPlotType.replace(
             '_',
@@ -559,62 +1007,227 @@ export function fetchGTIPlot(event) {
           )}-${currentObsID} .plot-container`, // Alternative container structure
         ];
 
+        // Special handling for HID - ensure we check the standardized format AND legacy format
+        if (
+          currentPlotType === 'hardness_intensity_diagram' ||
+          currentPlotType === 'hardness-intensity-diagram' ||
+          currentPlotType === 'time'
+        ) {
+          plotContainerSelectors = [
+            `#hardness-intensity-diagram-${currentObsID}`,
+            `#hardness-intensity-diagram-${currentObsID} .js-plotly-plot`,
+            `#hardness-intensity-diagram-${currentObsID} .plot-container`,
+            `#time-${currentObsID}`,
+            `#time-${currentObsID} .js-plotly-plot`,
+            `#time-${currentObsID} .plot-container`,
+          ];
+        }
+
         let plotContainer = null;
         let selectorUsed = '';
 
         for (const selector of plotContainerSelectors) {
           const element = $(selector);
           if (element.length > 0) {
-            plotContainer = element;
-            selectorUsed = selector;
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Found plot container using selector: ${selector}`,
-            );
-            break;
-          } else {
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Selector not found: ${selector}`,
-            );
+            // If we found a generic class selector, we need to make sure it belongs to the correct observation
+            if (selector.includes('.plotly-graph-div')) {
+              // Check if the ID contains the obsID
+              const elId = element.attr('id');
+              const parentSection = element.closest('.plot-type-section');
+              const parentId = parentSection.attr('id');
+              if (
+                parentId === 'time-section' ||
+                parentId === 'hardness-intensity-diagram-section'
+              ) {
+                // Double check if there's a specific container for this obs
+                const specificContainer = element.closest(
+                  `[id*="${currentObsID}"]`,
+                );
+                if (
+                  specificContainer.length > 0 ||
+                  element.attr('id').includes(currentObsID) ||
+                  element.attr('id').includes('time-') ||
+                  element.attr('id').includes('hardness-')
+                ) {
+                  plotContainer = element;
+                  selectorUsed = selector;
+                  break;
+                }
+              }
+            } else {
+              plotContainer = element;
+              selectorUsed = selector;
+              console.log(
+                `[DEBUG gtiPlots.js updatePlot] Found plot container using selector: ${selector}`,
+              );
+              break;
+            }
           }
         }
 
         if (plotContainer && data.plotDivs && data.plotDivs.length > 0) {
           console.log(
-            `[DEBUG gtiPlots.js updatePlot] Updating plot container with selector: ${selectorUsed}`,
+            `[DEBUG gtiPlots.js updatePlot] Updating plot container...`,
           );
 
-          // If we found the main container, replace its content with the plot
-          if (selectorUsed.includes('.js-plotly-plot')) {
-            // Replace the plotly element specifically
-            plotContainer.replaceWith(data.plotDivs[0]);
-          } else {
-            // Find the plotly element within the container and replace it, or replace all content
-            const plotlyElement = plotContainer.find('.js-plotly-plot');
-            if (plotlyElement.length > 0) {
-              plotlyElement.replaceWith(data.plotDivs[0]);
-            } else {
-              plotContainer.html(data.plotDivs[0]);
+          // If we found a legacy "time" container or section, update IDs to the proper format
+          if (
+            selectorUsed.includes('time-') ||
+            plotContainer.closest('#time-section').length > 0
+          ) {
+            // 1. Update the parent section if it exists and has the wrong ID
+            const $parentSection = plotContainer.closest('.plot-type-section');
+            if (
+              $parentSection.length > 0 &&
+              $parentSection.attr('id') === 'time-section'
+            ) {
+              $parentSection.attr('id', 'hardness-intensity-diagram-section');
+              $parentSection.find('h3').text('HARDNESS INTENSITY DIAGRAM');
+            }
+
+            // 2. Determine the main container element (the one with ID time-{obsID})
+            let mainContainer = plotContainer;
+            // If we selected an inner element, find the wrapper
+            if (
+              !mainContainer.attr('id') ||
+              !mainContainer.attr('id').startsWith('time-')
+            ) {
+              const wrapper = mainContainer.closest(`[id^="time-"]`);
+              if (wrapper.length) {
+                mainContainer = wrapper;
+              }
+            }
+
+            // 3. Update the container ID
+            if (
+              mainContainer.length &&
+              mainContainer.attr('id') &&
+              mainContainer.attr('id').startsWith('time-')
+            ) {
+              const newPlotId = `hardness-intensity-diagram-${currentObsID}`;
+              mainContainer.attr('id', newPlotId);
             }
           }
-        } else if (!plotContainer && data.plotDivs && data.plotDivs.length > 0) {
-          // No existing plot container found, create new plot section and container
+
+          // If we found the main container, replace its content with the plot
+          if (
+            selectorUsed.includes('.js-plotly-plot') ||
+            plotContainer.hasClass('js-plotly-plot') ||
+            plotContainer.hasClass('plotly-graph-div')
+          ) {
+            console.log(
+              `[DEBUG gtiPlots.js updatePlot] Replacing plotly element directly`,
+            );
+
+            // Preserve the form
+            const $gtiForm = plotContainer.find('form.fetch-gti');
+            const formDetached = $gtiForm.length > 0 ? $gtiForm.detach() : null;
+            if (formDetached)
+              console.log(`[DEBUG gtiPlots.js updatePlot] Detached GTI form`);
+
+            // Preserve ID
+            const oldId = plotContainer.attr('id');
+
+            // Create new content
+            const $newContent = $(data.plotDivs[0]);
+
+            // Restore ID if it matches our expected format (to prevent creating duplicates later)
+            if (
+              oldId &&
+              (oldId.includes(currentObsID) ||
+                oldId.includes('hardness') ||
+                oldId.includes('time'))
+            ) {
+              $newContent.attr('id', oldId);
+              console.log(
+                `[DEBUG gtiPlots.js updatePlot] Preserved container ID: ${oldId}`,
+              );
+            }
+
+            // Replace the plotly element specifically
+            plotContainer.replaceWith($newContent);
+
+            // Restore form
+            if (formDetached) {
+              $newContent.append(formDetached);
+              console.log(
+                `[DEBUG gtiPlots.js updatePlot] Re-attached GTI form`,
+              );
+            }
+
+            // Update reference for subsequent use
+            plotContainer = $newContent;
+          } else {
+            // Find the plotly element within the container and replace it, or replace all content
+            const plotlyElement = plotContainer.find(
+              '.js-plotly-plot, .plotly-graph-div',
+            );
+            if (plotlyElement.length > 0) {
+              console.log(
+                `[DEBUG gtiPlots.js updatePlot] Replacing existing plotly element`,
+              );
+
+              // Preserve form if it's inside the element we are replacing
+              const $gtiForm = plotlyElement.find('form.fetch-gti');
+              const formDetached =
+                $gtiForm.length > 0 ? $gtiForm.detach() : null;
+
+              const $newContent = $(data.plotDivs[0]);
+              plotlyElement.replaceWith($newContent);
+
+              if (formDetached) {
+                $newContent.append(formDetached);
+              }
+            } else {
+              console.log(
+                `[DEBUG gtiPlots.js updatePlot] No plotly element found, replacing entire container HTML`,
+              );
+
+              // Preserve form
+              const $gtiForm = plotContainer.find('form.fetch-gti');
+              const formDetached =
+                $gtiForm.length > 0 ? $gtiForm.detach() : null;
+
+              plotContainer.html(data.plotDivs[0]);
+
+              if (formDetached) {
+                plotContainer.append(formDetached);
+              }
+            }
+          }
           console.log(
-            `[DEBUG gtiPlots.js updatePlot] Creating new plot section for ${currentPlotType}`,
+            `[DEBUG gtiPlots.js updatePlot] Plot container update completed successfully!`,
           );
-          
+        } else if (
+          !plotContainer &&
+          data.plotDivs &&
+          data.plotDivs.length > 0
+        ) {
+          console.log(
+            `[DEBUG gtiPlots.js updatePlot] No existing container found, creating new section for ${currentPlotType}`,
+          );
+
           // Extract plot ID from the response using the same method as fetchGraphPlots
           const REGEX = /"title":\{"text":"(.+?)"\}/;
           const match = REGEX.exec(data.plotDivs[0]);
-          if (!match) {
-            console.error(`[DEBUG gtiPlots.js updatePlot] Could not extract plot ID from response for ${currentPlotType}`);
-            return;
+
+          // Default to constructed ID based on request type
+          let plotId = `${currentPlotType.replace('_', '-')}-${currentObsID}`;
+          let plotTypeForId = currentPlotType.replace('_', '-');
+
+          // Ensure HID uses the standardized format
+          if (
+            currentPlotType === 'hardness_intensity_diagram' ||
+            currentPlotType === 'hardness-intensity-diagram'
+          ) {
+            plotTypeForId = 'hardness-intensity-diagram';
+            plotId = `hardness-intensity-diagram-${currentObsID}`;
           }
-          
-          const plotId = match[1].toLowerCase().replaceAll(' ', '-');
-          const plotTypeForId = plotId.replace(`-${currentObsID}`, '');
-          
-          console.log(`[DEBUG gtiPlots.js updatePlot] Extracted plot ID: ${plotId}, plot type: ${plotTypeForId}`);
-          
+
+          console.log(
+            `[DEBUG gtiPlots.js updatePlot] Using plot ID: ${plotId}, plot type: ${plotTypeForId}`,
+          );
+
           // Create plot section if it doesn't exist
           if (!$(`#${plotTypeForId}-section`).length) {
             const $plotSection = $('<div>', {
@@ -627,80 +1240,51 @@ export function fetchGTIPlot(event) {
               }),
             );
             $('#plots').append($plotSection);
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Created plot section: ${plotTypeForId}-section`,
-            );
           }
-          
+
           // Create plot div with unique ID if it doesn't exist
           if (!$(`#${plotId}`).length) {
             const $plotDiv = $(data.plotDivs[0]).attr('id', plotId);
             $(`#${plotTypeForId}-section`).append($plotDiv);
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Created plot div: ${plotId}`,
-            );
+          } else {
+            $(`#${plotId}`).html($(data.plotDivs[0]).html());
           }
         } else {
           console.error(
             `[DEBUG gtiPlots.js updatePlot] Could not find plot container for ${currentPlotType}-${currentObsID}. Tried selectors:`,
             plotContainerSelectors,
           );
-          if (!data.plotDivs || data.plotDivs.length === 0) {
-            console.error(
-              '[DEBUG gtiPlots.js updatePlot] No plotDivs in response for ',
-              currentPlotType,
-              data,
-            );
-          }
         }
 
         // Re-run MathJax for any math expressions (for both update and new plot scenarios)
         if (typeof MathJax !== 'undefined' && MathJax.typeset) {
-          console.log(`[DEBUG gtiPlots.js updatePlot] Running MathJax.typeset()`);
           MathJax.typeset();
         }
 
         // Re-initialize synchronized selection for the updated plot
         setTimeout(() => {
-          console.log(
-            `[DEBUG gtiPlots.js updatePlot] Re-initializing synchronized selection for ${currentPlotType}`,
-          );
           if (typeof initSynchronizedSelection !== 'undefined') {
             initSynchronizedSelection();
           }
           if (typeof updateAllSelections !== 'undefined') {
             updateAllSelections();
           }
-          
-          // Check if the plot was actually created
-          const plotExists = $(`#${currentPlotType.replace('_', '-')}-${currentObsID}`).length > 0;
-          console.log(`[DEBUG gtiPlots.js updatePlot] Plot exists after creation: ${plotExists}`);
-          
+
           // Check if plots container is visible
           const plotsVisible = $('#plots').is(':visible');
-          console.log(`[DEBUG gtiPlots.js updatePlot] Plots container visible: ${plotsVisible}`);
-          
-          // Scroll to the new plot if it was created
-          if (plotExists && plotsVisible) {
-            const plotElement = $(`#${currentPlotType.replace('_', '-')}-${currentObsID}`)[0];
-            if (plotElement) {
-              console.log(`[DEBUG gtiPlots.js updatePlot] Scrolling to new plot`);
-              plotElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-          }
-          
-          // Show plots container if it's hidden
           if (!plotsVisible) {
-            console.log(`[DEBUG gtiPlots.js updatePlot] Showing plots container`);
             $('#plots').show();
           }
         }, 300);
-        
+
         // Complete the operation for this plot type
         if (currentOperationId) {
-          completeOperation(currentOperationId, `Successfully updated ${currentPlotType} plot`);
+          completeOperation(
+            currentOperationId,
+            `Successfully updated ${currentPlotType} plot`,
+          );
         }
-        
+
         // Also complete any operations for this plot type
         const pattern = 'gti-change-' + currentPlotType + '-' + currentObsID;
         completeOperationsByPattern(pattern);
@@ -710,11 +1294,10 @@ export function fetchGTIPlot(event) {
           `[DEBUG gtiPlots.js updatePlot] AJAX error for ${currentPlotType}:`,
           status,
           error,
-          xhr.responseText,
         );
 
-        // Try to find the plot container to show error message
-        const plotContainerSelectors = [
+        // Try to find the plot container to show error message - use same selector logic
+        let plotContainerSelectors = [
           `#${currentPlotType.replace('_', '-')}-${currentObsID}`,
           `#${currentPlotType.replace(
             '_',
@@ -725,6 +1308,22 @@ export function fetchGTIPlot(event) {
             '-',
           )}-${currentObsID} .plot-container`,
         ];
+
+        // Special handling for HID
+        if (
+          currentPlotType === 'hardness_intensity_diagram' ||
+          currentPlotType === 'hardness-intensity-diagram' ||
+          currentPlotType === 'time'
+        ) {
+          plotContainerSelectors = [
+            `#hardness-intensity-diagram-${currentObsID}`,
+            `#hardness-intensity-diagram-${currentObsID} .js-plotly-plot`,
+            `#hardness-intensity-diagram-${currentObsID} .plot-container`,
+            `#time-${currentObsID}`,
+            `#time-${currentObsID} .js-plotly-plot`,
+            `#time-${currentObsID} .plot-container`,
+          ];
+        }
 
         let plotContainer = null;
         for (const selector of plotContainerSelectors) {
@@ -739,17 +1338,16 @@ export function fetchGTIPlot(event) {
           plotContainer.html(
             '<p>Error loading plot. Check console for details.</p>',
           );
-        } else {
-          console.error(
-            `[DEBUG gtiPlots.js updatePlot] Could not find plot container to show error message for ${currentPlotType}-${currentObsID}`,
-          );
         }
-        
+
         // Handle error operation completion
         if (currentOperationId) {
-          errorOperation(currentOperationId, `Failed to update ${currentPlotType} plot`);
+          errorOperation(
+            currentOperationId,
+            `Failed to update ${currentPlotType} plot`,
+          );
         }
-        
+
         // Also complete any operations for this plot type
         const pattern = 'gti-change-' + currentPlotType + '-' + currentObsID;
         completeOperationsByPattern(pattern);
@@ -758,10 +1356,13 @@ export function fetchGTIPlot(event) {
   };
 
   // Update all relevant plots with consistent operation IDs that match clearing patterns
-  openPlotTypes.forEach(plotType => {
+  openPlotTypes.forEach((plotType) => {
     // Use consistent operation ID pattern that matches the clearing patterns
     const operationId = 'gti-change-' + plotType + '-' + currentObsID;
-    startOperation(operationId, 'Updating ' + plotType.replace(/_/g, ' ') + ' plot...');
+    startOperation(
+      operationId,
+      'Updating ' + plotType.replace(/_/g, ' ') + ' plot...',
+    );
     updatePlot(plotType, operationId);
   });
 }
@@ -793,7 +1394,10 @@ export function combineAndPlotGTIs(event) {
 
   // Start status tracking for combining GTIs
   const operationId = 'combine-gtis-' + Date.now();
-  startOperation(operationId, 'Combining GTIs from ' + obsIDs.size + ' observations...');
+  startOperation(
+    operationId,
+    'Combining GTIs from ' + obsIDs.size + ' observations...',
+  );
 
   // Make the AJAX request
   $.ajax({
@@ -849,7 +1453,10 @@ export function combineAndPlotGTIs(event) {
           updateAllSelections();
         }, 500);
 
-        completeOperation(operationId, 'Successfully combined GTIs from ' + obsIDs.size + ' observations');
+        completeOperation(
+          operationId,
+          'Successfully combined GTIs from ' + obsIDs.size + ' observations',
+        );
       } else {
         completeOperation(operationId, 'Combined GTI data processed');
       }

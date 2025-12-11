@@ -158,6 +158,11 @@ def data_plot(
 
     fig.update_layout(**layout_kwargs)
 
+    # Add note for HID plots
+    if 'Hardness-Intensity Diagram' in layout_kwargs.get('title', '') and color_data is not None:
+        current_title = layout_kwargs.get('title', '')
+        fig.update_layout(title=f"{current_title}<br><span style='font-size: 12px;'>Increasing brightness represents larger time</span>")
+
     return plot(
         fig,
         output_type='div',

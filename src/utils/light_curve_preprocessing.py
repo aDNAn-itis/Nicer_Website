@@ -36,7 +36,7 @@ def light_curve_data(
     tuple[ndarray, ndarray, ndarray, ndarray, ndarray, ndarray]
         Binned relative time, light curve, background time, background, x width, and uncertainty
     """
-    dets: int
+    detectors: int | ndarray
     time_diff: float
     min_bins: ndarray[tuple[int], np.dtype[np.int_]]
     x_bin: ndarray[tuple[int], np.dtype[np.float_]]
@@ -50,25 +50,27 @@ def light_curve_data(
     data: ndarray[tuple[int, int], np.dtype[np.float_]]
     uncertainty: ndarray[tuple[int, int], np.dtype[np.float_]]
 
-    data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
+    time, counts, detectors = np.loadtxt(data_path, usecols=[0, 2, 3], unpack=True)
     background = np.loadtxt(data_path.replace('.lc.gz', '.bg-lc.gz'), usecols=2)
-    time_diff = data[0][1] - data[0][0]
-    counts = data[1] * time_diff
-    dets = int(data[2][0])
+
+    # Constants
+    detectors = detectors[0]
+    time_diff = float(time[1] - time[0])
+    counts *= time_diff
 
     # Bin data
     min_bins = min_bin(min_value, counts)
     (y_bin, bg_bin, x_bin), x_width, uncertainty = binning(
         min_bins,
-        np.stack((counts[:len(background)], background[:len(counts)], data[0][:len(background)])),
+        np.stack((counts[:len(background)], background[:len(time)], time[:len(background)])),
     )
 
     # Normalise data
-    y_bin = (y_bin - bg_bin) / (dets * time_diff)
-    bg_bin /= dets
+    y_bin = (y_bin - bg_bin) / (detectors * time_diff)
+    bg_bin /= detectors
     bg_bin = np.insert(bg_bin, [0, -1], [bg_bin[0], bg_bin[-1]])
     x_error = x_width * time_diff / 2
-    uncertainty /= dets * time_diff
+    uncertainty /= detectors * time_diff
     bg_x_bin = x_bin.copy()
     bg_x_bin = np.insert(
         bg_x_bin,

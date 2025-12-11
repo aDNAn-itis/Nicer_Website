@@ -20,6 +20,11 @@ import {
   diagnosePlotlyGraphs,
 } from './components/interactiveLinking.js';
 import { StatusBar } from './components/statusBar.js';
+import {
+  initGTICrossLinking,
+  clearGTIHighlighting,
+  setGTICrossLinking,
+} from './components/gtiCrossLinking.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize the status bar
@@ -122,18 +127,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $(document).on('click', '.plot-gti', function (event) {
     event.preventDefault();
-    
+
     const obsId = $(this).data('obs-id');
     const gtiNum = $(this).data('gti');
-    
-    console.log(`[DEBUG plot.js] GTI Plot button clicked. ObsID: ${obsId}, GTI: ${gtiNum}`);
-    
-    // Store the GTI number for later use when the plot selection is made
+
+    // Store the GTI number
     window.selectedGTI = gtiNum;
     window.selectedGTIObsId = obsId;
-    
-    console.log(`[DEBUG plot.js] Stored GTI values. selectedGTI: ${window.selectedGTI}, selectedGTIObsId: ${window.selectedGTIObsId}`);
-    
+
     // Show the plot selection popup
     showPlotSelectionPopup(obsId);
   });
@@ -188,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!alreadyInitialized) {
               initSynchronizedSelection();
               initInteractiveLinking();
+              initGTICrossLinking(); // Add GTI cross-linking initialization
               initialized = true;
             } else {
               console.log('Interactive features already initialized, skipping');
@@ -213,6 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
             initSynchronizedSelection();
             updateAllSelections();
             initInteractiveLinking();
+            initGTICrossLinking(); // Add GTI cross-linking initialization
             initialized = true;
           }
         }
@@ -220,20 +223,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Make diagnostic function available globally
   window.diagnosePlotlyGraphs = diagnosePlotlyGraphs;
 });
 
 // Initialize interactive linking feature when plots are added
 $(document).on('DOMNodeInserted', function (e) {
-  // Only process if inserted node contains a plotly graph
+  // Only process if contains a plotly graph
   if (
     $(e.target).find('.js-plotly-plot').length > 0 ||
     $(e.target).hasClass('js-plotly-plot')
   ) {
     // Allow DOM to fully render
     setTimeout(() => {
-      // Initialize only if not already initialized
       const plots = document.querySelectorAll('.js-plotly-plot');
       const initialized = Array.from(plots).some(
         (plot) => plot.getAttribute('data-interactive-linking') === 'true',
