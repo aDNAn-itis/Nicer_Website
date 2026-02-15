@@ -18,7 +18,11 @@
   const PLOT_GTI_URL = "{% url 'plots:plot_gti' %}";
   const PLOT_COMBINED_URL = "{% url 'plots:plot_combined' %}"; 
   const SOURCE_SEARCH_URL = "{% url 'plots:source_search' %}"; 
+  const FETCH_GTIS_URL = "{% url 'plots:fetch_gtis' %}"; 
+
   let quality = '{{ quality }}';
+  let gtiMap = {}; // Cache for GTIs: { obsId: [gti1, gti2, ...], ... }
+  let selectedGtis = []; // [{ obsId: "...", gti: N }]
 </script>
 
 <style>
@@ -423,6 +427,24 @@
               </div>
             </div>
             
+            <div class="obsid-separator"></div>
+
+            <div class="results-grid" style="margin-top: 1rem;">
+                <div class="results-left">
+                    <h3>Available GTIs (Click to select):</h3>
+                    <div id="available-gtis-box" class="info-box" style="min-height: 150px; display: flex; flex-wrap: wrap; gap: 5px;">
+                        <!-- GTI circles will be loaded here dynamically -->
+                        <span style="color: var(--text-secondary);">Select an ObsID to load GTIs.</span>
+                    </div>
+                </div>
+                <div class="results-right">
+                    <h3>Selected GTIs for Plotting:</h3>
+                    <div id="selected-gtis-box" class="info-box" style="min-height: 150px; display: flex; flex-wrap: wrap; gap: 5px;">
+                        <!-- Selected GTI circles will appear here -->
+                        <span style="color: var(--text-secondary);">Selected GTIs will appear here.</span>
+                    </div>
+                </div>
+            </div>
           </div> 
       </div> 
     </section>

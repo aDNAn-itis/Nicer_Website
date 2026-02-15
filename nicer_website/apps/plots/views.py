@@ -156,6 +156,40 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     raw_obs_id_input: str = request.POST.get('obs_id')
     quality: str = request.POST.get('quality')
     plot_types = request.POST.getlist('plot_types')
+    gti_query_str: str = request.POST.get('gti-search', '') # New: Get gti-search string
+
+    gti_specifiers = {} # For new format: {obs_id: [gti_num, ...]}
+    gti_list_parsed: list[int] = [] # For old format
+
+    if gti_query_str:
+        # Heuristic to check if we're using the new "obsid-gti" format vs. old "1,2,5-7"
+        # Assumes obsids are long numbers (e.g., > 5 digits)
+        is_obsid_gti_format = False
+        if '-' in gti_query_str:
+            # Check the part before the first hyphen of each comma-separated value
+            is_obsid_gti_format = any(len(part.split('-')[0].strip()) > 5 for part in gti_query_str.split(','))
+
+        if is_obsid_gti_format:
+            parts = gti_query_str.split(',')
+            for part in parts:
+                match = re.match(r'(\d+)-(\d+)', part.strip())
+                if match:
+                    obs_id_str, gti_num_str = match.groups()
+                    gti_num = int(gti_num_str)
+                    if obs_id_str not in gti_specifiers:
+                        gti_specifiers[obs_id_str] = []
+                    gti_specifiers[obs_id_str].append(gti_num)
+        else: # Fallback to old format "1,2,5-7"
+            processed_gti_query_parts = re.sub(r'[^\d,-]', '', gti_query_str).split(',')
+            for gti_val_part in processed_gti_query_parts:
+                if not gti_val_part: continue
+                if '-' in gti_val_part:
+                    start, end = map(int, gti_val_part.split('-'))
+                    if start > end: start, end = end, start
+                    gti_list_parsed.extend(range(start, end + 1))
+                elif gti_val_part.isdigit(): gti_list_parsed.append(int(gti_val_part))
+            if gti_list_parsed:
+                gti_list_parsed = sorted(list(set(gti_list_parsed)))
     
     # Handle manual plot type parsing
     if not plot_types:
@@ -196,6 +230,9 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             logger.info(f"[plot_data] Multi-Obs detected: {obs_id_list}")
         else:
             obs_id_list = [raw_obs_id_input]
+
+        if gti_specifiers:
+            obs_id_list = [obsid for obsid in obs_id_list if obsid in gti_specifiers]
             
         plot_divs: list[str] = []
         max_gtis: list[int] = [] 
@@ -218,23 +255,34 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                 
                 if not file_names_qs.exists(): continue
 
+                # Determine which GTIs to use for THIS observation
+                gtis_to_process = []
+                if gti_specifiers:
+                    # New format: Use GTIs specified for this obsid, otherwise empty list.
+                    gtis_to_process = gti_specifiers.get(single_obs_id, [])
+                elif gti_list_parsed:
+                    # Old format: Use the same general list of GTIs for all obsids
+                    gtis_to_process = gti_list_parsed
+
                 if plot_type_key == 'summed_spectrum' or plot_type_key == 'global_hid':
                     for file_item in file_names_qs.order_by('name'):
                         all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
                         gti_match = re.search(r'GTI(\d+)', file_item.name)
                         if gti_match: all_gti_numbers_combined.append(int(gti_match.group(1)))
-                else:
-                    for f in file_names_qs:
-                        m = re.search(r'GTI(\d+)', f.name)
-                        if m: 
-                            val = int(m.group(1))
-                            if val > current_max_gti: current_max_gti = val
-
-                    file_item = file_names_qs.first()
-                    if file_item:
+                elif gtis_to_process: # If specific GTIs are requested for this plot type
+                    for gti_num in gtis_to_process:
+                        file_match_item = file_names_qs.filter(name__regex=fr'GTI0*{gti_num}([^\\d]|$)').first()
+                        if file_match_item:
+                            all_file_paths_combined.append(os.path.join(single_obs_dir, file_match_item.name))
+                            all_gti_numbers_combined.append(gti_num)
+                else: # Default behavior: include all GTIs if no specific ones were requested
+                    for file_item in file_names_qs.order_by('name'):
                         all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
                         gti_match = re.search(r'GTI(\d+)', file_item.name)
-                        all_gti_numbers_combined.append(int(gti_match.group(1)) if gti_match else 0)
+                        if gti_match: 
+                            val = int(gti_match.group(1))
+                            all_gti_numbers_combined.append(val)
+                            if val > current_max_gti: current_max_gti = val
 
             max_gtis.append(current_max_gti)
 
@@ -303,6 +351,39 @@ def fetch_sources(request: HttpRequest, count: int = 5) -> JsonResponse:
    suggested_sources = Item.objects.filter(source__icontains=source_query).values('source').distinct().order_by('source')[:count]
    return JsonResponse({'source_suggestions': list(suggested_sources)})
 
+def fetch_gtis(request: HttpRequest) -> JsonResponse:
+    obs_id = request.GET.get('obs_id')
+    quality = request.GET.get('quality', 'goddard') # Default to 'goddard'
+    
+    if not obs_id:
+        return JsonResponse({'error': 'Observation ID is required.'}, status=400)
+
+    try:
+        # Construct the path prefix for filtering
+        path_prefix = os.path.join(obs_id, 'jspipe/')
+        
+        # Filter items by path prefix and quality, then get all file names
+        # We assume GTI information is in the filename for filtering
+        files_with_gti_info = Item.objects.filter(
+            path__startswith=path_prefix,
+            name__contains=quality,
+            type=Item.item_type[1][0] # Assuming this is the correct item type for files
+        ).values_list('name', flat=True)
+
+        gti_numbers = set()
+        gti_regex = re.compile(r'GTI(\d+)')
+
+        for filename in files_with_gti_info:
+            match = gti_regex.search(filename)
+            if match:
+                gti_numbers.add(int(match.group(1)))
+        
+        # Return sorted unique GTI numbers
+        return JsonResponse({'gtis': sorted(list(gti_numbers))})
+
+    except Exception as e:
+        logger.exception(f"[fetch_gtis] Error fetching GTIs for ObsID {obs_id}: {e}")
+        return JsonResponse({'error': f'Failed to fetch GTIs: {str(e)}'}, status=500)
 
 def interactive_plot(request: HttpRequest) -> HttpResponse:
    return render(request, 'plots/plot.html', {'plot_divs': None})

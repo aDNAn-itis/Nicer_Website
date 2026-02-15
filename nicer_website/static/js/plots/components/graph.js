@@ -182,16 +182,20 @@ export function fetchGraphPlots(refresh = false, event) {
             $('#plots').append($PLOT_SECTION);
           }
           
+          // if ($(`#${PLOT_ID}`).length === 0) {
+          //   const $PLOT_DIV = $(plotDiv).attr('id', PLOT_ID);
+
+          //   if (TYPE !== 'summed_spectrum' && TYPE !== 'global_hid' && response.maxGTI) {
+          //      const maxVal = response.maxGTI[i];
+          //      if (maxVal !== undefined && maxVal > 0) {
+          //          const GTI_FORM = GTISelection(maxVal, response.obsID || obsId, TYPE);
+          //          $PLOT_DIV.append(GTI_FORM);
+          //      }
+          //   }
+          //   $(`#${TYPE}-section`).append($PLOT_DIV);
+          // }
           if ($(`#${PLOT_ID}`).length === 0) {
             const $PLOT_DIV = $(plotDiv).attr('id', PLOT_ID);
-
-            if (TYPE !== 'summed_spectrum' && TYPE !== 'global_hid' && response.maxGTI) {
-               const maxVal = response.maxGTI[i];
-               if (maxVal !== undefined && maxVal > 0) {
-                   const GTI_FORM = GTISelection(maxVal, response.obsID || obsId, TYPE);
-                   $PLOT_DIV.append(GTI_FORM);
-               }
-            }
             $(`#${TYPE}-section`).append($PLOT_DIV);
           }
           updateCombineButtonVisibility(TYPE);

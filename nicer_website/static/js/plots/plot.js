@@ -22,7 +22,45 @@ function injectDynamicStyles() {
     style.innerHTML = `
             #selected-obsids-list li.multi-selected { background-color: #e8f5e9; border: 2px solid #4caf50; font-weight: bold; }
             #selected-obsids-list li.active-item { border-left: 5px solid #d9534f; background-color: #fff5f5; }
-
+            .gti-circle {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 45px;
+                height: 45px;
+                border-radius: 50%;
+                background-color: #e0e0e0;
+                color: #333;
+                font-size: 0.85rem;
+                font-weight: 500;
+                cursor: pointer;
+                margin: 5px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                transition: all 0.2s ease;
+                flex-shrink: 0; /* Prevent shrinking in flex container */
+            }
+            .gti-circle:hover {
+                background-color: #d0d0d0;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            }
+            .gti-circle.selected {
+                background-color: #4CAF50;
+                color: white;
+                box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+                border: 2px solid #388E3C;
+            }
+            .gti-circle.selected:hover {
+                background-color: #45a049;
+            }
+            .gti-circle.removed {
+                background-color: #f44336;
+                color: white;
+                box-shadow: 0 4px 8px rgba(244, 67, 54, 0.3);
+                border: 2px solid #D32F2F;
+            }
+            .gti-circle.removed:hover {
+                background-color: #da190b;
+            }
     `;
     document.head.appendChild(style);
 }
@@ -79,6 +117,129 @@ function createListItem(obsId) {
     return li;
 }
 
+function createGTICircle(obsId, gtiNum, isSelected = false) {
+    const circle = document.createElement('span');
+    circle.classList.add('gti-circle');
+    if (isSelected) {
+        circle.classList.add('selected');
+    }
+    circle.textContent = `GTI${gtiNum}`;
+    circle.dataset.obsid = obsId;
+    circle.dataset.gti = gtiNum;
+    circle.title = `GTI ${gtiNum} for ObsID ${obsId}`;
+    return circle;
+}
+
+
+function loadGTIsForObsID(obsId) {
+    const availableGtisBox = document.getElementById('available-gtis-box');
+    availableGtisBox.innerHTML = '<span style="color: var(--text-secondary);">Loading GTIs...</span>';
+
+    const quality = $('#quality-select').val(); 
+    if (gtiMap[obsId]) {
+        populateGtiBoxes(obsId, gtiMap[obsId]);
+        return;
+    }
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch(FETCH_GTIS_URL + `?obs_id=${obsId}&quality=${quality}`, {
+        method: 'GET',
+        headers: {'X-CSRFToken': csrfToken}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.gtis) {
+            gtiMap[obsId] = data.gtis; // Cache the GTIs
+            populateGtiBoxes(obsId, data.gtis);
+        } else if (data.error) {
+            availableGtisBox.innerHTML = `<span style="color:red;">Error: ${data.error}</span>`;
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching GTIs:', error);
+        availableGtisBox.innerHTML = `<span style="color:red;">Failed to load GTIs.</span>`;
+    });
+}
+
+function populateGtiBoxes(obsId, gtiList) {
+    const availableGtisBox = document.getElementById('available-gtis-box');
+    availableGtisBox.innerHTML = ''; // Clear loading message
+
+    if (gtiList.length === 0) {
+        availableGtisBox.innerHTML = '<span style="color: var(--text-secondary);">No GTIs found for this ObsID.</span>';
+        return;
+    }
+
+    // Filter out GTIs that are already selected and belong to the current ObsID
+    const currentSelectedGtisForObs = selectedGtis.filter(item => item.obsId === obsId).map(item => item.gti);
+    const gtiListForAvailableBox = gtiList.filter(gtiNum => !currentSelectedGtisForObs.includes(gtiNum));
+
+    gtiListForAvailableBox.forEach(gtiNum => {
+        const gtiCircle = createGTICircle(obsId, gtiNum, false); // Always false for available box
+        availableGtisBox.appendChild(gtiCircle);
+    });
+    
+    updateSelectedGtisDisplay(); // Ensure selected box is also up to date
+    addGtiCircleEventListeners();
+}
+
+function addGtiCircleEventListeners() {
+    // Remove existing listeners to prevent duplicates
+    document.querySelectorAll('.gti-circle').forEach(circle => {
+        circle.removeEventListener('click', handleGtiCircleClick);
+    });
+    // Add new listeners
+    document.querySelectorAll('.gti-circle').forEach(circle => {
+        circle.addEventListener('click', handleGtiCircleClick);
+    });
+}
+
+function handleGtiCircleClick(event) {
+    const circle = event.target;
+    const obsId = circle.dataset.obsid;
+    const gti = parseInt(circle.dataset.gti);
+
+    // Check if the GTI is currently in the selectedGtis array
+    const indexInSelected = selectedGtis.findIndex(item => item.obsId === obsId && item.gti === gti);
+
+    if (indexInSelected !== -1) {
+        // It's currently selected, so deselect it (move to available)
+        selectedGtis.splice(indexInSelected, 1); // Remove from array
+        circle.classList.remove('selected');
+        document.getElementById('available-gtis-box').appendChild(circle);
+    } else {
+        // It's not selected, so select it (move to selected)
+        selectedGtis.push({ obsId: obsId, gti: gti }); // Add to array
+        circle.classList.add('selected');
+        document.getElementById('selected-gtis-box').appendChild(circle);
+    }
+    updateSelectedGtisDisplay();
+}
+
+function updateSelectedGtisDisplay() {
+    const selectedGtisBox = document.getElementById('selected-gtis-box');
+    selectedGtisBox.innerHTML = ''; // Clear existing circles
+
+    if (selectedGtis.length === 0) {
+        selectedGtisBox.innerHTML = '<span style="color: var(--text-secondary);">Selected GTIs will appear here.</span>';
+        return;
+    }
+
+    // Sort selected GTIs for consistent display, e.g., by obsId then gti number
+    const sortedSelectedGtis = [...selectedGtis].sort((a, b) => {
+        if (a.obsId < b.obsId) return -1;
+        if (a.obsId > b.obsId) return 1;
+        return a.gti - b.gti;
+    });
+
+    sortedSelectedGtis.forEach(item => {
+        const circle = createGTICircle(item.obsId, item.gti, true); // Always selected
+        selectedGtisBox.appendChild(circle);
+    });
+    addGtiCircleEventListeners(); // Re-add listeners for newly created elements
+}
+
 function toggleMultiSelect(obsId) {
     let li = document.getElementById(`selected-${sanitizeId(obsId)}`);
     if (!li) {
@@ -115,8 +276,10 @@ function setActiveObsID(obsId) {
         }
         $('#show-gti-btn').prop('disabled', true).text("Loading Data...");
         fetchObsIDDataForGTI(obsId);
+        loadGTIsForObsID(obsId); // <<< NEW: Load GTIs
     } else {
         fetchObsIDDataForGTI(obsId);
+        loadGTIsForObsID(obsId); // <<< NEW: Load GTIs
     }
 }
 
@@ -424,6 +587,12 @@ document.addEventListener("DOMContentLoaded", () => {
             $tempForm.append($('<input>').attr('name', 'obs_id').val(combinedString));
             $tempForm.append($('<input>').attr('name', 'quality').val($('#quality-select').val()));
             $tempForm.append($('<input>').attr('name', 'csrfmiddlewaretoken').val($('[name=csrfmiddlewaretoken]').val()));
+
+            // NEW: Append selected GTIs to form data
+            if (selectedGtis.length > 0) {
+                const gtiQueryString = selectedGtis.map(item => `${item.obsId}-${item.gti}`).join(',');
+                $tempForm.append($('<input>').attr('name', 'gti-search').val(gtiQueryString));
+            }
             
             plotForm.querySelectorAll('input[name="plot_types"]:checked').forEach(input => {
                 if(input.value !== 'global-hid') {
