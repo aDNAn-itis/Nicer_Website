@@ -1,7 +1,7 @@
 /**
- * Interactive linking between spectrum and light curve plots
- * This module enables user click interaction on spectrum plots to highlight regions of interest
- * and show corresponding points in the light curve
+ * interactiveLinking.js
+ * Enables interactive linking between Spectrum and Light Curve plots.
+ * * MODIFIED: Aggressively excludes Global HID from linking logic.
  */
 
 // Store state for highlighted points
@@ -155,21 +155,59 @@ function mapTimeToEnergyPercentile(time) {
 }
 
 /**
- * Initialize the interactive linking between spectrum and light curve plots
- * This should be called after plots are loaded
+ * 🟢 INITIALIZATION FUNCTION (TRIPLE-CHECK FILTER)
+ * This function specifically hunts for Global HID plots and excludes them.
  */
 export function initInteractiveLinking() {
-  // Find all plotly graphs on the page
-  const plotlyGraphs = document.querySelectorAll('.js-plotly-plot');
+  // 1. Find all plotly graphs on the page
+  const allGraphs = document.querySelectorAll('.js-plotly-plot');
 
-  // No graphs found, exit early
-  if (!plotlyGraphs.length) {
+  if (!allGraphs.length) {
     console.log('No plots found to initialize interactive linking');
     return;
   }
 
+  // 🔴 AGGRESSIVE FILTER: Ignore Global HID
+  const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
+    // CHECK 1: Container ID (Fail-Safe)
+    // If the plot is inside the special container we made in plot.js v41, ignore it.
+    if (plot.closest('#combined-hid-plot') || plot.closest('#global-safe-container')) {
+      console.log(`🛡️ Ignoring Global HID (Container Match): ${plot.id}`);
+      return false;
+    }
+
+    // CHECK 2: Title (Robust)
+    // Sometimes the title is an object, sometimes a string. We handle both.
+    const layoutTitle = plot.layout?.title;
+    const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
+    
+    if (titleText.includes('global hid') || titleText.includes('multi-observation')) {
+      console.log(`🛡️ Ignoring Global HID (Title Match): ${titleText}`);
+      return false;
+    }
+
+    // CHECK 3: Axis Label (Context)
+    // Global HID usually has "Hardness" on the X-axis.
+    const xaxis = plot.layout?.xaxis?.title?.text || '';
+    if (xaxis.toLowerCase().includes('hardness') && titleText.includes('hid')) {
+       console.log(`🛡️ Ignoring Global HID (Axis Match)`);
+       return false;
+    }
+
+    // CHECK 4: ID (Legacy)
+    if (plot.id.includes('combined-hid')) return false;
+
+    return true; // Safe to link (Spectrum/Light Curve)
+  });
+
+  // No eligible graphs found after filtering, exit early
+  if (plotlyGraphs.length < 2) {
+    console.log(`Not enough eligible plots for linking (Found ${plotlyGraphs.length}). Global HID excluded.`);
+    return;
+  }
+
   console.log(
-    `Found ${plotlyGraphs.length} Plotly graphs to initialize interactive linking`,
+    `Found ${plotlyGraphs.length} eligible Plotly graphs to initialize interactive linking`,
   );
 
   // Log all plot IDs for debugging
@@ -191,8 +229,7 @@ export function initInteractiveLinking() {
     return;
   }
 
-  console.log(`Spectrum plot ID: ${spectrumPlot.id}`);
-  console.log(`Light curve plot ID: ${lightCurvePlot.id}`);
+  console.log(`Linking Spectrum (${spectrumPlot.id}) <-> Light Curve (${lightCurvePlot.id})`);
 
   // Set up click handlers for both plots
   setupClickHandler(spectrumPlot, lightCurvePlot, true);
@@ -200,115 +237,6 @@ export function initInteractiveLinking() {
 
   // Add direct event listeners to ensure clicks are captured
   addDirectEventListeners(spectrumPlot, lightCurvePlot);
-
-  // Force a check to ensure both plots have click handlers
-  setTimeout(() => {
-    console.log('Checking if click handlers were properly set up...');
-    const spectrumHasHandler =
-      spectrumPlot.getAttribute('data-interactive-linking') === 'true';
-    const lightCurveHasHandler =
-      lightCurvePlot.getAttribute('data-interactive-linking') === 'true';
-
-    console.log(`Spectrum plot has handler: ${spectrumHasHandler}`);
-    console.log(`Light curve plot has handler: ${lightCurveHasHandler}`);
-
-    // If light curve doesn't have a handler, try to set it up again
-    if (!lightCurveHasHandler) {
-      console.log(
-        'Light curve plot does not have a handler, trying to set it up again...',
-      );
-      setupClickHandler(lightCurvePlot, spectrumPlot, false);
-    }
-
-    // Add direct Plotly event handlers as a fallback
-    if (typeof Plotly !== 'undefined') {
-      console.log('Adding direct Plotly event handlers as fallback');
-
-      // For light curve plot
-      if (lightCurvePlot) {
-        console.log(
-          `Adding direct Plotly click handler to light curve plot: ${lightCurvePlot.id}`,
-        );
-        Plotly.on(lightCurvePlot, 'plotly_click', function (data) {
-          console.log(
-            'Direct Plotly click detected on light curve plot:',
-            data,
-          );
-          if (data && data.points && data.points.length > 0) {
-            const point = data.points[0];
-            const xValue = point.x;
-
-            // Define region around clicked point
-            const rangeWidth = 0.5; // seconds for light curve
-            const xRange = [xValue - rangeWidth, xValue + rangeWidth];
-
-            console.log(
-              `Highlighting light curve region: [${xRange[0]}, ${xRange[1]}] s`,
-            );
-
-            // Toggle highlighting
-            if (
-              highlightState.active &&
-              highlightState.selectedRange &&
-              Math.abs(highlightState.selectedRange[0] - xRange[0]) < 0.01
-            ) {
-              // If clicking on the same region, turn off highlighting
-              resetHighlights(lightCurvePlot, spectrumPlot);
-            } else {
-              // Highlight new region
-              const energyRange = mapTimeToEnergyRange(xRange, spectrumPlot);
-              highlightRegion(
-                spectrumPlot,
-                lightCurvePlot,
-                energyRange,
-                xRange,
-              );
-            }
-          }
-        });
-      }
-
-      // For spectrum plot
-      if (spectrumPlot) {
-        console.log(
-          `Adding direct Plotly click handler to spectrum plot: ${spectrumPlot.id}`,
-        );
-        Plotly.on(spectrumPlot, 'plotly_click', function (data) {
-          console.log('Direct Plotly click detected on spectrum plot:', data);
-          if (data && data.points && data.points.length > 0) {
-            const point = data.points[0];
-            const xValue = point.x;
-
-            // Define region around clicked point
-            const rangeWidth = 0.5; // keV for spectrum
-            const xRange = [xValue - rangeWidth, xValue + rangeWidth];
-
-            console.log(
-              `Highlighting spectrum region: [${xRange[0]}, ${xRange[1]}] keV`,
-            );
-
-            // Toggle highlighting
-            if (
-              highlightState.active &&
-              highlightState.selectedRange &&
-              Math.abs(highlightState.selectedRange[0] - xRange[0]) < 0.01
-            ) {
-              // If clicking on the same region, turn off highlighting
-              resetHighlights(spectrumPlot, lightCurvePlot);
-            } else {
-              // Highlight new region
-              const timeRange = mapEnergyToTimeRange(xRange, lightCurvePlot);
-              highlightRegion(spectrumPlot, lightCurvePlot, xRange, timeRange);
-            }
-          }
-        });
-      }
-    }
-  }, 500);
-
-  console.log(
-    'Interactive linking initialized between spectrum and light curve',
-  );
 }
 
 /**
@@ -514,14 +442,6 @@ function setupClickHandler(plot, otherPlot, isSpectrum) {
         highlightRegion(otherPlot, plot, energyRange, xRange);
       }
     };
-
-    // Comment out the double-click handler for now
-    /*
-    const handleDoubleClick = function() {
-      console.log('Double-click detected - resetting highlights');
-      resetHighlights(plot, otherPlot);
-    };
-    */
 
     // Use Plotly's event system
     if (typeof Plotly !== 'undefined' && typeof Plotly.on === 'function') {

@@ -6,71 +6,45 @@ from typing import List, Tuple, Any
 
 import numpy as np
 from numpy import ndarray
+from scipy.spatial import ConvexHull
+import plotly.graph_objects as go
+from plotly.colors import qualitative
 
 from src.utils.plots import data_plot
 from src.utils.utils import min_bin, binning
 
 def normalize_path(path: str) -> str:
-    """
-    Normalize a file path by removing double slashes and resolving relative paths.
-
-    Parameters
-    ----------
-    path : str
-        The file path to normalize.
-
-    Returns
-    -------
-    str
-        The normalized file path.
-    """
+    """Normalize a file path."""
     return os.path.normpath(path)
 
+def hex_to_rgba(hex_color: str, opacity: float) -> str:
+    """Convert hex color to rgba string for transparency control."""
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) == 3:
+        hex_color = ''.join([c*2 for c in hex_color])
+    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    return f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {opacity})"
+
 def read_lc_file(filename: str) -> ndarray:
-    """
-    Read a gzipped lightcurve file and return the data as a numpy array.
-
-    Parameters
-    ----------
-    filename : str
-        Path to the gzipped lightcurve file.
-
-    Returns
-    -------
-    ndarray
-        A 2D numpy array containing the lightcurve data.
-        Columns are [time, band1, band2, band3, band4].
-
-    Raises
-    ------
-    FileNotFoundError
-        If the specified file does not exist.
-    """
+    """Read a gzipped lightcurve file."""
     normalized_path: str = normalize_path(filename)
     if not os.path.exists(normalized_path):
-        raise FileNotFoundError(f"File not found: {normalized_path}")
+        print(f"Warning: File not found: {normalized_path}")
+        return np.array([])
 
-    data: ndarray = np.loadtxt(normalized_path, usecols=[0, 5, 6, 7, 8])
-    return data
+    try:
+        data: ndarray = np.loadtxt(normalized_path, usecols=[0, 5, 6, 7, 8])
+        return data
+    except Exception as e:
+        print(f"Error reading {filename}: {e}")
+        return np.array([])
 
 def process_lc_file(filename: str) -> Tuple[ndarray, ndarray, ndarray]:
-    """
-    Process a lightcurve file and return time, hardness, and intensity.
-
-    Parameters
-    ----------
-    filename : str
-        Path to the lightcurve file.
-
-    Returns
-    -------
-    tuple[ndarray, ndarray, ndarray]
-        A tuple containing:
-        - time: Array of time values in seconds.
-        - hardness: Array of hardness ratios (hard_band / soft_band).
-        - intensity: Array of total intensity across all bands.
-    """
+    """Process a lightcurve file and return time, hardness, and intensity."""
     lc_data: ndarray = read_lc_file(filename)
+    
+    if lc_data.size == 0:
+        return np.array([]), np.array([]), np.array([])
 
     time: ndarray = lc_data[:, 0] / 8  # to seconds
     band1: ndarray = lc_data[:, 1]  # 0.3-2 keV
@@ -84,127 +58,111 @@ def process_lc_file(filename: str) -> Tuple[ndarray, ndarray, ndarray]:
     with np.errstate(divide='ignore', invalid='ignore'):
         hardness: ndarray = hard_band / soft_band
 
-    # Replace infinities and NaNs with NaN
     hardness = np.where(np.isfinite(hardness), hardness, np.nan)
-
-    intensity: ndarray = band1 + band2 + band3 + band4  # sum of all bands, keeping as rate
+    intensity: ndarray = band1 + band2 + band3 + band4
 
     return time, hardness, intensity
 
+def get_convex_hull(x: ndarray, y: ndarray) -> Tuple[ndarray, ndarray]:
+    """Calculates the boundary polygon (Convex Hull) for a set of points."""
+    if len(x) < 3:
+        return None, None
+    
+    points = np.column_stack((x, y))
+    try:
+        hull = ConvexHull(points)
+        indices = np.append(hull.vertices, hull.vertices[0])
+        return x[indices], y[indices]
+    except Exception:
+        return None, None
+
+# ==============================================================================
+# MAIN DISPATCHER FUNCTION
+# ==============================================================================
 def get_hid_data_and_plot(
     min_value: int,
-    obs_id: int,
+    obs_id: Any,
     data_paths: List[str],
     gti_numbers: List[int]
 ) -> str:
     """
-    Process multiple lightcurve files and create a Hardness-Intensity Diagram (HID) plot.
-
-    Parameters
-    ----------
-    min_value : int
-        Minimum value for adaptive binning (minimum counts per bin)
-    obs_id : int
-        Observation ID
-    data_paths : list[str]
-        List of file paths to the lightcurve data files.
-    gti_numbers : list[int]
-        List of GTI numbers to process.
-
-    Returns
-    -------
-    str
-        HTML string of the generated HID plot.
+    Main entry point for HID plotting.
+    - Automatically detects if it's a Single Observation or Combined.
+    - Routes to the correct plotting style.
     """
+    obs_str = str(obs_id)
+    
+    # Check if multiple observations are present (comma separated)
+    if ',' in obs_str:
+        return _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers)
+    else:
+        return _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers)
+
+# ==============================================================================
+# STYLE 1: TIME PLOT (For Single Observation)
+# ==============================================================================
+def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers) -> str:
+    """Internal function for Single-Obs Time Gradient Plot."""
     all_hardness: List[float] = []
     all_intensity: List[float] = []
     all_time: List[float] = []
-    all_hardness_counts: List[float] = []  # Store the actual counts for binning
-    all_intensity_counts: List[float] = []  # Store the actual counts for binning
+    all_intensity_counts: List[float] = []
 
-    for gti_number in gti_numbers:
-        lc_path: str = data_paths[0].replace("GTI0", f"GTI{gti_number}")
+    loop_limit = min(len(data_paths), len(gti_numbers))
 
+    for i in range(loop_limit):
+        lc_path = data_paths[i]
         time, hardness, intensity = process_lc_file(lc_path)
+        if len(time) == 0: continue
 
         mask: ndarray = (hardness > 0) & (intensity > 0) & ~np.isnan(hardness) & ~np.isnan(intensity)
         all_time.extend(time[mask].tolist())
         all_hardness.extend(hardness[mask].tolist())
         all_intensity.extend(intensity[mask].tolist())
         
-        # For adaptive binning, we need the counts rather than rates
-        # The intensity is already in counts/s, so multiply by time bin width to get counts
-        # The lightcurve data comes in 8-second bins (1/8 second samples)
-        time_bin_width = 1.0 / 8.0  # Based on NICER lightcurve binning
-        intensity_counts = intensity[mask] * time_bin_width  # total counts per bin
-        # For hardness, use a reasonable approximation of the hard band counts
-        # hardness = hard/soft, so hard_counts ≈ hardness * soft_counts
-        # Assume soft_counts ≈ intensity_counts / 2 (rough approximation)
-        hardness_counts = hardness[mask] * intensity_counts / 2.0
-        
-        all_hardness_counts.extend(hardness_counts.tolist())
+        # Adaptive binning prep
+        intensity_counts = intensity[mask] * (1.0/8.0)
         all_intensity_counts.extend(intensity_counts.tolist())
 
     if not all_hardness:
-        return "No valid data to plot"
+        return "<div>No valid data to plot</div>"
 
-    # Convert to numpy arrays for binning
     all_hardness = np.array(all_hardness)
     all_intensity = np.array(all_intensity)
     all_time = np.array(all_time)
-    all_hardness_counts = np.array(all_hardness_counts)
     all_intensity_counts = np.array(all_intensity_counts)
 
-    # Apply adaptive binning if min_value is specified and > 0
     if min_value and min_value > 0:
-        # Sort data by time to maintain temporal order for binning
         sort_indices = np.argsort(all_time)
         all_hardness = all_hardness[sort_indices]
         all_intensity = all_intensity[sort_indices]
         all_time = all_time[sort_indices]
-        all_hardness_counts = all_hardness_counts[sort_indices]
         all_intensity_counts = all_intensity_counts[sort_indices]
         
-        # Use intensity counts for determining bin boundaries (more stable than hardness)
         min_bins = min_bin(min_value, all_intensity_counts)
-        
-        # Apply binning to all arrays
         data_stack = np.stack([all_hardness, all_intensity, all_time])
-        (binned_hardness, binned_intensity, binned_time), _, _ = binning(
-            min_bins,
-            data_stack,
-        )
+        (binned_hardness, binned_intensity, binned_time), _, _ = binning(min_bins, data_stack)
         
-        # Use binned data
         all_hardness = binned_hardness
         all_intensity = binned_intensity
         all_time = binned_time
+        print(f"HID adaptive binning: {len(sort_indices)} -> {len(all_hardness)} bins")
+
+    # Range Calculation
+    margin_factor = 0.1
+    try:
+        x_min, x_max = np.log10(min(all_hardness)), np.log10(max(all_hardness))
+        y_min, y_max = np.log10(min(all_intensity)), np.log10(max(all_intensity))
         
-        print(f"HID adaptive binning: {len(sort_indices)} points -> {len(all_hardness)} bins (min_value={min_value})")
+        if x_min == x_max: x_min -= 0.1; x_max += 0.1
+        if y_min == y_max: y_min -= 0.1; y_max += 0.1
 
-    # Remove any remaining invalid values after binning
-    final_mask = (all_hardness > 0) & (all_intensity > 0) & np.isfinite(all_hardness) & np.isfinite(all_intensity)
-    all_hardness = all_hardness[final_mask]
-    all_intensity = all_intensity[final_mask]
-    all_time = all_time[final_mask]
-    
-    if len(all_hardness) == 0:
-        return "No valid data to plot after binning"
+        x_range = [x_min - (x_max-x_min)*margin_factor, x_max + (x_max-x_min)*margin_factor]
+        y_range = [y_min - (y_max-y_min)*margin_factor, y_max + (y_max-y_min)*margin_factor]
+    except:
+        x_range, y_range = None, None
 
-    # logarithmic ranges with margin
-    margin_factor: float = 0.1  # 10% margin
-    x_min: float = np.log10(min(all_hardness))
-    x_max: float = np.log10(max(all_hardness))
-    y_min: float = np.log10(min(all_intensity))
-    y_max: float = np.log10(max(all_intensity))
-
-    x_margin: float = (x_max - x_min) * margin_factor
-    y_margin: float = (y_max - y_min) * margin_factor
-
-    xaxis_range: List[float] = [x_min - x_margin, x_max + x_margin]
-    yaxis_range: List[float] = [y_min - y_margin, y_max + y_margin]
-
-    norm_time: ndarray = (all_time - np.min(all_time)) / (np.max(all_time) - np.min(all_time))
+    norm_time = (all_time - np.min(all_time)) / (np.max(all_time) - np.min(all_time)) if len(all_time) > 1 else np.zeros_like(all_time)
 
     return data_plot(
         x_data_list=[all_hardness],
@@ -217,8 +175,112 @@ def get_hid_data_and_plot(
             'yaxis_title': r'$\text{Intensity}\ (counts/s)$',
             'xaxis_type': 'log',
             'yaxis_type': 'log',
-            'xaxis_range': xaxis_range,
-            'yaxis_range': yaxis_range,
+            'xaxis_range': x_range,
+            'yaxis_range': y_range,
             'showlegend': False,
+            'template': 'plotly_white',
+        }
+    )
+
+# ==============================================================================
+# STYLE 2: REGION PLOT (For Combined Observations)
+# ==============================================================================
+def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers) -> str:
+    """Internal function for Combined-Obs Polygon Plot."""
+    obs_str = str(obs_id)
+    obs_ids_list = obs_str.split(',')
+    loop_limit = min(len(data_paths), len(gti_numbers))
+    valid_datasets = []
+
+    for i in range(loop_limit):
+        lc_path = data_paths[i]
+        gti_number = gti_numbers[i]
+        
+        current_obs = obs_ids_list[i % len(obs_ids_list)] if len(obs_ids_list) > 0 else obs_str
+        label = f"{current_obs} (GTI {gti_number})"
+
+        time, hardness, intensity = process_lc_file(lc_path)
+        if len(time) == 0: continue
+
+        mask: ndarray = (hardness > 0) & (intensity > 0) & ~np.isnan(hardness) & ~np.isnan(intensity)
+        if np.sum(mask) == 0: continue
+            
+        time_valid = time[mask]
+        hardness_valid = hardness[mask]
+        intensity_valid = intensity[mask]
+        
+        if min_value and min_value > 0:
+            sort_indices = np.argsort(time_valid)
+            hardness_valid = hardness_valid[sort_indices]
+            intensity_valid = intensity_valid[sort_indices]
+            time_valid = time_valid[sort_indices]
+            
+            intensity_counts = intensity_valid * (1.0/8.0)
+            min_bins = min_bin(min_value, intensity_counts)
+            
+            data_stack = np.stack([hardness_valid, intensity_valid, time_valid])
+            (binned_hardness, binned_intensity, binned_time), _, _ = binning(min_bins, data_stack)
+            hardness_valid = binned_hardness
+            intensity_valid = binned_intensity
+
+        final_mask = (hardness_valid > 0) & (intensity_valid > 0) & np.isfinite(hardness_valid) & np.isfinite(intensity_valid)
+        hardness_valid = hardness_valid[final_mask]
+        intensity_valid = intensity_valid[final_mask]
+        
+        if len(hardness_valid) > 0:
+            valid_datasets.append({'h': hardness_valid, 'i': intensity_valid, 'label': label})
+
+    if not valid_datasets:
+        return "<div>No valid HID data found to plot.</div>"
+
+    fig = go.Figure()
+    colors = qualitative.Plotly * (len(valid_datasets) // len(qualitative.Plotly) + 1)
+    all_h_vals, all_i_vals = [], []
+
+    for idx, ds in enumerate(valid_datasets):
+        color = colors[idx]
+        all_h_vals.extend(ds['h'])
+        all_i_vals.extend(ds['i'])
+
+        # Boundary Trace (Polygon)
+        hull_x, hull_y = get_convex_hull(ds['h'], ds['i'])
+        if hull_x is not None:
+            fill_color = hex_to_rgba(color, 0.1)
+            fig.add_trace(go.Scatter(
+                x=hull_x, y=hull_y, mode='lines', fill='toself', fillcolor=fill_color,
+                line=dict(color=color, width=1, dash='solid'),
+                name=f"{ds['label']} (Region)", hoverinfo='skip', showlegend=False
+            ))
+
+        # Scatter Trace (Points)
+        fig.add_trace(go.Scatter(
+            x=ds['h'], y=ds['i'], mode='markers',
+            marker=dict(color=color, size=4, opacity=0.8, line=dict(width=0)),
+            name=ds['label']
+        ))
+
+    try:
+        margin = 0.1
+        if all_h_vals and all_i_vals:
+            x_min, x_max = np.log10(np.min(all_h_vals)), np.log10(np.max(all_h_vals))
+            y_min, y_max = np.log10(np.min(all_i_vals)), np.log10(np.max(all_i_vals))
+            if x_min == x_max: x_min -= 0.1; x_max += 0.1
+            if y_min == y_max: y_min -= 0.1; y_max += 0.1
+            x_range = [x_min - (x_max-x_min)*margin, x_max + (x_max-x_min)*margin]
+            y_range = [y_min - (y_max-y_min)*margin, y_max + (y_max-y_min)*margin]
+        else:
+            x_range, y_range = None, None
+    except:
+        x_range, y_range = None, None
+
+    return data_plot(
+        x_data_list=[], y_data_list=[], fig=fig,
+        layout_kwargs={
+            'title': f'Combined Hardness-Intensity Diagram',
+            'xaxis_title': r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$',
+            'yaxis_title': r'$\text{Intensity}\ (counts/s)$',
+            'xaxis_type': 'log', 'yaxis_type': 'log',
+            'xaxis_range': x_range, 'yaxis_range': y_range,
+            'showlegend': True, 'template': 'plotly_white', 'hovermode': 'closest'
         }
     )

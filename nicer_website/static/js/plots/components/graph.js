@@ -1,495 +1,228 @@
+/* graph.js v200 - Title Fix & Safe Linking
+   - FIX: Renames long titles (with multiple ObsIDs) to "COMBINED [TYPE]".
+   - FIX: Imports interactiveLinking.js?v=2000 to prevent crashes.
+*/
 import { displayInfo, handleMultipleObservations } from './observationInfo.js';
 import { GTISelection } from './gtiComponents.js';
-import {
-  updateAllSelections,
-  initSynchronizedSelection,
-} from './syncSelection.js';
-import { initInteractiveLinking } from './interactiveLinking.js';
+import { updateAllSelections, initSynchronizedSelection } from './syncSelection.js?v=2000';
+import { initInteractiveLinking } from './interactiveLinking.js?v=2000'; // 🟢 FORCE v2000
 import { fetchGTIPlot } from './gtiPlots.js';
 import { startOperation, completeOperation, errorOperation } from './statusBar.js';
 
-/**
- *  CSS styles for the popup to the document head
- */
 function addPopupStyles() {
   if (document.getElementById('popup-styles')) return;
-
   const styles = `
-        .popup-container {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            animation: fadeIn 0.3s ease-out;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        @keyframes slideIn {
-            from { transform: translateY(-50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        
-        .popup-content {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-            width: 90%;
-            max-width: 500px;
-            padding: 0;
-            position: relative;
-            animation: slideIn 0.3s ease-out;
-        }
-        
-        .popup-title {
-            background-color: #505050;
-            color: white;
-            padding: 15px 20px;
-            font-size: 18px;
-            font-weight: bold;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .popup-close {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 0;
-            margin: 0;
-            line-height: 1;
-            transition: transform 0.2s;
-        }
-        
-        .popup-close:hover {
-            transform: scale(1.2);
-        }
-        
-        .plot-type-form {
-            padding: 20px;
-            background-color: #f5f5f5;
-            border-bottom-left-radius: 8px;
-            border-bottom-right-radius: 8px;
-        }
-        
-        .plot-option {
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-        }
-        
-        .plot-option input[type="checkbox"] {
-            margin-right: 10px;
-            width: 18px;
-            height: 18px;
-        }
-        
-        .plot-option label {
-            font-size: 16px;
-            cursor: pointer;
-            color: #333;
-        }
-        
-        .plot-submit-btn {
-            background-color: #666666;
-            color: black;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: background-color 0.2s, color 0.2s;
-            width: 100%;
-        }
-        
-        .plot-submit-btn:hover {
-            background-color: #555555;
-            color: white;
-        }
+        .popup-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .popup-content { background-color: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); width: 90%; max-width: 500px; padding: 0; position: relative; animation: slideIn 0.3s ease-out; }
+        .popup-title { background-color: #505050; color: white; padding: 15px 20px; font-size: 18px; font-weight: bold; border-top-left-radius: 8px; border-top-right-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .popup-close { background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 0; margin: 0; line-height: 1; transition: transform 0.2s; }
+        .popup-close:hover { transform: scale(1.2); }
+        .plot-type-form { padding: 20px; background-color: #f5f5f5; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+        .plot-option { margin-bottom: 15px; display: flex; align-items: center; }
+        .plot-option input[type="checkbox"] { margin-right: 10px; width: 18px; height: 18px; }
+        .plot-option label { font-size: 16px; cursor: pointer; color: #333; }
+        .plot-submit-btn { background-color: #666666; color: black; border: none; padding: 10px 20px; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; transition: background-color 0.2s, color 0.2s; width: 100%; }
+        .plot-submit-btn:hover { background-color: #555555; color: white; }
     `;
-
   const styleElement = document.createElement('style');
   styleElement.id = 'popup-styles';
   styleElement.textContent = styles;
   document.head.appendChild(styleElement);
 }
 
-/**
- * Displays a popup for selecting which plot types to generate for an observation ID
- * @param {string} obsID The observation ID to create plots for
- */
-export function showPlotSelectionPopup(obsID) {
-  // Add CSS styles
+export function showPlotSelectionPopup(obsID, gti = null) {
   addPopupStyles();
-
-  // Create popup container if it doesn't exist
   let $popup = $('#plot-selection-popup');
   if ($popup.length === 0) {
-    $popup = $('<div>', {
-      id: 'plot-selection-popup',
-      class: 'popup-container',
-    });
-
-    const $content = $('<div>', {
-      class: 'popup-content',
-    });
-
-    const $title = $('<div>', {
-      class: 'popup-title',
-      text: 'Select Plot Types',
-    });
-
-    const $closeBtn = $('<button>', {
-      class: 'popup-close',
-      text: '×',
-    });
-
+    $popup = $('<div>', { id: 'plot-selection-popup', class: 'popup-container' });
+    const $content = $('<div>', { class: 'popup-content' });
+    const $title = $('<div>', { class: 'popup-title', text: 'Select Plot Types' });
+    const $closeBtn = $('<button>', { class: 'popup-close', text: '×' });
     $title.append($closeBtn);
     $content.append($title);
     $popup.append($content);
     $('body').append($popup);
-
-    // Setup close button and backdrop click to close popup
-    $popup.on('click', function (e) {
-      if (e.target === this) {
-        $popup.fadeOut(200);
-      }
-    });
-
-    $popup.on('click', '.popup-close', function () {
-      $popup.fadeOut(200);
-    });
+    $popup.on('click', function (e) { if (e.target === this) $popup.fadeOut(200); });
+    $popup.on('click', '.popup-close', function () { $popup.fadeOut(200); });
   }
 
-  // Update popup content
   const $content = $popup.find('.popup-content');
-  $content
-    .find('.popup-title')
-    .text(`Select Plot Types for Observation ID: ${obsID}`)
-    .append(
-      $('<button>', {
-        class: 'popup-close',
-        text: '×',
-      }),
-    );
-
-  // Remove any existing form
+  $content.find('.popup-title').text(`Select Plot Types for Observation ID: ${obsID}`).append($('<button>', { class: 'popup-close', text: '×' }));
   $content.find('form').remove();
 
-  // Create form for plot type selection
-  const $form = $('<form>', {
-    id: 'plot-type-form',
-    class: 'plot-type-form',
-  });
+  const $form = $('<form>', { id: 'plot-type-form', class: 'plot-type-form' });
+  if (gti) { $form.attr('data-gti', gti); }
 
-  // Add plot type options
   const plotTypes = [
     { id: 'spectrum', name: 'Spectrum' },
     { id: 'summed-spectrum', name: 'Summed Spectrum' },
     { id: 'light-curve', name: 'Light Curve' },
-    { id: 'power-density-spectrum', name: 'Power Density Spectrum' },
+    { id: 'power-density-spectrum', name: 'Comparing Power Density Spectrum' },
     { id: 'hardness-intensity-diagram', name: 'Hardness Intensity Diagram' },
+    { id: 'global-hid', name: 'Global HID Diagram' }
   ];
 
   plotTypes.forEach((type) => {
-    const $option = $('<div>', {
-      class: 'plot-option',
-    });
-
-    const $checkbox = $('<input>', {
-      type: 'checkbox',
-      id: `${type.id}-checkbox`,
-      name: type.id,
-      value: 'on',
-    });
-
-    const $label = $('<label>', {
-      for: `${type.id}-checkbox`,
-      text: type.name,
-    });
-
-    $option.append($checkbox);
-    $option.append($label);
+    const $option = $('<div>', { class: 'plot-option' });
+    $option.append($('<input>', { type: 'checkbox', id: `${type.id}-checkbox`, name: type.id, value: 'on' }));
+    $option.append($('<label>', { for: `${type.id}-checkbox`, text: type.name }));
     $form.append($option);
   });
 
-  // Add hidden field for observation ID
-  $form.append(
-    $('<input>', {
-      type: 'hidden',
-      name: 'obs_id',
-      value: obsID,
-    }),
-  );
+  $form.append($('<input>', { type: 'hidden', name: 'obs_id', value: obsID }));
+  $form.append($('<button>', { type: 'submit', class: 'plot-submit-btn', text: 'Generate Plots' }));
 
-  // Add submit button
-  const $submitBtn = $('<button>', {
-    type: 'submit',
-    class: 'plot-submit-btn',
-    text: 'Generate Plots',
-  });
-
-  $form.append($submitBtn);
-
-  // Handle form submission
   $form.on('submit', function (event) {
     event.preventDefault();
     $popup.fadeOut(200);
-
-    // Check if a specific GTI was selected from GTI plot button
-    if (window.selectedGTI && window.selectedGTIObsId === obsID) {
-      // Handle GTI-specific plotting
+    const gti = $(this).attr('data-gti');
+    
+    if (gti) {
       const selectedPlotTypes = [];
-      $(this).find('input[type="checkbox"]:checked').each(function() {
-        selectedPlotTypes.push($(this).attr('name'));
-      });
-
-      if (selectedPlotTypes.length === 0) {
-        alert('Please select at least one plot type.');
-        return;
-      }
-
-      // Create forms for each selected plot type and submit to GTI plotting endpoint
+      $(this).find('input[type="checkbox"]:checked').each(function() { selectedPlotTypes.push($(this).attr('name')); });
+      if (selectedPlotTypes.length === 0) { alert('Please select at least one plot type.'); return; }
       selectedPlotTypes.forEach(plotType => {
-        console.log(`[DEBUG graph.js] Creating GTI form for plot type: ${plotType}, GTI: ${window.selectedGTI}, ObsID: ${obsID}`);
         const $gtiForm = $('<form>');
-        $gtiForm.append($('<input>', {
-          name: 'gti-search',
-          type: 'hidden',
-          value: window.selectedGTI
-        }));
-        $gtiForm.append($('<input>', {
-          name: 'plot_type',
-          type: 'hidden',
-          value: plotType.replace(/-/g, '_') // Convert dashes to underscores for backend
-        }));
-        $gtiForm.append($('<input>', {
-          name: 'obs_id',
-          type: 'hidden',
-          value: obsID
-        }));
-        $gtiForm.append($('<input>', {
-          name: 'min_value',
-          type: 'hidden',
-          value: '1'
-        }));
-
-        console.log(`[DEBUG graph.js] Form data for ${plotType}:`, $gtiForm.serialize());
-
-        // Create mock event for fetchGTIPlot
-        const mockEvent = {
-          preventDefault: () => {},
-          target: $gtiForm[0]
-        };
-
-        // Call fetchGTIPlot directly
-        console.log(`[DEBUG graph.js] Calling fetchGTIPlot for ${plotType}`);
+        $gtiForm.append($('<input>', { name: 'gti-search', type: 'hidden', value: gti }));
+        $gtiForm.append($('<input>', { name: 'plot_type', type: 'hidden', value: plotType.replace(/-/g, '_') }));
+        $gtiForm.append($('<input>', { name: 'obs_id', type: 'hidden', value: obsID }));
+        $gtiForm.append($('<input>', { name: 'min_value', type: 'hidden', value: '1' }));
+        const mockEvent = { preventDefault: () => {}, target: $gtiForm[0] };
         fetchGTIPlot(mockEvent);
       });
-      
-      // Clear the stored GTI values
-      delete window.selectedGTI;
-      delete window.selectedGTIObsId;
     } else {
-      // Call fetchGraphPlots for regular observation plotting
       fetchGraphPlots(false, event);
     }
   });
 
   $content.append($form);
-
-  // Show the popup with animation
   $popup.css('display', 'flex').hide().fadeIn(300);
 }
 
-/**
- * Fetches and displays the table for the given observation ID or source name
- * If plots are requested, also fetches and displays plots
- *
- * @param {boolean} refresh If the page content should be refreshed
- * @param {Event} event Event generated by form submit
- */
 export function fetchGraphPlots(refresh = false, event) {
   const REGEX = /"title":\{"text":"(.+?)"\}/;
-  if (!event || !event.target) {
-    console.error('Event or event.target is undefined in fetchGraphPlots');
-    return;
-  }
+  if (!event || !event.target) { return; }
   let serializedData = $(event.target).serialize();
-
-  // Prevents reloading the page
   event.preventDefault();
 
-  // Adds information and security token to the request
-  serializedData += `&csrfmiddlewaretoken=${$(
-    "input[name='csrfmiddlewaretoken']",
-  ).val()}`;
-  serializedData += `&quality=${$('#quality-select').val().toLowerCase()}`;
+  if (serializedData.indexOf('csrfmiddlewaretoken') === -1) {
+    serializedData += `&csrfmiddlewaretoken=${$("input[name='csrfmiddlewaretoken']").val()}`;
+  }
+  if (serializedData.indexOf('quality') === -1) {
+    serializedData += `&quality=${$('#quality-select').val().toLowerCase()}`;
+  }
 
-  // Generate unique operation ID and start status tracking
   const operationId = 'fetch-plots-' + Date.now();
   const obsId = serializedData.match(/obs_id=([^&]+)/)?.[1] || 'unknown';
   startOperation(operationId, 'Loading data for observation ' + obsId + '...');
 
-  // Sends an asynchronous request to fetch data
   $.ajax({
     type: 'POST',
     url: PLOT_GRAPH_URL,
     data: serializedData,
     success: function (response) {
-      // Clear both obs-info and plots divs if refreshing
-      if (refresh) {
-        $('#add-obs').show();
-        $('#plots').empty();
-        $('#obs-info-table').empty();
-        $('#remove-obs').empty();
-      }
-
+      if (refresh) { removePlots(); }
       if (response.error) {
-        console.error('Error received:', response.error);
         errorOperation(operationId, 'Error: ' + response.error);
         alert(`${response.error}`);
         return;
       }
-
       if (response.multiple_observations) {
         completeOperation(operationId, 'Found multiple observations');
         handleMultipleObservations(response.obs_ids, response.source);
         return;
       }
-
-      if (!response.info) {
-        console.error('Unexpected response format:', response);
-        errorOperation(operationId, 'Unexpected response from server');
-        alert('Unexpected response from server.');
-        return;
+      if (response.info && (!response.plotDivs || response.plotDivs.length === 0)) {
+          displayInfo(response.info);
+          completeOperation(operationId, 'GTI Data Loaded.');
+          return;
       }
+      if (response.info) { displayInfo(response.info); }
 
-      // Update info section - always show the table
-      displayInfo(response.info);
-
-      // Update form values if observation info is provided
-      if (response.obs_info) {
-        Object.entries(response.obs_info).forEach(([key, value]) => {
-          $(`#${key}`).val(value);
-        });
-      }
-
-      // Process plots only if plot types were requested
-      const hasPlotTypes =
-        serializedData.includes('spectrum=') ||
-        serializedData.includes('summed-spectrum=') ||
-        serializedData.includes('light-curve=') ||
-        serializedData.includes('power-density-spectrum=') ||
-        serializedData.includes('hardness-intensity-diagram=');
+      const hasPlotTypes = serializedData.includes('plot_types=') || serializedData.includes('spectrum=') || serializedData.includes('global_hid=') || serializedData.includes('global-hid=');
 
       if (hasPlotTypes && response.plotDivs && response.plotDivs.length > 0) {
         response.plotDivs.forEach((plotDiv, i) => {
-          const PLOT_ID = REGEX.exec(plotDiv)[1]
-            .toLowerCase()
-            .replaceAll(' ', '-');
-          const TYPE = PLOT_ID.replace(`-${response.obsID}`, '');
+          let PLOT_ID, TYPE, rawTitle;
+          try {
+             rawTitle = REGEX.exec(plotDiv)[1];
+             PLOT_ID = rawTitle.toLowerCase().replace(/[^a-z0-9-]/g, '-'); 
+             
+             let cleanObsId = (response.obsID || obsId).replace(/,/g, '-');
+             TYPE = PLOT_ID.replace(`-${cleanObsId}`, '');
+             TYPE = TYPE.replace(/-+$/, ''); // Trim trailing dashes
 
-          // Create plot section if it doesn't exist
-          if (!$(`#${TYPE}-section`).length) {
-            const $PLOT_SECTION = $('<div>', {
-              id: `${TYPE}-section`,
-              class: 'plot-type-section',
-            });
-            $PLOT_SECTION.append(
-              $('<h3>', {
-                text: TYPE.replace('-', ' ').toUpperCase(),
-              }),
-            );
-
-            const $COMBINE_FORM = $('<form>', { class: 'combine-gtis hide' });
-            $COMBINE_FORM.append(
-              $('<input>', { type: 'hidden', name: 'plot_type', value: TYPE }),
-            );
-            $COMBINE_FORM.append(
-              $('<input>', {
-                type: 'hidden',
-                name: 'quality',
-                value: $('#quality-select').val().toLowerCase(),
-              }),
-            );
-            const $COMBINE_BUTTON = $('<button>', {
-              type: 'submit',
-              text: 'Combine GTIs from All Observations',
-            });
-
-            $COMBINE_FORM.append($COMBINE_BUTTON);
-            $PLOT_SECTION.append($COMBINE_FORM);
-            $('#plots').append($PLOT_SECTION);
+             if(TYPE.includes('global')) TYPE = 'global_hid';
+             if(TYPE.includes('hardness')) TYPE = 'hardness_intensity_diagram';
+          } catch(e) {
+             TYPE = 'plot-' + i;
+             PLOT_ID = 'plot-' + i + '-' + obsId;
           }
 
-          // Add new observation to plot if not already present
+          // Create Container
+          if (!$(`#${TYPE}-section`).length) {
+            const $PLOT_SECTION = $('<div>', { id: `${TYPE}-section`, class: 'plot-type-section' });
+            
+            // 🟢 TITLE FIX LOGIC:
+            // If the raw title has multiple IDs (more than one 10-digit number),
+            // or if it explicitly looks like a list, use "COMBINED".
+            let titleText = TYPE.replace(/_/g, ' ').replace(/-/g, ' ').toUpperCase();
+            
+            // Check if Raw Title has multiple ObsIDs (e.g. 0010230101 0010230102...)
+            if (rawTitle && (rawTitle.match(/\d{10}/g) || []).length > 1) {
+                // If it's a spectrum, call it COMPARING ENERGY SPECTRUM
+                if (titleText.includes("SPECTRUM")) titleText = "COMPARING ENERGY SPECTRUM";
+                else if (titleText.includes("LIGHT")) titleText = "COMBINED LIGHT CURVE";
+                else titleText = "COMBINED " + titleText;
+            }
+
+            $PLOT_SECTION.append($('<h3>', { text: titleText }));
+            $('#plots').append($PLOT_SECTION);
+          }
+          
           if ($(`#${PLOT_ID}`).length === 0) {
-            // Create plot div with unique ID
             const $PLOT_DIV = $(plotDiv).attr('id', PLOT_ID);
 
-            // Add GTI selection form (but not for summed spectrum plots as they already have combined GTIs)
-            if (TYPE !== 'summed_spectrum') {
-              const GTI_FORM = GTISelection(
-                response.maxGTI[i],
-                response.obsID,
-                TYPE,
-              );
-              $PLOT_DIV.append(GTI_FORM);
+            if (TYPE !== 'summed_spectrum' && TYPE !== 'global_hid' && response.maxGTI) {
+               const maxVal = response.maxGTI[i];
+               if (maxVal !== undefined && maxVal > 0) {
+                   const GTI_FORM = GTISelection(maxVal, response.obsID || obsId, TYPE);
+                   $PLOT_DIV.append(GTI_FORM);
+               }
             }
             $(`#${TYPE}-section`).append($PLOT_DIV);
           }
           updateCombineButtonVisibility(TYPE);
         });
 
-        // Typeset any math expressions
-        MathJax.typeset();
-
-        // Update plot selections after plots are added
-        // Add a larger delay to ensure Plotly has fully rendered
-        setTimeout(() => {
-          console.log('Running updateAllSelections from fetchGraphPlots');
-          // First reinitialize the synchronized selection for new plots
-          initSynchronizedSelection();
-          // Then update any existing selections
-          updateAllSelections();
-          // Initialize interactive linking between spectrum and light curve
-          initInteractiveLinking();
+        if (window.MathJax) MathJax.typeset();
+        
+        // 🟢 LOAD v2000 SCRIPTS
+        setTimeout(() => { 
+            initSynchronizedSelection(); 
+            updateAllSelections(); 
+            initInteractiveLinking(); 
         }, 800);
-
-        completeOperation(operationId, 'Successfully loaded ' + response.plotDivs.length + ' plot(s) for observation ' + response.obsID);
+        
+        completeOperation(operationId, 'Plots loaded.');
+        
+      } else if (!response.info) {
+          completeOperation(operationId, 'No plots generated.');
       } else {
-        completeOperation(operationId, 'Successfully loaded observation data for ' + (response.obsID || obsId));
+         completeOperation(operationId, 'Loaded.');
       }
-
-      // Add observation removal functionality
-      if (!$(`#remove-${response.obsID}`).length && hasPlotTypes) {
-        const REMOVE_BUTTON = $('<button>', {
-          id: `remove-${response.obsID}`,
-          class: 'remove-observation-btn',
-          text: `Remove Observation ${response.obsID}`,
-        });
-
-        REMOVE_BUTTON.click(function () {
-          removePlots(response, REMOVE_BUTTON);
-        });
-
-        $('#remove-obs').append(REMOVE_BUTTON);
+      
+      const currentObsId = response.obsID || obsId;
+      if (currentObsId && !$(`#remove-${currentObsId.replace(/,/g, '-')}`).length && hasPlotTypes && response.plotDivs) {
+        // Only show remove button if it's NOT a giant combined list
+        if ((currentObsId.match(/,/g) || []).length < 3) {
+            const safeId = currentObsId.replace(/,/g, '-');
+            const REMOVE_BUTTON = $('<button>', { id: `remove-${safeId}`, class: 'remove-observation-btn', text: `Remove ${currentObsId}` });
+            REMOVE_BUTTON.click(function () { removePlots({obsID: currentObsId}, REMOVE_BUTTON); });
+            $('#remove-obs').append(REMOVE_BUTTON);
+        }
       }
     },
     error: function (_, textStatus, errorThrown) {
@@ -497,54 +230,38 @@ export function fetchGraphPlots(refresh = false, event) {
       errorOperation(operationId, 'Network error occurred');
       alert('An error occurred while fetching data. Please try again.');
     },
-    complete: function () {
-      // Operation completion is handled in success/error callbacks
-    },
   });
 }
 
 export function removePlots(response, removeButton) {
-  // Remove plots for this observation
-  $('.plot-type-section').each(function () {
-    const TYPE = this.id.replace('-section', '');
-    $(this).find(`#${TYPE}-${response.obsID}`).remove();
-
-    if ($(this).children('div').length == 0) {
-      $(this).remove();
-    }
-
-    updateCombineButtonVisibility(TYPE);
-  });
-
-  // Remove the info section for this observation
-  $(`[data-obs-id="${response.obsID}"]`).remove();
-
-  // Hide the table and add observation button
-  if ($('#obs-info-table').find('tr').length <= 1) {
-    $('#obs-info').hide();
-    $('#add-obs').hide();
+  if (!response && !removeButton) {
+      $('#plots').empty();
+      $('#remove-obs').empty();
+      setTimeout(() => { updateAllSelections(); }, 100);
+      return;
   }
-
-  // Remove the remove button itself
-  $(removeButton).remove();
-
-  // If we're removing a plot, update the synchronized selections
-  setTimeout(() => {
-    console.log('Running updateAllSelections after removing plots');
-    updateAllSelections();
-  }, 500);
+  if (response && response.obsID) {
+      $('.plot-type-section').each(function () {
+        const TYPE = this.id.replace('-section', '');
+        // Try precise match then fuzzy match
+        let target = $(this).find(`[id*="${response.obsID.replace(/,/g, '-')}"]`);
+        target.remove();
+        
+        if ($(this).children('div').length == 0) { $(this).remove(); }
+        updateCombineButtonVisibility(TYPE);
+      });
+      $(`[data-obs-id="${response.obsID}"]`).remove();
+      if ($('#obs-info-table').find('tr').length <= 1) { $('#obs-info').hide(); $('#add-obs').hide(); }
+      if (removeButton) $(removeButton).remove();
+      setTimeout(() => { updateAllSelections(); }, 500);
+  }
 }
 
 export function updateCombineButtonVisibility(plotType) {
   let obsIDs = new Set();
-
-  $(`#${plotType}-section`)
-    .children('div')
-    .each(function () {
-      obsIDs.add(this.id.replace(`${plotType}-`, ''));
-    });
-
-  $(`.combine-gtis:has(input[name="plot_type"][value="${plotType}"])`).toggle(
-    obsIDs.size >= 2,
-  );
+  $(`#${plotType}-section`).children('div').each(function () { 
+      // Simple count of plots
+      obsIDs.add(this.id);
+  });
+  $(`.combine-gtis:has(input[name="plot_type"][value="${plotType}"])`).toggle(obsIDs.size >= 2);
 }

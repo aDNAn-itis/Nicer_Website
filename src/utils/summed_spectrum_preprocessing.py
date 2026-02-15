@@ -5,7 +5,7 @@ import re
 import os
 import time
 import logging
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Any
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,8 @@ from astropy.io import fits
 
 from src.utils.plots import data_plot
 from src.utils.spectrum_preprocessing import channel_kev
+
+from src.utils.spectrum_preprocessing import spectrum_data  
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

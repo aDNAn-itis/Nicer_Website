@@ -1,226 +1,475 @@
-{% extends 'base.html' %} {% load static %} {% block head %}
-<link rel="stylesheet" href="{% static '/css/plot.css' %}" />
-<link rel="stylesheet" href="{% static '/css/interactive-linking.css' %}" />
+{% extends 'base.html' %} {% load static %} 
 
+{% block head %}
+<link rel="stylesheet" href="{% static '/css/plot.css' %}" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
-<script id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+<script src="{% static 'js/plots/plot.js' %}?v=2000" type="module"></script>
+
+<script
+  id="MathJax-script"
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
+></script>
 
 <script>
+  // --- URL CONSTANTS FOR JAVASCRIPT ---
   const PLOT_GRAPH_URL = "{% url 'plots:plot_data' %}";
   const PLOT_GTI_URL = "{% url 'plots:plot_gti' %}";
+  const PLOT_COMBINED_URL = "{% url 'plots:plot_combined' %}"; 
+  const SOURCE_SEARCH_URL = "{% url 'plots:source_search' %}"; 
   let quality = '{{ quality }}';
 </script>
 
-<script src="{% static '/js/plots/plot.js' %}" type="module"></script>
+<style>
+  /* --- 🎨 Page Layout 🎨 --- */
+  .page-layout-container {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    padding: 1rem;
+    gap: 2rem;
+  }
+  .layout-left-column {
+    flex: 1 1 40%;
+    min-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  .layout-right-column {
+    flex: 1 1 55%;
+    min-width: 500px;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  .layout-left-column .section,
+  .layout-right-column .section {
+    padding: 0;
+    width: 100%;
+  }
 
-{% endblock %} {% block content %}
-<!-- Interactive Plots Header -->
-<section class="hero" style="background: var(--space-gradient); min-height: 40vh; display: flex; align-items: center">
-  <div class="container">
-    <div class="hero-content" style="text-align: center; color: white">
-      <h1
-        style="
-          font-size: 3rem;
-          margin-bottom: 1rem;
-          background: linear-gradient(45deg, white, #fbbf24, #c0c0c0);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        "
-      >
-        Interactive Data Analysis
-      </h1>
-      <p class="hero-subtitle" style="font-size: 1.25rem; opacity: 0.9; max-width: 800px; margin: 0 auto">
-        Explore NICER X-ray timing and spectroscopy data with advanced visualization tools and synchronized multi-plot
-        analysis
-      </p>
-    </div>
-  </div>
-</section>
+  /* --- 🎨 Utility 🎨 --- */
+  .hide { display: none !important; }
 
-<!-- Search and Filter Section -->
-<section class="section" style="background: var(--bg-secondary); padding: 2rem 0">
-  <div class="container">
-    <div class="card" style="padding: 2rem; border-radius: 1rem; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1)">
-      <h2 style="margin-bottom: 1.5rem; color: var(--text-primary); text-align: center">Search Observations</h2>
+  /* --- 🎨 Search Form 🎨 --- */
+  .search-form-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.5rem; 
+    align-items: end; 
+  }
+  .search-group { display: flex; flex-direction: column; }
+  .search-group label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary, #6b7280);
+    margin-bottom: 0.25rem;
+  }
+  .search-form-container input,
+  .search-form-container select {
+    font-size: 0.95rem !important;
+    padding: 0.6rem 0.75rem !important;
+    border: 1px solid var(--border-color, #ccc) !important;
+    border-radius: 6px !important;
+    background: #fff !important;
+    width: 100% !important;
+    box-sizing: border-box !important; 
+    margin-bottom: 0 !important; 
+    transition: all 0.2s ease !important;
+    height: 38px;
+    font-family: inherit;
+    color: var(--text-primary);
+  }
+  .search-form-container input:focus,
+  .search-form-container select:focus {
+    border-color: var(--nicer-light-blue, #3b82f6) !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+    outline: none;
+  }
+  
+  .search-group-searchby { grid-column: 1 / 3; }
+  .search-group-quality { grid-column: 1 / 2; }
+  .search-group-searchtext { grid-column: 2 / 3; }
+  .search-group-button { grid-column: 1 / 3; }
 
-      <form id="plot-graph" method="post" style="margin-bottom: 0">
-        {% csrf_token %}
-        <div class="row" style="align-items: end; gap: 1rem">
-          <div class="column">
-            <label for="search-type">Search by:</label>
-            <select id="search-type" name="search_type" class="dropdown-field">
-              <option value="obs_id" selected>Observation ID</option>
-              <option value="source">Source Name</option>
-            </select>
-          </div>
+  .btn-search {
+    width: 100%;
+    font-size: 0.95rem !important;
+    padding: 0.6rem 1rem !important;
+    border-radius: 6px !important;
+    height: 38px !important;
+    line-height: 1.3;
+    font-weight: 600;
+    background-color: #fff !important;
+    border: 1px solid var(--nicer-light-blue, #3b82f6) !important;
+    color: var(--nicer-light-blue, #3b82f6) !important;
+    transition: all 0.2s ease;
+  }
+  .btn-search:hover {
+    background-color: var(--nicer-light-blue, #3b82f6) !important;
+    border-color: var(--nicer-light-blue, #3b82f6) !important;
+    color: white !important;
+  }
 
-          <!-- Observation ID and Source Name Inputs -->
-          <div class="column">
-            <div class="dropdown" id="obs-id-dropdown">
-              <input
-                id="observation-search"
-                class="dropdown-field"
-                name="obs_id"
-                type="text"
-                value="{{ obsID }}"
-                placeholder="Observation ID..."
-              />
-              <div id="observation-options" class="dropdown-content"></div>
-            </div>
+  /* --- 🎨 Results Area 🎨 --- */
+  .results-container { margin-top: 2rem; padding-top: 1rem; }
+  .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .results-left, .results-right { display: flex; flex-direction: column; gap: 1rem; }
+  .results-container h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
 
-            <div class="dropdown" id="source-name-dropdown" style="display: none">
-              <input
-                id="source-search"
-                class="dropdown-field"
-                name="source"
-                type="text"
-                value="{{ sourceName }}"
-                placeholder="Source Name..."
-              />
-              <div id="source-options" class="dropdown-content"></div>
-            </div>
-          </div>
+  /* --- 🎨 Info Box / List Box 🎨 --- */
+  .info-box {
+    border: 1px solid var(--border-color, #e5e7eb);
+    background: #fff; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    padding: 1.5rem;
+    width: 100%; 
+    box-sizing: border-box; 
+    min-height: 250px;
+    max-height: 250px;
+    overflow-y: auto;
+  }
+  .info-box ul { list-style: none; padding: 0; margin: 0; }
+  .info-box li {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.95rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+  }
+  .info-box li:last-child { border-bottom: none; }
+  .info-box li strong { font-weight: 600; color: var(--text-primary); margin-right: 1rem; }
+  .info-box li span { color: var(--text-secondary); text-align: right; }
 
-          <!-- Quality Dropdown -->
-          <div class="column">
-            <div class="dropdown">
-              <input
-                id="quality-select"
-                class="dropdown-field"
-                name="quality"
-                type="text"
-                value="{{ quality }}"
-                placeholder="Quality..."
-                readonly="true"
-              />
-              <div class="dropdown-content">
-                <button class="change-quality" type="button" name="goddard">Goddard</button>
-                <button class="change-quality" type="button" name="gold">Gold</button>
-                <button class="change-quality" type="button" name="silver">Silver</button>
-                <button class="change-quality" type="button" name="radium">Radium</button>
-                <button class="change-quality" type="button" name="pyrite">Pyrite</button>
+  /* --- 🎨 Plot Selection Styling 🎨 --- */
+  .plot-selection-box { display: flex; flex-direction: column; gap: 0.75rem; }
+  .plot-checkbox { display: flex; align-items: center; gap: 0.5rem; }
+  .plot-checkbox input { width: 1.1rem; height: 1.1rem; }
+  .plot-checkbox label { font-size: 0.95rem; color: var(--text-secondary); }
+
+  /* --- 🎨 Buttons 🎨 --- */
+  .btn-sketch {
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    padding: 0.75rem 1rem !important;
+    border-radius: 6px !important;
+    height: 38px !important; 
+    line-height: 1.3 !important; 
+    text-transform: none !important;
+    text-align: center;
+    width: 100%; 
+    cursor: pointer;
+    background: #fff !important;
+    border: 1px solid var(--border-color, #ccc) !important;
+    color: var(--text-primary, #333) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .btn-sketch:hover { background: var(--bg-secondary, #f8fafc) !important; }
+  .stacked-btn { margin-top: 1rem; }
+
+  /* --- 🎨 Plot Container 🎨 --- */
+  #plots { min-height: 400px; margin-bottom: 2rem; }
+
+  /* --- 🎨 Modal 🎨 --- */
+  .modal-overlay {
+    display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+    width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.6);
+  }
+  .modal-content {
+    background-color: var(--bg-secondary, #fefefe); color: var(--text-primary, #333);
+    margin: 10vh auto; padding: 20px; border: 1px solid var(--border-color, #888);
+    border-radius: 1rem; width: 90%; max-width: 1200px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border-color, #eee); padding-bottom: 1rem;
+  }
+  .modal-header h2 { margin: 0; color: var(--text-primary, #333); }
+  .modal-close-btn {
+    color: var(--text-secondary, #aaa); font-size: 28px; font-weight: bold;
+    cursor: pointer; line-height: 1;
+  }
+  .modal-close-btn:hover, .modal-close-btn:focus { color: var(--text-primary, #000); text-decoration: none; }
+  .modal-body { padding-top: 1.5rem; max-height: 70vh; overflow-y: auto; }
+  .modal-body .gti-table { width: 100%; border-collapse: collapse; }
+  .modal-body .gti-table th:first-child, .modal-body .gti-table td:first-child,
+  .modal-body .gti-table th:last-child, .modal-body .gti-table td:last-child { text-align: center; }
+  .modal-body .gti-table td:first-child { vertical-align: middle; }
+
+  /* --- 🎨 List Styling 🎨 --- */
+  #obsid-search-input {
+    font-size: 0.95rem !important;
+    padding: 0.6rem 0.75rem !important;
+    border: 1px solid var(--border-color, #ccc) !important;
+    border-radius: 6px !important;
+    background: #fff !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    height: 38px;
+    font-family: inherit;
+    color: var(--text-primary);
+  }
+  #obsid-search-input:focus {
+    border-color: var(--nicer-light-blue, #3b82f6) !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+    outline: none;
+  }
+
+  .list-group-scrollable {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px; 
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); 
+  }
+  
+  #all-obsids-list, #selected-obsids-list {
+    min-height: 250px;
+    max-height: 250px; 
+  }
+  
+  .list-group-scrollable li {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+  }
+  .list-group-scrollable li:last-child { border-bottom: none; }
+  .list-group-scrollable li:hover { background: var(--bg-secondary, #f8fafc); color: var(--text-primary); }
+
+  #selected-obsids-list li { display: flex; justify-content: space-between; align-items: center; }
+  .remove-btn { color: #ef4444; font-weight: bold; font-size: 1rem; cursor: pointer; padding: 2px 5px; }
+  .remove-btn:hover { color: #b91c1c; }
+
+  /* --- 🎨 ObsID Separator 🎨 --- */
+  .obsid-separator {
+    display: flex; align-items: center; text-align: center;
+    margin: 2rem 0 1rem 0; width: 100%;
+  }
+  .obsid-separator::before, .obsid-separator::after { content: ''; flex: 1; border-bottom: 2px solid #e5e7eb; }
+  .obsid-separator:not(:empty)::before { margin-right: 1rem; }
+  .obsid-separator:not(:empty)::after { margin-left: 1rem; }
+
+  .obsid-text {
+    font-size: 1.4rem; font-weight: 800; color: #4b5563;       
+    text-transform: uppercase; letter-spacing: 0.5px;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .obsid-value-red { color: #dc2626; font-family: 'Courier New', monospace; margin-left: 0.5rem; }
+
+</style>
+{% endblock %} 
+
+{% block content %}
+<div class="page-layout-container">
+  
+  <div class="layout-left-column">
+    
+    <section class="section">
+      <div class="container">
+        
+        <form id="plot-graph" method="post" style="margin-bottom: 0">
+            {% csrf_token %}
+            <div class="search-form-container">
+              
+              <div class="search-group search-group-searchby">
+                <label for="search-type">Search by:</label>
+                <select id="search-type" name="search_type">
+                  <option value="obs_id" selected>Observation ID</option>
+                  <option value="source">Source Name</option>
+                </select>
+              </div>
+
+              <div class="search-group search-group-quality">
+                <label for="quality-select">quality:</label>
+                <div class="dropdown">
+                  <select id="quality-select" name="quality" class="dropdown-field">
+                    <option value="goddard" {% if quality == 'goddard' %}selected{% endif %}>Goddard</option>
+                    <option value="gold" {% if quality == 'gold' %}selected{% endif %}>Gold</option>
+                    <option value="silver" {% if quality == 'silver' %}selected{% endif %}>Silver</option>
+                    <option value="radium" {% if quality == 'radium' %}selected{% endif %}>Radium</option>
+                    <option value="pyrite" {% if quality == 'pyrite' %}selected{% endif %}>Pyrite</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="search-group search-group-searchtext">
+                <label for="observation-search" id="search-input-label">search in the database for OBSID/Source</label>
+                <div class="dropdown" id="obs-id-dropdown">
+                  <input
+                    id="observation-search"
+                    name="obs_id"
+                    type="text"
+                    value="{{ obsID }}"
+                    placeholder="Observation ID..."
+                  />
+                  <div id="observation-options" class="dropdown-content"></div>
+                </div>
+                <div class="dropdown" id="source-name-dropdown" style="display: none">
+                  <input
+                    id="source-search"
+                    name="source"
+                    type="text"
+                    value="{{ sourceName }}"
+                    placeholder="Source Name..."
+                  />
+                  <div id="source-options" class="dropdown-content"></div>
+                </div>
+              </div>
+
+              <div class="search-group search-group-button">
+                <button type="submit" class="btn-search">
+                  search
+                </button>
               </div>
             </div>
-          </div>
+          </form>
+          
+          <div id="observation-details" class="results-container">
+            
+            <div class="results-grid">
+              
+              <div class="results-left">
+                <h3>General Info:</h3>
+                <div class="info-box" id="general-info-box">
+                  <ul></ul>
+                </div>
+              </div>
+              
+              <div class="results-right">
+                <h3 id="all-obsids-title">All ObsIDs for...</h3>
+                <input type="text" id="obsid-search-input" class="form-control" placeholder="Search ObsID in list...">
+                <ul id="all-obsids-list" class="list-group-scrollable">
+                  </ul>
+              </div>
+            </div>
 
-          <!-- Submit Button -->
-          <div class="column" style="display: flex; align-items: end">
-            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1rem">
-              <i class="fas fa-search"></i>
-              Search & Plot
+            <div class="obsid-separator">
+              <span id="current-obsid-display" class="obsid-text">
+                Current ObsID: <span class="obsid-value-red">---</span>
+              </span>
+            </div>
+
+            <div class="results-grid" style="margin-top: 1rem;">
+              
+              <div class="results-left">
+                  <h3>Selected ObsIDs:</h3>
+                  <ul id="selected-obsids-list" class="list-group-scrollable" style="min-height: 250px;">
+                    </ul>
+                  <button id="show-gti-btn" class="btn-sketch stacked-btn">Show GTI's</button>
+              </div>
+
+              <div class="results-right">
+                
+                <form id="plot-selection-form" method="post">
+                  
+                  <h3 id="plot-selection-title">Select Plot Types for...</h3>
+                  <div class="plot-selection-box info-box" style="min-height: 220px; margin-bottom: 1.5rem;">
+                    <div class="plot-checkbox">
+                      <input type="checkbox" id="plot-spectrum" name="plot_types" value="spectrum">
+                      <label for="plot-spectrum">Spectrum</label>
+                    </div>
+                    <div class="plot-checkbox">
+                      <input type="checkbox" id="plot-summed-spectrum" name="plot_types" value="summed_spectrum">
+                      <label for="plot-summed-spectrum">Summed Spectrum</label>
+                    </div>
+                    <div class="plot-checkbox">
+                      <input type="checkbox" id="plot-light-curve" name="plot_types" value="light_curve">
+                      <label for="plot-light-curve">Light Curve</label>
+                    </div>
+                    <div class="plot-checkbox">
+                      <input type="checkbox" id="plot-pds" name="plot_types" value="power_density_spectrum">
+                      <label for="plot-pds">Power Density Spectrum</label>
+                    </div>
+                    <div class="plot-checkbox">
+                      <input type="checkbox" id="plot-hid" name="plot_types" value="hardness_intensity_diagram">
+                      <label for="plot-hid">Hardness Intensity Diagram</label>
+                    </div>
+                  </div>
+
+                  <div id="global-tools-section" class="hide">
+                    <h3>Generic View of Source</h3>
+                    <div class="plot-selection-box info-box" style="min-height: auto; padding: 1rem; border: 1px solid #e5e7eb; background-color: #fff;">
+                      <div class="plot-checkbox">
+                        <input type="checkbox" id="plot-global-hid" name="plot_types" value="global-hid">
+                        <label for="plot-global-hid">
+                          Global HID Diagram
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="margin-top: 1.5rem;">
+                    <button id="download-obs-btn" class="btn-sketch download-data">Download</button>
+                    <button type="submit" form="plot-selection-form" id="plot-selected-btn" class="btn-search stacked-btn">
+                      Plot
+                    </button>
+                  </div>
+
+                </form>
+
+              </div>
+            </div>
+            
+          </div> 
+      </div> 
+    </section>
+  </div> 
+
+  <div class="layout-right-column">
+    <section class="section">
+      <div class="container">
+        <div id="plots"></div> 
+
+        <div id="remove-obs" style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center"></div>
+
+        <form id="add-obs" method="post" class="hide" style="text-align: center; margin-top: 2rem">
+          {% csrf_token %}
+          <button id="add-obs-btn" type="button" class="btn-outline">
+            <i class="fas fa-plus"></i>
+            Add Another Observation
+          </button>
+          <div id="add-obs-dropdown" class="hide dropdown" style="max-width: 400px; margin: 1rem auto 0">
+            <input
+              id="additional-observation-search"
+              class="dropdown-field"
+              name="obs_id"
+              type="text"
+              value="{{ obsID }}"
+              placeholder="Enter Observation ID..."
+            />
+            <div id="additional-observation-options" class="dropdown-content"></div>
+            <button type="submit" class="btn-primary" style="margin-top: 1rem">
+              <i class="fas fa-check"></i>
+              Add
             </button>
           </div>
-        </div>
-
-        <!-- Advanced Search Button -->
-        <!-- <div style="text-align: center; margin-top: 1rem">
-          <button type="button" id="advance-search-btn" class="btn btn-outline" disabled>
-            <i class="fas fa-filter"></i>
-            Advanced Search (Coming Soon)
-          </button>
-        </div> -->
-
-        <!-- Advanced Search Section - Commented Out -->
-        <!--
-        <div
-          id="advanced-search"
-          style="
-            display: none;
-            margin-top: 2rem;
-            padding: 2rem;
-            background: var(--bg-color);
-            border-radius: 0.75rem;
-            border: 1px solid var(--border-color);
-          "
-        >
-          <h3 style="margin-bottom: 1.5rem; color: var(--text-primary)">Observation ID Summary</h3>
-          <div class="row" style="gap: 1rem">
-            <div class="column">
-              <label for="ra">RA (degrees):</label>
-              <input id="ra" class="dropdown-field" name="ra" type="text" placeholder="Right Ascension..." />
-            </div>
-            <div class="column">
-              <label for="dec">DEC (degrees):</label>
-              <input id="dec" class="dropdown-field" name="dec" type="text" placeholder="Declination..." />
-            </div>
-            <div class="column">
-              <label for="tstart_tt">TStart_TT:</label>
-              <input id="tstart_tt" class="dropdown-field" name="tstart_tt" type="text" placeholder="Tstart_tt..." />
-            </div>
-            <div class="column">
-              <label for="tstop_tt">TStop_TT:</label>
-              <input id="tstop_tt" class="dropdown-field" name="tstop_tt" type="text" placeholder="Tstop_tt..." />
-            </div>
-          </div>
-          <div class="row" style="gap: 1rem; margin-top: 1rem">
-            <div class="column">
-              <label for="ndets_used">Detectors Used:</label>
-              <input id="ndets_used" class="dropdown-field" name="ndets_used" type="text" placeholder="ndets_used..." />
-            </div>
-            <div class="column">
-              <label for="ushoot_net_rate">Undershoot Rate:</label>
-              <input
-                id="ushoot_net_rate"
-                class="dropdown-field"
-                name="ushoot_net_rate"
-                type="text"
-                placeholder="Undershoot..."
-              />
-            </div>
-            <div class="column">
-              <label for="oshoot_net_rate">Overshoot Rate:</label>
-              <input
-                id="oshoot_net_rate"
-                class="dropdown-field"
-                name="oshoot_net_rate"
-                type="text"
-                placeholder="Overshoot..."
-              />
-            </div>
-          </div>
-        </div>
-        -->
-      </form>
-    </div>
-  </div>
-</section>
-
-<!-- Results Section -->
-<section class="section">
-  <div class="container">
-    <div id="obs-info" class="info-container hide" style="margin-bottom: 2rem">
-      <h3 style="margin-bottom: 1rem; color: var(--text-primary)">Observation Information</h3>
-      <table id="obs-info-table" class="info-table obs-id-table"></table>
-    </div>
-
-    <div id="plots" style="margin-bottom: 2rem"></div>
-
-    <div id="remove-obs" style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center"></div>
-
-    <form id="add-obs" method="post" class="hide" style="text-align: center; margin-top: 2rem">
-      {% csrf_token %}
-      <button id="add-obs-btn" type="button" class="btn btn-outline">
-        <i class="fas fa-plus"></i>
-        Add Another Observation
-      </button>
-      <div id="add-obs-dropdown" class="hide dropdown" style="max-width: 400px; margin: 1rem auto 0">
-        <input
-          id="additional-observation-search"
-          class="dropdown-field"
-          name="obs_id"
-          type="text"
-          value="{{ obsID }}"
-          placeholder="Enter Observation ID..."
-        />
-        <div class="dropdown-content"></div>
-        <button type="submit" class="btn btn-primary" style="margin-top: 1rem">
-          <i class="fas fa-check"></i>
-          Add
-        </button>
+        </form>
       </div>
-    </form>
+    </section>
   </div>
-</section>
+</div>
+
+<div id="gti-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="gti-modal-title">GTI Details</h2>
+      <span class="modal-close-btn">&times;</span>
+    </div>
+    <div class="modal-body" id="gti-modal-body"></div>
+  </div>
+</div>
+
 {% endblock %}

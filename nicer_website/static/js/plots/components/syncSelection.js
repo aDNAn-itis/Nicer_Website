@@ -2,7 +2,8 @@
  * Synchronized selection functionality for plotly graphs
  * This module enables synchronized region selection across different plot types
  * (light curve, spectrum, etc.) so when a user selects a region on one graph,
- * the same time region is automatically selected on other graphs
+ * the same time region is automatically selected on other graphs.
+ * * MODIFIED: Triple-Check Filter to exclude Global HID.
  */
 
 /**
@@ -77,15 +78,50 @@ export function initSynchronizedSelection() {
   addSyncSelectionStyles();
 
   // Find all plotly graphs on the page
-  const plotlyGraphs = document.querySelectorAll('.js-plotly-plot');
+  const allGraphs = document.querySelectorAll('.js-plotly-plot');
+
+  // 🔴 TRIPLE-CHECK FILTER: Ignore Global HID
+  const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
+    // 1. Check Title (Most Reliable)
+    const layoutTitle = plot.layout?.title;
+    const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
+    
+    if (titleText.includes('global hid') || titleText.includes('multi-observation')) {
+      console.log(`🛡️ SyncSelection: Ignoring Global HID (Title Match)`);
+      return false;
+    }
+
+    // 2. Check Parent Container ID (Walk up the DOM)
+    let parent = plot.parentElement;
+    while (parent) {
+      if (
+        parent.id === 'combined-hid-plot' ||
+        parent.id === 'global-safe-container' ||
+        parent.id === 'global-hid-section'
+      ) {
+        console.log(`🛡️ SyncSelection: Ignoring Global HID (Container Match)`);
+        return false;
+      }
+      parent = parent.parentElement;
+      if (parent === document.body) break; // Stop at body
+    }
+
+    // 3. Check Axis Label (Context)
+    const xaxis = plot.layout?.xaxis?.title?.text || '';
+    if (xaxis.toLowerCase().includes('hardness')) {
+       return false;
+    }
+
+    return true; // Safe to link
+  });
 
   // No graphs found, exit early
   if (!plotlyGraphs.length) {
-    console.log('No plots found to initialize');
+    console.log('No eligible plots found for synchronization (Global HID excluded)');
     return;
   }
 
-  console.log(`Found ${plotlyGraphs.length} Plotly graphs to initialize`);
+  console.log(`Found ${plotlyGraphs.length} eligible Plotly graphs to synchronize`);
 
   // Check if we have both light curve and spectrum
   let hasLightCurve = false;
@@ -315,9 +351,33 @@ function updateSelectionIndicators(sourceType) {
   if (!selectionState.activeSelection) return;
 
   // Find all plotly graph containers
-  const plotlyGraphContainers = document.querySelectorAll('.js-plotly-plot');
+  const allGraphs = document.querySelectorAll('.js-plotly-plot');
 
-  // Add indicators to all graphs
+  // 🔴 TRIPLE-CHECK FILTER: Apply to Indicators
+  const plotlyGraphContainers = Array.from(allGraphs).filter((plot) => {
+    // 1. Check Title
+    const layoutTitle = plot.layout?.title;
+    const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
+    if (titleText.includes('global hid') || titleText.includes('multi-observation')) return false;
+
+    // 2. Check Container
+    let parent = plot.parentElement;
+    while (parent) {
+      if (
+        parent.id === 'combined-hid-plot' ||
+        parent.id === 'global-safe-container' ||
+        parent.id === 'global-hid-section'
+      ) {
+        return false;
+      }
+      parent = parent.parentElement;
+      if (parent === document.body) break; // Stop at body
+    }
+
+    return true;
+  });
+
+  // Add indicators to all filtered graphs
   plotlyGraphContainers.forEach((graphContainer) => {
     if (!graphContainer) return;
 
@@ -347,11 +407,25 @@ function propagateSelection(xRange, sourceType) {
   try {
     console.log(`Propagating selection from ${sourceType} with range:`, xRange);
 
-    // Find all plotly graphs
-    const plotlyGraphs = document.querySelectorAll('.js-plotly-plot');
+    const allGraphs = document.querySelectorAll('.js-plotly-plot');
+
+    // 🔴 TRIPLE-CHECK FILTER: Apply to Propagation
+    const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
+        const layoutTitle = plot.layout?.title;
+        const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
+        if (titleText.includes('global hid') || titleText.includes('multi-observation')) return false;
+
+        let parent = plot.parentElement;
+        while (parent) {
+          if (parent.id === 'combined-hid-plot' || parent.id === 'global-safe-container' || parent.id === 'global-hid-section') return false;
+          parent = parent.parentElement;
+          if (parent === document.body) break;
+        }
+        return true;
+    });
 
     if (plotlyGraphs.length <= 1) {
-      console.log('Only one plot found, nothing to propagate to');
+      console.log('Only one eligible plot found, nothing to propagate to');
       return;
     }
 
@@ -502,7 +576,23 @@ function propagateGTISelection(gtiNumber, sourceType) {
   selectionState.inProgress = true;
 
   try {
-    const plotlyGraphs = document.querySelectorAll('.js-plotly-plot');
+    const allGraphs = document.querySelectorAll('.js-plotly-plot');
+
+    // 🔴 TRIPLE-CHECK FILTER: Apply to GTI
+    const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
+        const layoutTitle = plot.layout?.title;
+        const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
+        if (titleText.includes('global hid') || titleText.includes('multi-observation')) return false;
+
+        let parent = plot.parentElement;
+        while (parent) {
+          if (parent.id === 'combined-hid-plot' || parent.id === 'global-safe-container' || parent.id === 'global-hid-section') return false;
+          parent = parent.parentElement;
+          if (parent === document.body) break;
+        }
+        return true;
+    });
+
     const dimmedBaseColor = 'rgb(0,0,0)'; // Black for dimmed GTIs
     const baseDimmedOpacity = 0.2;
     const opacityStepPerGTI = 0.03;
@@ -596,7 +686,23 @@ function clearGTISelection() {
   selectionState.inProgress = true;
 
   try {
-    const plotlyGraphs = document.querySelectorAll('.js-plotly-plot');
+    const allGraphs = document.querySelectorAll('.js-plotly-plot');
+
+    // 🔴 TRIPLE-CHECK FILTER: Apply to Clear GTI
+    const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
+      const layoutTitle = plot.layout?.title;
+      const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
+      if (titleText.includes('global hid') || titleText.includes('multi-observation')) return false;
+
+      let parent = plot.parentElement;
+      while (parent) {
+        if (parent.id === 'combined-hid-plot' || parent.id === 'global-safe-container' || parent.id === 'global-hid-section') return false;
+        parent = parent.parentElement;
+        if (parent === document.body) break;
+      }
+      return true;
+    });
+
     plotlyGraphs.forEach((graph) => {
       const gd = graph;
       const update = {
@@ -656,7 +762,22 @@ function clearAllSelections() {
   selectionState.inProgress = true;
 
   try {
-    const plotlyGraphs = document.querySelectorAll('.js-plotly-plot');
+    const allGraphs = document.querySelectorAll('.js-plotly-plot');
+
+    // 🔴 TRIPLE-CHECK FILTER: Apply to Clear All
+    const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
+      const layoutTitle = plot.layout?.title;
+      const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
+      if (titleText.includes('global hid') || titleText.includes('multi-observation')) return false;
+
+      let parent = plot.parentElement;
+      while (parent) {
+        if (parent.id === 'combined-hid-plot' || parent.id === 'global-safe-container' || parent.id === 'global-hid-section') return false;
+        parent = parent.parentElement;
+        if (parent === document.body) break;
+      }
+      return true;
+    });
 
     plotlyGraphs.forEach((graph) => {
       try {

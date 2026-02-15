@@ -245,7 +245,7 @@ def main() -> None:
     result: dict[str, list[int | float | str | None]]
     lock: Lock = Lock()
     partial_func: partial[dict[str, list[int | float | str | None]]]
-    os.chdir('../')
+    #os.chdir('../')
 
     # Get data directory location from config.txt
     with open('config.txt', mode='r', encoding='utf-8') as config:

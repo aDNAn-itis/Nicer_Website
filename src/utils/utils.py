@@ -40,7 +40,7 @@ def progress_bar(i: int, total: int, text: str = '', **kwargs: Any) -> None:
 
 def min_bin(
         min_value: int,
-        data: ndarray[tuple[int], np.dtype[np.float_]]) -> ndarray[tuple[int], np.dtype[np.int_]]:
+        data: ndarray[tuple[int], np.dtype[np.float64]]) -> ndarray[tuple[int], np.dtype[np.int_]]:
     """
     Calculates the bin indices to ensure each bin has the minimum number of counts.
 
@@ -91,11 +91,11 @@ def min_bin(
 
 def binning(
         bins: ndarray[tuple[int], np.dtype[np.int_]],
-        data: ndarray[tuple[int] | tuple[int, int], np.dtype[np.float_]],
-        weights: ndarray[tuple[int], np.dtype[np.float_]] | None = None) -> tuple[
-            ndarray[tuple[int, int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int, int], np.dtype[np.float_]]]:
+        data: ndarray[tuple[int] | tuple[int, int], np.dtype[np.float64]],
+        weights: ndarray[tuple[int], np.dtype[np.float64]] | None = None) -> tuple[
+            ndarray[tuple[int, int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int, int], np.dtype[np.float64]]]:
     """
     Bin data into bins.
 
@@ -115,10 +115,10 @@ def binning(
         Binned data, bin widths and Poisson uncertainty
     """
     bin_width: float
-    bin_counts: ndarray[tuple[int], np.dtype[np.float_]]
-    bin_widths: ndarray[tuple[int], np.dtype[np.float_]] = np.array(())
-    data_bin: ndarray[tuple[int, int], np.dtype[np.float_]] = np.empty((0, len(data)))
-    uncertainty: ndarray[tuple[int, int], np.dtype[np.float_]] = np.empty((0, len(data)))
+    bin_counts: ndarray[tuple[int], np.dtype[np.float64]]
+    bin_widths: ndarray[tuple[int], np.dtype[np.float64]] = np.array(())
+    data_bin: ndarray[tuple[int, int], np.dtype[np.float64]] = np.empty((0, len(data)))
+    uncertainty: ndarray[tuple[int, int], np.dtype[np.float64]] = np.empty((0, len(data)))
 
     if len(bins) < 2:
         raise ValueError("Need at least 2 bin edges")

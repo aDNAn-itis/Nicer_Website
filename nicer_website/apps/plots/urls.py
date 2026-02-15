@@ -14,4 +14,6 @@ urlpatterns = [
     path('plot_gti', views.plot_gti, name='plot_gti'),
     path('fetch_sources', views.fetch_sources, name='fetch_sources'),
     path('download', views.download_data, name='download_data'),
+    path('source_search/', views.source_search_view, name='source_search'),
+    path('plot_combined', views.plot_combined_global_hid, name='plot_combined'),
 ]

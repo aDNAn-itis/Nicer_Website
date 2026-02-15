@@ -15,114 +15,92 @@ from src.utils.plots import data_plot
 def light_curve_data(
         min_value: int,
         data_path: str) -> tuple[
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]],
-            ndarray[tuple[int], np.dtype[np.float_]]]:
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]],
+            ndarray[tuple[int], np.dtype[np.float64]]]:
     """
     Fetches and corrects binned light curve data
-
-    Parameters
-    ----------
-    min_value : int
-        Minimum value used for binning
-    data_path : str
-        Path to the light curve
-
-    Returns
-    -------
-    tuple[ndarray, ndarray, ndarray, ndarray, ndarray, ndarray]
-        Binned relative time, light curve, background time, background, x width, and uncertainty
     """
     dets: int
     time_diff: float
     min_bins: ndarray[tuple[int], np.dtype[np.int_]]
-    x_bin: ndarray[tuple[int], np.dtype[np.float_]]
-    y_bin: ndarray[tuple[int], np.dtype[np.float_]]
-    bg_bin: ndarray[tuple[int], np.dtype[np.float_]]
-    counts: ndarray[tuple[int], np.dtype[np.float_]]
-    x_width: ndarray[tuple[int], np.dtype[np.float_]]
-    x_error: ndarray[tuple[int], np.dtype[np.float_]]
-    bg_x_bin: ndarray[tuple[int], np.dtype[np.float_]]
-    background: ndarray[tuple[int], np.dtype[np.float_]]
-    data: ndarray[tuple[int, int], np.dtype[np.float_]]
-    uncertainty: ndarray[tuple[int, int], np.dtype[np.float_]]
+    x_bin: ndarray[tuple[int], np.dtype[np.float64]]
+    y_bin: ndarray[tuple[int], np.dtype[np.float64]]
+    bg_bin: ndarray[tuple[int], np.dtype[np.float64]]
+    counts: ndarray[tuple[int], np.dtype[np.float64]]
+    x_width: ndarray[tuple[int], np.dtype[np.float64]]
+    x_error: ndarray[tuple[int], np.dtype[np.float64]]
+    bg_x_bin: ndarray[tuple[int], np.dtype[np.float64]]
+    background: ndarray[tuple[int], np.dtype[np.float64]]
+    data: ndarray[tuple[int, int], np.dtype[np.float64]]
+    uncertainty: ndarray[tuple[int, int], np.dtype[np.float64]]
 
-    data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
-    background = np.loadtxt(data_path.replace('.lc.gz', '.bg-lc.gz'), usecols=2)
-    time_diff = data[0][1] - data[0][0]
-    counts = data[1] * time_diff
-    dets = int(data[2][0])
+    # Load Data
+    try:
+        data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
+        try:
+            background = np.loadtxt(data_path.replace('.lc.gz', '.bg-lc.gz'), usecols=2)
+        except:
+            background = np.zeros(len(data[0]))
 
-    # Bin data
-    min_bins = min_bin(min_value, counts)
-    (y_bin, bg_bin, x_bin), x_width, uncertainty = binning(
-        min_bins,
-        np.stack((counts[:len(background)], background[:len(counts)], data[0][:len(background)])),
-    )
+        time_diff = data[0][1] - data[0][0]
+        counts = data[1] * time_diff
+        dets = int(data[2][0])
 
-    # Normalise data
-    y_bin = (y_bin - bg_bin) / (dets * time_diff)
-    bg_bin /= dets
-    bg_bin = np.insert(bg_bin, [0, -1], [bg_bin[0], bg_bin[-1]])
-    x_error = x_width * time_diff / 2
-    uncertainty /= dets * time_diff
-    bg_x_bin = x_bin.copy()
-    bg_x_bin = np.insert(
-        bg_x_bin,
-        [0, bg_x_bin.size],
-        [x_bin[0] - x_error[0], x_bin[-1] + x_error[-1]],
-    )
+        # Bin data
+        min_bins = min_bin(min_value, counts)
+        
+        valid_len = min(len(counts), len(background), len(data[0]))
+        
+        (y_bin, bg_bin, x_bin), x_width, uncertainty = binning(
+            min_bins,
+            np.stack((counts[:valid_len], background[:valid_len], data[0][:valid_len])),
+        )
 
-    return x_bin, y_bin, bg_x_bin, bg_bin, x_error, uncertainty[0]
+        # Normalise data
+        y_bin = (y_bin - bg_bin) / (dets * time_diff)
+        bg_bin /= dets
+        bg_bin = np.insert(bg_bin, [0, -1], [bg_bin[0], bg_bin[-1]])
+        x_error = x_width * time_diff / 2
+        uncertainty /= dets * time_diff
+        bg_x_bin = x_bin.copy()
+        bg_x_bin = np.insert(
+            bg_x_bin,
+            [0, bg_x_bin.size],
+            [x_bin[0] - x_error[0], x_bin[-1] + x_error[-1]],
+        )
+
+        return x_bin, y_bin, bg_x_bin, bg_bin, x_error, uncertainty[0]
+    except Exception as e:
+        print(f"Error processing LC {data_path}: {e}")
+        return (np.array([]),) * 6
 
 def align_light_curves(
         min_value: int,
         data_paths: list[str],
         gti_numbers: list[int],
-) -> tuple[
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]],
-    list[ndarray[tuple[int], np.dtype[np.float_]]]]:
+) -> tuple:
     """
-    Aligns multiple light curves by ensuring correct GTI interval separation and grouping by GTI
-    number
-
-    Parameters
-    ----------
-    min_value : int
-        Minimum value used for binning
-    data_paths : list[str]
-        List of paths to light curve data files
-    gti_numbers : list[int]
-        List of GTI numbers
-
-    Returns
-    -------
-    Tuple of aligned data lists, grouped by GTI number
+    Aligns multiple light curves by ensuring correct GTI interval separation.
+    NOTE: Used for single-obs GTI stitching logic.
     """
     i: int
     gti_num: int
     max_duration: float
     data_path: str
-    group: list[dict[str, ndarray[tuple[int], np.dtype[np.float_]]]]
-    aligned_group: list[dict[str, ndarray[tuple[int], np.dtype[np.float_]]]]
-    x_data: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    y_data: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    x_errors: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    background: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    x_background: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    uncertainties: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    data: tuple[ndarray[tuple[int], np.dtype[np.float_]], ...]
-    gti_groups: dict[int, list[dict[str, ndarray[tuple[int], np.dtype[np.float_]]]]] = {}
-    aligned_gti_groups: dict[int, list[dict[str, ndarray[tuple[int], np.dtype[np.float_]]]]] = {}
-    group_data: dict[str, ndarray[tuple[int], np.dtype[np.float_]]]
-    aligned_group_data: dict[str, ndarray[tuple[int], np.dtype[np.float_]]]
+    group: list[dict[str, ndarray]]
+    aligned_group: list[dict[str, ndarray]]
+    x_data: list[ndarray] = []
+    y_data: list[ndarray] = []
+    x_errors: list[ndarray] = []
+    background: list[ndarray] = []
+    x_background: list[ndarray] = []
+    uncertainties: list[ndarray] = []
+    gti_groups: dict = {}
+    aligned_gti_groups: dict = {}
 
     for data_path, gti_num in zip(data_paths, gti_numbers):
         data = light_curve_data(min_value, data_path)
@@ -174,58 +152,47 @@ def align_light_curves(
 
 def light_curve_plot(
     min_value: int,
-    obs_id: int,
+    obs_id: Any,
     data_paths: list[str],
     gti_numbers: list[int],
     gti_labels: list[str] | None = None,
     is_combined_obs: bool = False) -> str:
     """
-    Gets and plots the corrected light curve data
-
-    Parameters
-    ----------
-    min_value : int
-        Minimum value used for binning
-    obs_id : int
-        Observation ID
-    data_paths : list[str]
-        File path to the light curve
-    gti_numbers : list[int]
-        List of GTI numbers
-    gti_labels : list[str] | None, default = None
-        List of GTI labels
-    is_combined_obs : bool
-        Flag indicating if this is a combined observation plot
-
-    Returns
-    -------
-    str
-        Light curve plot as HTML
+    Gets and plots the corrected light curve data.
     """
     plot: str = ''
-    subplot_kwargs: list[dict[str, Any]] = [{'row': 1, 'col': 1}]
-    x_data: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    y_data: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    x_error: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    background: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    x_background: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
-    y_uncertainties: list[ndarray[tuple[int], np.dtype[np.float_]]] = []
+    subplot_kwargs: list[dict[str, Any]] = []
+    x_data: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    y_data: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    x_error: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    x_background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
+    y_uncertainties: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
 
+    # --- 🟢 AUTO-DETECT COMBINED MODE ---
+    obs_str = str(obs_id)
+    if ',' in obs_str:
+        is_combined_obs = True
+
+    # --- 1. Prepare Labels ---
+    if is_combined_obs:
+        obs_ids_list = obs_str.split(',')
+        if len(obs_ids_list) <= len(data_paths):
+             gti_labels = []
+             for i in range(len(data_paths)):
+                 oid = obs_ids_list[i % len(obs_ids_list)] 
+                 gti_labels.append(f"{oid}") 
+    
     if gti_labels is None:
         gti_labels = [f'GTI{gti}' for gti in gti_numbers]
 
-    if is_combined_obs:
-        x_data, y_data, x_background, background, x_error, y_uncertainties = align_light_curves(
+    # --- 2. Process Data ---
+    for data_path in data_paths:
+        x_bin, y_bin, bg_x_bin, bg_bin, x_err, uncertainty = light_curve_data(
             min_value,
-            data_paths,
-            gti_numbers,
+            data_path,
         )
-    else:
-        for data_path in data_paths:
-            x_bin, y_bin, bg_x_bin, bg_bin, x_err, uncertainty = light_curve_data(
-                min_value,
-                data_path,
-            )
+        if len(x_bin) > 0:
             x_data.append(x_bin)
             y_data.append(y_bin)
             x_background.append(bg_x_bin)
@@ -233,32 +200,54 @@ def light_curve_plot(
             x_error.append(x_err)
             y_uncertainties.append(uncertainty)
 
-    idxs = np.argsort([min(datum) for datum in x_data])
-    x_data = [x_data[idx] for idx in idxs]
-    y_data = [y_data[idx] for idx in idxs]
-    x_background = [x_background[idx] for idx in idxs]
-    background = [background[idx] for idx in idxs]
-    x_error = [x_error[idx] for idx in idxs]
-    y_uncertainties = [y_uncertainties[idx] for idx in idxs]
+    # --- 3. Normalization Logic ---
+    if is_combined_obs:
+        # === OVERLAY MODE (DAYS, ZERO-START) ===
+        x_background = [(datum - datum[0]) / 86400.0 for datum in x_background]
+        x_data = [(datum - datum[0]) / 86400.0 for datum in x_data]
+        x_error = [datum / 86400.0 for datum in x_error] 
+        
+        subplot_kwargs = [{'row': 1, 'col': 1}] * len(x_data)
+        x_axis_label = r'$\text{Relative Time (days)}$'
+    
+    else:
+        # === CHRONOLOGICAL MODE ===
+        idxs = np.argsort([min(datum) if len(datum)>0 else 0 for datum in x_data])
+        x_data = [x_data[idx] for idx in idxs]
+        y_data = [y_data[idx] for idx in idxs]
+        x_background = [x_background[idx] for idx in idxs]
+        background = [background[idx] for idx in idxs]
+        x_error = [x_error[idx] for idx in idxs]
+        y_uncertainties = [y_uncertainties[idx] for idx in idxs]
+        gti_labels = [gti_labels[idx] for idx in idxs]
 
-    x_background = [(datum - x_data[0][0]) / 3600 / 24 for datum in x_background]
-    x_data = [(datum - x_data[0][0]) / 3600 / 24 for datum in x_data]
-    x_error = [datum / 3600 / 24 for datum in x_error]
+        if len(x_data) > 0:
+            start_t = x_data[0][0]
+            x_background = [(datum - start_t) / 86400.0 for datum in x_background]
+            x_data = [(datum - start_t) / 86400.0 for datum in x_data]
+            x_error = [datum / 86400.0 for datum in x_error]
 
-    for i, x_datum in enumerate(x_data[1:]):
-        if x_datum[0] - x_data[i][-1] > 10 * max(np.diff(x_datum)):
-            subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + 1})
-        else:
-            subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col']})
+        subplot_kwargs = [{'row': 1, 'col': 1}]
+        for i, x_datum in enumerate(x_data[1:]):
+            if x_datum[0] - x_data[i][-1] > 10 * max(np.diff(x_datum)):
+                subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + 1})
+            else:
+                subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col']})
+        
+        x_axis_label = r'$\rm Relative\ Time\ (day)$'
 
+    # --- 4. Plot Generation ---
+    cols_count = subplot_kwargs[-1]['col'] if subplot_kwargs else 1
+    
     fig = make_subplots(
         rows=1,
-        cols=subplot_kwargs[-1]['col'],
+        cols=cols_count,
         shared_yaxes=True,
         horizontal_spacing=0.01,
     )
+    
     fig.add_annotation(
-        text=r'$\rm Relative\ Time\ (day)$',
+        text=x_axis_label,
         xref='paper',
         yref='paper',
         x=0.5,
@@ -292,6 +281,33 @@ def light_curve_plot(
         background,
         subplot_kwargs,
     )):
+        if is_combined_obs and len(x_datum) > 0:
+            end_time = x_datum[-1]
+            
+            # 1. Vertical Line (Forced on TOP)
+            fig.add_vline(
+                x=end_time, 
+                line_width=2, 
+                line_dash="dash", 
+                line_color=color,
+                opacity=0.8,
+                row=1, col=1,
+                layer="above"  #  Ensures line is visible over dense data
+            )
+            
+            # 2. Numeric Annotation
+            fig.add_annotation(
+                x=end_time,
+                y=1.05, 
+                yref="paper", 
+                text=f"{end_time:.4f} d",
+                showarrow=False,
+                font=dict(size=10, color=color),
+                textangle=-90,
+                xanchor="center",
+                yanchor="bottom"
+            )
+
         plot = data_plot(
             plot_type='lines+markers',
             gti_numbers=[gti_number],
@@ -303,11 +319,13 @@ def light_curve_plot(
             y_uncertainties=[y_uncertainty],
             background_list=[bg_datum],
             x_background_list=[bg_x_datum],
-            plot_kwargs={'mode': 'markers'},
+            plot_kwargs={'mode': 'markers', 'opacity': 0.7 if is_combined_obs else 1.0},
             layout_kwargs={
                 'title': f'Light Curve {obs_id}',
                 'yaxis_title': r'$\text{Photons}\ (s^{-1} {\rm det}^{-1})$',
-                'showlegend': i == len(gti_numbers) - 1,
+                'showlegend': True if is_combined_obs else (i == len(gti_numbers) - 1),
+                'template': 'plotly_white',
+                'hovermode': 'closest'
             },
             subplot_kwargs=subplot_kw,
             fig=fig,

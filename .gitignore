@@ -11,3 +11,6 @@
 **/*[Tt][Ee][Ss][Tt]*
 **/*[Tt][Ee][Mm][Pp]*.*
 /node_modules/
+**/.env
+exported_spectra/
+.DS_Store

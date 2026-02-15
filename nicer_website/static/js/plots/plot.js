@@ -1,279 +1,460 @@
-import { columnLayout, dropdowns } from './utils/utils.js';
-import {
-  displayInfo,
-  handleMultipleObservations,
-} from './components/observationInfo.js';
-import {
-  showPlotSelectionPopup,
-  fetchGraphPlots,
-  removePlots,
-} from './components/graph.js';
-import { fetchGTIPlot, combineAndPlotGTIs } from './components/gtiPlots.js';
-import { fetchOptions, addOption } from './components/dropdowns.js';
+/* plot.js v200 - Clean Slate */
+console.log("plot.js (v200 - Clean Slate) loaded.");
+
+import { displayInfo } from './components/observationInfo.js?v=15'; 
+import { fetchGraphPlots } from './components/graph.js';
 import { downloadData } from './components/download.js';
-import {
-  initSynchronizedSelection,
-  updateAllSelections,
-} from './components/syncSelection.js';
-import {
-  initInteractiveLinking,
-  diagnosePlotlyGraphs,
-} from './components/interactiveLinking.js';
+import { fetchOptions } from './components/dropdowns.js';
 import { StatusBar } from './components/statusBar.js';
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Initialize the status bar
-  StatusBar.getInstance();
+let allObservationsData = [];
 
-  // Ensure jQuery is loaded
-  if (typeof $ === 'undefined') {
-    console.error(
-      'jQuery is not loaded. Cannot initialize synchronized selection.',
-    );
-    return;
+
+function sanitizeId(obsId) {
+    if (!obsId) return '';
+    return String(obsId).replace(/[^a-zA-Z0-9-_]/g, '_');
+}
+
+function injectDynamicStyles() {
+    if (document.getElementById('plot-js-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'plot-js-styles';
+    style.innerHTML = `
+            #selected-obsids-list li.multi-selected { background-color: #e8f5e9; border: 2px solid #4caf50; font-weight: bold; }
+            #selected-obsids-list li.active-item { border-left: 5px solid #d9534f; background-color: #fff5f5; }
+
+    `;
+    document.head.appendChild(style);
+}
+
+
+setInterval(() => {
+    const globalPlotContainer = document.getElementById('combined-hid-plot');
+    if (globalPlotContainer) {
+        const graphDiv = globalPlotContainer.querySelector('.plotly-graph-div');
+        if (graphDiv && graphDiv._fullLayout) {
+            if (graphDiv._fullLayout.dragmode === 'select' || graphDiv._fullLayout.dragmode === 'lasso') {
+                console.log("💓 Heartbeat: Unlocking Global HID...");
+                Plotly.relayout(graphDiv, { 'dragmode': 'zoom', 'clickmode': 'event' });
+                Plotly.restyle(graphDiv, {selectedpoints: [null]});
+            }
+        }
+    }
+}, 1000); 
+
+
+
+function fetchObsIDDataForGTI(obsid) {
+    const formData = new FormData();
+    formData.append('obs_id', obsid);
+    formData.append('quality', $('#quality-select').val().toLowerCase());
+    formData.append('search_type', 'obs_id'); 
+    formData.append('get_detailed_info', 'true'); 
+    
+    const csrfTokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (!csrfTokenInput) return;
+    
+    fetch(PLOT_GRAPH_URL, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-CSRFToken': csrfTokenInput.value}
+    }).then(res => res.json()).then(data => {
+        if (data.info) displayInfo(data.info); 
+    }).catch(err => {
+        console.error("Background fetch failed", err);
+    });
+}
+
+function createListItem(obsId) {
+    let li = document.createElement("li");
+    li.id = `selected-${sanitizeId(obsId)}`;
+    li.setAttribute("data-obsid", obsId);
+    li.textContent = obsId;
+    li.title = "Single Click: View | Double Click: Compare";
+    li.style.cursor = "pointer";
+    let removeBtn = document.createElement("span");
+    removeBtn.className = "remove-btn";
+    removeBtn.innerHTML = "&times;";
+    li.appendChild(removeBtn);
+    return li;
+}
+
+function toggleMultiSelect(obsId) {
+    let li = document.getElementById(`selected-${sanitizeId(obsId)}`);
+    if (!li) {
+        li = createListItem(obsId);
+        document.getElementById('selected-obsids-list').appendChild(li);
+    }
+    li.classList.toggle('multi-selected');
+    if(li.classList.contains('multi-selected')) {
+        StatusBar.getInstance().show(`Added ${obsId} to Compare Group`, 1500);
+    } else {
+        StatusBar.getInstance().show(`Removed ${obsId} from Compare Group`, 1500);
+    }
+}
+
+function setActiveObsID(obsId) {
+    const currentObsDisplay = document.getElementById("current-obsid-display");
+    if (currentObsDisplay) currentObsDisplay.innerHTML = `Current ObsID: <span class="obsid-value-red">${obsId}</span>`;
+
+    const plotTitle = document.getElementById("plot-selection-title");
+    if (plotTitle) plotTitle.textContent = `Select Plot Types for Observation ID: ${obsId}`;
+
+    document.querySelectorAll('#selected-obsids-list li').forEach(li => {
+        li.classList.remove('active-item');
+    });
+    
+    const activeLi = document.getElementById(`selected-${sanitizeId(obsId)}`);
+    if(activeLi) activeLi.classList.add('active-item');
+
+    const obsData = allObservationsData.find(o => o.obsid === obsId);
+    if (obsData) {
+        const infoBoxUl = document.querySelector("#general-info-box ul");
+        if(infoBoxUl) {
+             infoBoxUl.innerHTML = `<li><strong>source:</strong> <span>${obsData.source || "..."}</span></li><li><strong>OBSID:</strong> <span>${obsData.obsid || "..."}</span></li><li><strong>Total no. of GTI's:</strong> <span>${obsData.gti_count !== undefined ? obsData.gti_count : "..."}</span></li><li><strong>RA(°):</strong> <span>${obsData.ra || "..."}</span></li><li><strong>DEC(°):</strong> <span>${obsData.dec || "..."}</span></li>`;
+        }
+        $('#show-gti-btn').prop('disabled', true).text("Loading Data...");
+        fetchObsIDDataForGTI(obsId);
+    } else {
+        fetchObsIDDataForGTI(obsId);
+    }
+}
+
+function handleGlobalPointClick(obsId) {
+    console.log("Global point clicked:", obsId);
+    const globalCheck = document.getElementById('plot-global-hid');
+    if(globalCheck) globalCheck.checked = false;
+
+    if (!document.getElementById(`selected-${sanitizeId(obsId)}`)) {
+        let li = createListItem(obsId);
+        document.getElementById('selected-obsids-list').appendChild(li);
+    }
+    setActiveObsID(obsId);
+    StatusBar.getInstance().show(`Selected ObsID ${obsId}.`, 2000);
+}
+
+function populateResultsLayout(data, searchType) {
+  allObservationsData = data.observations || [];
+  const allList = document.getElementById("all-obsids-list");
+  const selectedList = document.getElementById("selected-obsids-list");
+  const title = document.getElementById("all-obsids-title");
+  const globalToolsSection = document.getElementById("global-tools-section");
+
+  allList.innerHTML = "";
+  selectedList.innerHTML = "";
+  
+  const infoBoxUl = document.querySelector("#general-info-box ul");
+  if(infoBoxUl) infoBoxUl.innerHTML = "";
+
+  const globalCheck = document.getElementById('plot-global-hid');
+  if(globalCheck) globalCheck.checked = false;
+
+  if (searchType === 'source') {
+    if(globalToolsSection) globalToolsSection.classList.remove('hide'); // SHOW BUTTON
+    if(title) title.textContent = `All ObsIDs for ${data.source_name || "Unknown Source"}`;
+    
+    if (allObservationsData.length === 0) {
+        allList.innerHTML = "<li>No observations found.</li>";
+    } else {
+        allObservationsData.forEach((obs) => {
+            let li = document.createElement("li");
+            li.textContent = obs.obsid;
+            li.setAttribute("data-obsid", obs.obsid);
+            allList.appendChild(li);
+        });
+    }
+  } else {
+
+    if(globalToolsSection) globalToolsSection.classList.add('hide'); // HIDE BUTTON
+    
+    if (allObservationsData.length === 0) {
+        if(title) title.textContent = "ObsID not found";
+        allList.innerHTML = "<li>N/A</li>";
+    } else {
+        const obsData = allObservationsData[0];
+        const obsid = obsData.obsid;
+        if(title) title.textContent = `ObsID: ${obsid}`;
+        
+        let li = createListItem(obsid);
+        selectedList.appendChild(li);
+        setActiveObsID(obsid);
+    }
+  }
+}
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  StatusBar.getInstance();
+  injectDynamicStyles(); 
+  
+  // GLOBAL HID CHECKBOX
+  const globalHidCheckbox = document.getElementById('plot-global-hid');
+  if (globalHidCheckbox) {
+    globalHidCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+            const allList = document.getElementById('all-obsids-list');
+            const selectedList = document.getElementById('selected-obsids-list');
+            const allItems = allList.querySelectorAll('li');
+
+            if (allItems.length === 0 || (allItems.length === 1 && allItems[0].textContent.includes("No observations"))) {
+                alert("No observations found. Please search for a Source first.");
+                this.checked = false; 
+                return;
+            }
+            selectedList.innerHTML = ""; 
+            let count = 0;
+            allItems.forEach(item => {
+                const obsId = item.getAttribute('data-obsid');
+                if (obsId) {
+                    let li = createListItem(obsId);
+                    selectedList.appendChild(li);
+                    count++;
+                }
+            });
+            StatusBar.getInstance().show(`Selected ${count} observations for Global HID.`, 3000);
+        }
+    });
   }
 
-  dropdowns();
+  const searchForm = document.getElementById("plot-graph");
+  const searchTypeSelect = document.getElementById("search-type");
 
-  $('#plot-graph').submit(function (event) {
-    event.preventDefault();
-    fetchGraphPlots(true, event);
+  $(document).on('submit', '#plots form', function(event) {
+      event.preventDefault();
+      fetchGTIPlot(event);
   });
+  
+  if (searchTypeSelect) {
+    searchTypeSelect.addEventListener("change", () => {
+      if (searchTypeSelect.value === "obs_id") {
+        document.getElementById("obs-id-dropdown").style.display = "block";
+        document.getElementById("source-name-dropdown").style.display = "none";
+        $('#global-hid-section').remove();
+        $('#global-safe-container').remove(); 
+        const globalTools = document.getElementById("global-tools-section");
+        if(globalTools) globalTools.classList.add('hide'); 
+        const globalCheck = document.getElementById('plot-global-hid');
+        if(globalCheck) globalCheck.checked = false;
+      } else {
+        document.getElementById("obs-id-dropdown").style.display = "none";
+        document.getElementById("source-name-dropdown").style.display = "block";
+      }
+    });
+  }
 
-  $('#add-obs').submit(function (event) {
-    $('#options')
-      .find('input:checked')
-      .each(function () {
-        $('#add-obs').append(
-          $('<input>', {
-            type: 'hidden',
-            name: $(this).attr('name'),
-            value: $(this).val(),
-          }),
-        );
-      });
+  if (searchForm) {
+    searchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      StatusBar.getInstance().show("Searching...", -1);
+      const formData = new FormData(searchForm);
+      const searchType = formData.get("search_type");
+      let url = (searchType === "obs_id") ? PLOT_GRAPH_URL : SOURCE_SEARCH_URL;
 
-    event.preventDefault();
-    fetchGraphPlots(false, event);
-  });
+      try {
+        const response = await fetch(url, { method: "POST", body: formData });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        if (data.error) {
+            StatusBar.getInstance().show(data.error, 5000, true);
+            return;
+        }
+        populateResultsLayout(data, searchType);
+        document.getElementById("observation-details").style.display = "block";
+        StatusBar.getInstance().show(`Found ${data.observations.length} obs.`, 3000);
+      } catch (error) {
+        console.error("Error during search:", error);
+        StatusBar.getInstance().show(error.message || "An error occurred.", 5000, true);
+      }
+    });
+  }
 
-  $('#observation-search').keyup(function () {
-    fetchOptions(`obs_id=${this.value}`, $('#obs-id-dropdown'));
-  });
+  const obsidFilter = document.getElementById("obsid-search-input");
+  if (obsidFilter) {
+    obsidFilter.addEventListener("keyup", () => {
+      const filter = obsidFilter.value.toUpperCase();
+      const listItems = document.getElementById("all-obsids-list").getElementsByTagName("li");
+      for (let item of listItems) {
+        item.style.display = item.textContent.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+      }
+    });
+  }
 
-  $('#additional-observation-search').keyup(function () {
-    fetchOptions(`obs_id=${this.value}`, $('#add-obs-dropdown'));
-  });
+  const allObsidsList = document.getElementById("all-obsids-list");
+  if (allObsidsList) {
+    allObsidsList.addEventListener("click", (e) => {
+      if (e.target.tagName === "LI") {
+          const obsid = e.target.getAttribute("data-obsid");
+          const selectedList = document.getElementById("selected-obsids-list");
+          if (!document.getElementById(`selected-${sanitizeId(obsid)}`)) {
+              let li = createListItem(obsid);
+              selectedList.appendChild(li);
+          }
+          setActiveObsID(obsid);
+      }
+    });
+  }
 
-  $('#source-search').keyup(function () {
-    fetchOptions(`source=${this.value}`, $('#source-name-dropdown'));
-  });
-
-  $('#add-obs-btn').click(function () {
-    $('#add-obs-dropdown').toggle();
-  });
-
-  $('#search-type').change(function () {
-    $('#obs-id-dropdown').toggle();
-    $('#source-name-dropdown').toggle();
-  });
-
-  $('#advance-search-btn').click(function () {
-    $('#advanced-search').toggle();
-  });
-
-  $('.change-quality').click(function () {
-    $('#quality-select').val(this.textContent);
-  });
-
-  $(document).on('submit', '.fetch-gti', function (event) {
-    fetchGTIPlot(event);
-  });
-
-  $(document).on('submit', '.combine-gtis', function (event) {
-    combineAndPlotGTIs(event);
-  });
-
-  $(document).on('click', '.popup-close', function () {
-    $('#plot-selection-popup').hide();
-  });
-
-  $(document).on('click', '.plot-button', function () {
-    const obsID = $(this).data('obs-id');
-    showPlotSelectionPopup(obsID);
-  });
-
-  $(document).on('click', '.download-data', function () {
-    const dataType = $(this).data('type');
-    const obsId = $(this).data('obs-id');
-    // First try to get GTI from button data attribute, then fallback to table row
-    let gtiNum = $(this).data('gti');
-    if (!gtiNum) {
-      gtiNum = $(this).closest('tr').data('gti')?.replace('GTI', '');
-    }
-    const quality = $('#quality-select').val();
-
-    if (dataType === 'gti' && gtiNum) {
-      downloadData(dataType, obsId, null, [gtiNum], quality);
-    } else {
-      downloadData(dataType, obsId, null, null, quality);
-    }
-  });
-
-  $(document).on('click', '.plot-gti', function (event) {
-    event.preventDefault();
-    
-    const obsId = $(this).data('obs-id');
-    const gtiNum = $(this).data('gti');
-    
-    console.log(`[DEBUG plot.js] GTI Plot button clicked. ObsID: ${obsId}, GTI: ${gtiNum}`);
-    
-    // Store the GTI number for later use when the plot selection is made
-    window.selectedGTI = gtiNum;
-    window.selectedGTIObsId = obsId;
-    
-    console.log(`[DEBUG plot.js] Stored GTI values. selectedGTI: ${window.selectedGTI}, selectedGTIObsId: ${window.selectedGTIObsId}`);
-    
-    // Show the plot selection popup
-    showPlotSelectionPopup(obsId);
-  });
-
-  $(document).on('change', '.gti-checkbox', function () {
-    const $table = $(this).closest('table');
-    const hasChecked = $table.find('.gti-checkbox:checked').length > 0;
-    $table.siblings('.selected-gti-actions').toggle(hasChecked);
-  });
-
-  $(document).on('click', '.download-selected-gtis', function () {
-    const $table = $(this).closest('.obs-info-container').find('table');
-    const obsId = $table.find('tr:first').data('obs-id');
-    const selectedGtis = [];
-    const quality = $('#quality-select').val();
-
-    $table.find('.gti-checkbox:checked').each(function () {
-      const gtiNum = $(this).closest('tr').data('gti').replace('GTI', '');
-      selectedGtis.push(gtiNum);
+  const selectedObsidsList = document.getElementById("selected-obsids-list");
+  if (selectedObsidsList) {
+    selectedObsidsList.addEventListener("click", (e) => {
+      if (e.target.classList.contains("remove-btn")) {
+        e.target.parentElement.remove();
+        if (selectedObsidsList.children.length === 0) {
+             const currentObsDisplay = document.getElementById("current-obsid-display");
+             if(currentObsDisplay) currentObsDisplay.innerHTML = `Current ObsID: <span class="obsid-value-red">---</span>`;
+             const infoBoxUl = document.querySelector("#general-info-box ul");
+             if(infoBoxUl) infoBoxUl.innerHTML = "";
+        }
+        return;
+      }
+      const li = e.target.closest('li');
+      if (li) setActiveObsID(li.getAttribute("data-obsid"));
     });
 
-    if (selectedGtis.length > 0) {
-      downloadData('gti', obsId, null, selectedGtis, quality);
-    }
-  });
+    selectedObsidsList.addEventListener("dblclick", (e) => {
+        const li = e.target.closest('li');
+        if (li) {
+            e.preventDefault(); 
+            toggleMultiSelect(li.getAttribute("data-obsid"));
+        }
+    });
+  }
 
-  // Initialize synchronized selection when new plots are loaded
-  $(document).ajaxComplete(function (event, xhr, settings) {
-    if (
-      settings.url.includes('plot_data') ||
-      settings.url.includes('plot_gti')
-    ) {
-      // Use a flag to track if we've successfully initialized
-      let initialized = false;
+  const plotForm = document.getElementById("plot-selection-form");
+  if(plotForm) {
+    plotForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        
+        const selectedList = document.getElementById("selected-obsids-list");
+        const obsidsToPlot = [];
+        const isGlobalHID = document.getElementById('plot-global-hid').checked;
 
-      // First attempt with short delay
-      setTimeout(() => {
-        if (initialized) return;
-
-        // Ensure global Plotly object is available
-        if (typeof Plotly !== 'undefined') {
-          console.log('First attempt initializing interactive features...');
-
-          const plots = document.querySelectorAll('.js-plotly-plot');
-          if (plots.length > 0) {
-            // Only initialize if not already initialized
-            const alreadyInitialized = Array.from(plots).some(
-              (plot) =>
-                plot.getAttribute('data-interactive-linking') === 'true',
-            );
-
-            if (!alreadyInitialized) {
-              initSynchronizedSelection();
-              initInteractiveLinking();
-              initialized = true;
-            } else {
-              console.log('Interactive features already initialized, skipping');
-              initialized = true;
+        if (isGlobalHID) {
+        
+            selectedList.querySelectorAll('li').forEach(li => obsidsToPlot.push(li.getAttribute('data-obsid')));
+            
+            if (obsidsToPlot.length === 0) {
+                StatusBar.getInstance().show("Please add items to list for Global HID.", 4000, true);
+                return;
             }
-          }
+
+            StatusBar.getInstance().show(`Processing Global HID...`, -1);
+            const formData = new FormData();
+            formData.append('obs_ids', obsidsToPlot.join(',')); 
+            formData.append('quality', document.getElementById('quality-select').value);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            fetch(PLOT_COMBINED_URL, { method: 'POST', body: formData })
+            .then(response => response.json())
+            .then(data => {
+                if (data.plotDiv) {
+                    const safeContainerId = 'global-safe-container';
+                    if ($(`#${safeContainerId}`).length === 0) {
+                        $('#plots').before(`<div id="${safeContainerId}" style="margin-bottom: 2rem; border-bottom: 1px solid #ddd;"></div>`);
+                    }
+                    $(`#${safeContainerId}`).html(`<div class="plot-type-section"><h3>GLOBAL HID</h3><div id="combined-hid-plot">${data.plotDiv}</div></div>`);
+                    $('#plots').empty();
+                    
+                    document.getElementById('plot-global-hid').checked = false;
+
+                    if (window.MathJax) MathJax.typeset();
+                    StatusBar.getInstance().show("Global HID generated.", 3000);
+                    
+                    const graphDiv = document.getElementById('combined-hid-plot').querySelector('.plotly-graph-div');
+                    let lastClickTime = 0;
+
+                    if (graphDiv) {
+                        graphDiv.removeAllListeners('plotly_click');
+                        graphDiv.on('plotly_click', function(evData) {
+                            const currentTime = new Date().getTime();
+                            const timeDiff = currentTime - lastClickTime;
+                            lastClickTime = currentTime;
+
+                            const point = evData.points[0];
+                            let obsId = point.text.replace(/<[^>]*>/g, '').trim(); 
+
+                            if (timeDiff < 500) {
+                                console.log("Double Click on Point:", obsId);
+                                toggleMultiSelect(obsId); 
+                            } else {
+                                console.log("Single Click on Point:", obsId);
+                                handleGlobalPointClick(obsId); 
+                            }
+                        });
+                        
+                        Plotly.relayout(graphDiv, { dragmode: 'zoom' });
+                    }
+                }
+            })
+            .catch(e => { console.error(e); StatusBar.getInstance().show("Error generating plot.", 5000, true); });
+
         } else {
-          console.error(
-            'Plotly is not loaded. Cannot initialize interactive features.',
-          );
+        
+            const multiSelectedItems = selectedList.querySelectorAll('li.multi-selected');
+            
+            if (multiSelectedItems.length > 0) {
+                // Scenario A: User explicitly selected (Green) items
+                multiSelectedItems.forEach(li => obsidsToPlot.push(li.getAttribute('data-obsid')));
+                StatusBar.getInstance().show(`Comparing ${obsidsToPlot.length} highlighted observations...`, -1);
+            } else {
+                // If nothing is green, but items exist in list -> Use ALL of them
+                const allListItems = selectedList.querySelectorAll('li');
+                
+                if (allListItems.length > 0) {
+                     allListItems.forEach(li => obsidsToPlot.push(li.getAttribute('data-obsid')));
+                     StatusBar.getInstance().show(`Comparing all ${obsidsToPlot.length} listed observations...`, -1);
+                } else {
+                    // Scenario C: Fallback to single active (Standard Search)
+                    const currentObsElement = document.querySelector("#current-obsid-display .obsid-value-red");
+                    let activeObsId = currentObsElement ? currentObsElement.textContent.trim() : null;
+                    if (activeObsId && activeObsId !== "---" && activeObsId !== "...") {
+                        obsidsToPlot.push(activeObsId);
+                        StatusBar.getInstance().show(`Plotting ${activeObsId}...`, -1);
+                    } else {
+                        StatusBar.getInstance().show("Select an ObsID to plot (Double-click to compare).", 4000, true);
+                        return;
+                    }
+                }
+            }
+
+            $('#plots').empty(); 
+            const $tempForm = $('<form>');
+            
+            const combinedString = obsidsToPlot.join(',');
+            $tempForm.append($('<input>').attr('name', 'obs_id').val(combinedString));
+            $tempForm.append($('<input>').attr('name', 'quality').val($('#quality-select').val()));
+            $tempForm.append($('<input>').attr('name', 'csrfmiddlewaretoken').val($('[name=csrfmiddlewaretoken]').val()));
+            
+            plotForm.querySelectorAll('input[name="plot_types"]:checked').forEach(input => {
+                if(input.value !== 'global-hid') {
+                    $tempForm.append($('<input>').attr('name', input.value).val('on'));
+                    $tempForm.append($('<input>').attr('name', 'plot_types').val(input.value));
+                }
+            });
+
+            fetchGraphPlots(false, { preventDefault: () => {}, target: $tempForm[0] });
         }
-      }, 500);
+    });
+  }
 
-      // Second attempt only if first failed
-      setTimeout(() => {
-        if (initialized) return;
-
-        if (typeof Plotly !== 'undefined') {
-          console.log('Second attempt initializing interactive features...');
-
-          const plots = document.querySelectorAll('.js-plotly-plot');
-          if (plots.length > 0 && !initialized) {
-            initSynchronizedSelection();
-            updateAllSelections();
-            initInteractiveLinking();
-            initialized = true;
-          }
-        }
-      }, 1000);
+  $('#additional-observation-search').keyup(function () { fetchOptions(`obs_id=${this.value}`, $('#additional-observation-options')); });
+  $('#source-search').keyup(function () { fetchOptions(`source=${this.value}`, $('#source-options')); });
+  $('#add-obs-btn').click(function () { $('#add-obs-dropdown').toggle(); });
+  $('#advance-search-btn').click(function () { $('#advanced-search').toggle(); });
+  $('.change-quality').click(function () { $('#quality-select').val(this.textContent); });
+  $(document).on('click', '.popup-close', function () { $('#gti-modal').hide(); });
+  $(document).on('click', '.download-data', function () {
+    const dataType = $(this).data('type');
+    let obsId = $(this).data('obs-id');
+    if (!obsId) {
+        const currentObsIdText = document.getElementById('current-obsid-display').textContent;
+        if (currentObsIdText && !currentObsIdText.includes("---")) obsId = currentObsIdText.replace('Current ObsID: ', '');
     }
+    if (!obsId) { alert("Please select an ObsID first."); return; }
+    let gtiNum = $(this).data('gti');
+    const quality = $('#quality-select').val();
+    if (dataType === 'gti' && gtiNum) downloadData(dataType, obsId, null, [gtiNum], quality);
+    else downloadData(dataType, obsId, null, null, quality);
   });
 
-  // Make diagnostic function available globally
-  window.diagnosePlotlyGraphs = diagnosePlotlyGraphs;
-});
-
-// Initialize interactive linking feature when plots are added
-$(document).on('DOMNodeInserted', function (e) {
-  // Only process if inserted node contains a plotly graph
-  if (
-    $(e.target).find('.js-plotly-plot').length > 0 ||
-    $(e.target).hasClass('js-plotly-plot')
-  ) {
-    // Allow DOM to fully render
-    setTimeout(() => {
-      // Initialize only if not already initialized
-      const plots = document.querySelectorAll('.js-plotly-plot');
-      const initialized = Array.from(plots).some(
-        (plot) => plot.getAttribute('data-interactive-linking') === 'true',
-      );
-
-      if (!initialized) {
-        console.log('Initializing interactive linking after DOM insertion');
-        initInteractiveLinking();
-      }
-    }, 500);
-  }
-});
-
-// Add a global fallback click handler for plots
-$(document).on('click', '.js-plotly-plot', function (event) {
-  // Only handle if it appears we don't have working interactive linking
-  if (this.getAttribute('data-interactive-linking') !== 'true') {
-    const plots = document.querySelectorAll('.js-plotly-plot');
-    // Only attempt if we haven't tried to initialize yet
-    if (plots.length >= 2 && !window.interactiveLinkingAttempted) {
-      console.log(
-        'Attempting to initialize interactive linking from global handler',
-      );
-      window.interactiveLinkingAttempted = true;
-      initInteractiveLinking();
-    }
-  }
-});
-
-// Listen for our custom plotly_direct_click event
-$(document).on('plotly_direct_click', function (e) {
-  // Only try to initialize interactive linking if not already done
-  if (!window.interactiveLinkingAttempted) {
-    const plots = document.querySelectorAll('.js-plotly-plot');
-    if (plots.length >= 2) {
-      console.log(
-        'Attempting to initialize interactive linking from direct click event',
-      );
-      window.interactiveLinkingAttempted = true;
-      initInteractiveLinking();
-    }
-  }
 });
