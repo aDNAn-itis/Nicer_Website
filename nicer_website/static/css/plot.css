@@ -22,7 +22,6 @@ button {
   flex-grow: 1;
   font-size: var(--major-font-size);
   font-weight: 500;
-  width: 100%;
   padding: 0.75rem 1rem;
   transition: all 0.2s ease;
   cursor: pointer;
@@ -596,44 +595,44 @@ th label {
   .info-table {
     min-width: 600px; /* Slightly smaller minimum on mobile but still scrollable */
   }
-  
+
   .actions-container {
     min-width: 110px;
     gap: 4px;
   }
-  
+
   .actions-container button {
     width: 85px; /* Same uniform width as main observation buttons on mobile */
     font-size: 9px;
     padding: 4px 6px;
     gap: 2px;
   }
-  
+
   .actions-container i {
     font-size: 8px;
   }
-  
+
   .gti-table th:last-child,
   .gti-table td:last-child {
     width: 110px;
   }
-  
+
   .obs-row .actions-container {
     min-width: 120px;
     gap: 4px;
   }
-  
+
   .obs-row .actions-container button {
     width: 85px; /* Smaller uniform width for mobile */
     font-size: 9px;
     padding: 4px 6px;
     gap: 2px;
   }
-  
+
   .obs-row .actions-container i {
     font-size: 8px;
   }
-  
+
   /* Slightly adjusted column widths for mobile but maintain readability */
   .obs-id-table th:nth-child(1),
   .obs-id-table td:nth-child(1) {
@@ -659,7 +658,7 @@ th label {
   .obs-id-table td:nth-child(5) {
     width: 110px; /* Source - smaller on mobile */
   }
-  
+
   .obs-id-table th:last-child,
   .obs-id-table td:last-child {
     width: 110px;
@@ -672,12 +671,12 @@ th label {
     margin: 1rem 0;
     border-radius: 0.5rem;
   }
-  
+
   .info-table {
     min-width: 550px; /* Even smaller minimum for very small screens */
     font-size: 12px; /* Slightly smaller font */
   }
-  
+
   .info-table th,
   .info-table td {
     padding: 0.5rem 0.25rem; /* More compact padding on very small screens */

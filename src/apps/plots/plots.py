@@ -6,8 +6,9 @@ from typing import Any
 
 import plotly.graph_objs as go
 from numpy import ndarray
-from plotly.offline import plot
+from plotly.io import to_json
 from plotly.colors import qualitative
+
 
 def data_plot(
         plot_type: str = 'markers',
@@ -37,7 +38,7 @@ def data_plot(
     gti_labels : list[str] | None, default = None
         List of labels for each GTI
     colors : list[str] | None, default = None
-        List of colors for each GTI, if None uses qualitative.Plotly
+        List of colours for each GTI, if None uses qualitative.Plotly
     x_errors : list[ndarray] | None, default = None
         List of x error bars
     x_data_list : list[ndarray] | None, default = None
@@ -64,7 +65,7 @@ def data_plot(
     Returns
     -------
     str
-        Plot as HTML
+        Plot as JSON string
     """
     trace_kwargs: dict[str, Any]
     logger: logging.Logger = logging.getLogger(__name__)
@@ -157,10 +158,4 @@ def data_plot(
             ), **subplot_kwargs or {})
 
     fig.update_layout(**layout_kwargs)
-
-    return plot(
-        fig,
-        output_type='div',
-        include_plotlyjs=False,
-        config={'displaylogo': False},
-    )
+    return to_json(fig)

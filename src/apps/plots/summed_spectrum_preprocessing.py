@@ -671,38 +671,36 @@ def summed_spectrum_plot(
         )
 
         # Integrate download button directly into the plot HTML
-        if len(valid_gtis) > 1:
-            gti_range_str = f"GTI{min(valid_gtis)}-{max(valid_gtis)}"
-        else:
-            gti_range_str = f"GTI{valid_gtis[0]}"
+        # if len(valid_gtis) > 1:
+        #     gti_range_str = f"GTI{min(valid_gtis)}-{max(valid_gtis)}"
+        # else:
+        #     gti_range_str = f"GTI{valid_gtis[0]}"
 
         # Add download button and script directly within the plot div
-        download_button = f"""
-        <div style="position: relative;">
-            {result}
-            <div style="position: absolute; bottom: 30px; right: 10px; z-index: 1000;">
-                <button onclick="downloadExportedFiles('{gti_range_str}', '{obs_id}')" 
-                        style="background-color: #4CAF50; color: black; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); opacity: 0.9; transition: opacity 0.2s;"
-                        onmouseover="this.style.opacity=1" 
-                        onmouseout="this.style.opacity=0.9">
-                    Download
-                </button>
-            </div>
-        </div>
-        <script>
-        function downloadExportedFiles(gtiRange, obsId) {{
-            // Create a download link for the spectrum files
-            const downloadUrl = `/download_exported_spectra/${{obsId}}_${{gtiRange}}/`;
-            window.open(downloadUrl, '_blank');
-        }}
-        </script>
-        """
+        # download_button = f"""
+        # <div style="position: relative;">
+        #     {result}
+        #     <div style="position: absolute; bottom: 30px; right: 10px; z-index: 1000;">
+        #         <button onclick="downloadExportedFiles('{gti_range_str}', '{obs_id}')"
+        #                 style="background-color: #4CAF50; color: black; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); opacity: 0.9; transition: opacity 0.2s;"
+        #                 onmouseover="this.style.opacity=1"
+        #                 onmouseout="this.style.opacity=0.9">
+        #             Download
+        #         </button>
+        #     </div>
+        # </div>
+        # <script>
+        # function downloadExportedFiles(gtiRange, obsId) {{
+        #     // Create a download link for the spectrum files
+        #     const downloadUrl = `/download_exported_spectra/${{obsId}}_${{gtiRange}}/`;
+        #     window.open(downloadUrl, '_blank');
+        # }}
+        # </script>
+        # """
 
-        result = download_button
+        # result = download_button
         plot_creation_time = time.time() - plot_creation_start
         logger.info(f"Plot creation completed in {plot_creation_time:.3f}s")
-        logger.info(f"Plot HTML length: {len(result)} characters")
-        logger.info(f"Plot HTML preview: {result[:200]}...")
 
         total_plot_time = time.time() - plot_start_time
         logger.info(f"Total summed spectrum plot generation time: {total_plot_time:.3f}s")

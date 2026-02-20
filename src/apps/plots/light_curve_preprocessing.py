@@ -246,7 +246,7 @@ def light_curve_plot(
     x_error = [datum / 3600 / 24 for datum in x_error]
 
     for i, x_datum in enumerate(x_data[1:]):
-        if x_datum[0] - x_data[i][-1] > 10 * max(np.diff(x_datum)):
+        if x_datum[0] - x_data[i][-1] > 10 * np.diff(x_datum).max():
             subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + 1})
         else:
             subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col']})

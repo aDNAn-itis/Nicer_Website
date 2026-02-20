@@ -7,9 +7,9 @@ import zipfile
 import tempfile
 import logging as log
 from time import time
-from typing import Any
 from pathlib import Path
 from dataclasses import dataclass
+from typing import Any, cast, Callable
 
 import numpy as np
 from django.conf import settings
@@ -29,39 +29,13 @@ from src.apps.plots.hardness_intensity_preprocessing import get_hid_data_and_plo
 # Info field (avg count)
 # Ability to choose grouping binning
 
-LOGGER: log.Logger = log.getLogger(__name__)
-PLOTS: dict[str, dict[str, Any]] = {
-    'spectrum': {
-        'exists': False,
-        'min_value': 0,  # Default min_value for spectrum
-        'file_type': '.jsgrp',
-        'function': spectrum_plot,
-    },
-    'summed_spectrum': {
-        'exists': False,
-        'min_value': 0,  # Default min_value for summed spectrum
-        'file_type': '.jsgrp',
-        'function': summed_spectrum_plot,
-    },
-    'light_curve': {
-        'exists': False,
-        'min_value': 100, # Default min_value for light_curve
-        'file_type': '.lc.gz',
-        'function': light_curve_plot,
-    },
-    'power_density_spectrum': {
-        'exists': False,
-        'min_value': 10,  # Default min_value for PDS adaptive binning (significance-based)
-        'file_type': '-bin.pds',
-        'function': get_pds_data_and_plot,
-    },
-    'hardness_intensity_diagram': {
-        'exists': False,
-        'min_value': 25,  # Default min_value for HID adaptive binning
-        'file_type': '.lc.gz',
-        'function': get_hid_data_and_plot,
-    },
-}
+
+@dataclass
+class PlotType:
+    exists: bool
+    min_value: int
+    file_type: str
+    function: Callable
 
 
 @dataclass
@@ -71,30 +45,189 @@ class PlotRequest:
 
     Attributes
     ----------
+    obs_search : bool
+        Flag indicating if the search is by observation ID (True) or source name (False)
     obs_id : int
         Observation ID
     min_value : float
         Minimum value for adaptive binning or plotting
+    source : str
+        Source name
     quality : str
         Pipeline quality
-    plot_type : str
-        Type of plot to generate
     gti_query : str | list[str]
         GTI query string or list of GTIs
     combined_obs_ids : list[int] | None
         List of combined observation IDs for multi-observation plots
+    plot_types : list[str] | None
+        List of plot types to generate
     """
-    obs_id: int
-    min_value: float
-    quality: str
-    plot_type: str
-    gti_query: str | list[str]
+    obs_search: bool = True
+    obs_id: int | None = None
+    min_value: float = 0
+    source: str = ''
+    quality: str = ''
+    gti_query: str | list[str] = ''
     combined_obs_ids: list[int] | None = None
+    plot_types: list[str] = None
 
     def __repr__(self) -> str:
-        return (f'PlotRequest(obs_id={self.obs_id}, min_value={self.min_value}, '
-                f'quality={self.quality}, plot_type={self.plot_type}, gti_query={self.gti_query}, '
-                f'combined_obs_ids={self.combined_obs_ids})')
+        return (f"PlotRequest({', '.join(
+            f'{key}={value}' for key, value in self.__dict__.items() if value
+        )})")
+
+    @classmethod
+    def from_request(cls, request: HttpRequest) -> 'PlotRequest':
+        post: dict[str, str] = request.POST.dict()
+        instance: PlotRequest = cls(
+            obs_search=post.pop('obs_search', 'true').lower() == 'true',
+            obs_id=int(post.pop('obs_id', 0) or 0),
+            source=post.pop('source', ''),
+            quality=post.pop('quality', ''),
+            gti_query=post.pop('gti-search', ''),
+            combined_obs_ids=[
+                int(obs) for obs in post.pop('combined_obs_ids', '').split(',')
+            ] if 'combined_obs_ids' in post else None,
+            plot_types=[],
+        )
+        for key in post:
+            key = key.replace('-', '_')
+
+            if key == 'csrfmiddlewaretoken':
+                continue
+            if key == 'plot_type':
+                instance.plot_types.append(post[key].replace('-', '_'))
+            if key not in PLOTS:
+                LOGGER.error(f'Invalid plot type in HTTP request: {key}')
+                continue
+            instance.plot_types.append(key)
+        return instance
+
+
+PLOTS: dict[str, PlotType] = {
+    'spectrum': PlotType(False, 0, 'jsgrp', spectrum_plot),
+    'light_curve': PlotType(False, 100, 'lc.gz', light_curve_plot),
+    'summed_spectrum': PlotType(False, 0, 'jsgrp', summed_spectrum_plot),
+    'power_density_spectrum': PlotType(False, 10, 'pds', get_pds_data_and_plot),
+    'hardness_intensity_diagram': PlotType(False, 25, 'lc.gz', get_hid_data_and_plot),
+}
+LOGGER: log.Logger = log.getLogger(__name__)
+
+
+def process_obs_id_search(plot_req: PlotRequest) -> JsonResponse | None:
+    """
+    Processes the observation ID search from either a provided observation ID or source name.
+    If multiple observations are found for a source, returns a JSON response with the options.
+    If no observation IDs are found, returns a JSON response with an error message.
+
+    Parameters
+    ----------
+    plot_req : PlotRequest
+        Plot request containing either an observation ID or source name and a flag indicating if the
+        search is by observation ID or source name
+
+    Returns
+    -------
+    JsonResponse | None
+        JsonResponse with multiple observation options or error message, or None if a single
+        observation ID is successfully found
+    """
+    obs_ids: list[dict[str, int | str | None]] = []
+
+    if plot_req.obs_search and plot_req.obs_id:
+        return None
+    if not plot_req.obs_search and plot_req.source:
+        obs_items = Item.objects.filter(
+            source=plot_req.source,
+            type=Item.dir,
+        ).distinct('path', 'source')
+
+        for item in obs_items:
+            obs_ids.append({'obs_id': item.obs_id, 'source': item.source})
+
+        if len(obs_ids) > 1:
+            return JsonResponse({
+                'multiple_observations': True,
+                'obs_ids': obs_ids,
+                'source': plot_req.source,
+            })
+
+        plot_req.obs_id = cast(int | None, obs_ids[0]['obs_id'])
+
+    if not plot_req.obs_id:
+        return JsonResponse({
+            'error': f'No observable data found for {
+                f'observation ID: {plot_req.obs_id}' if plot_req.obs_search else
+                f'source: {plot_req.source}'
+            }'
+        })
+    return None
+
+
+def process_plots(
+        files: QuerySet[Item],
+        plot_req: PlotRequest,
+        labels: list[str] | None = None) -> tuple[list[int], list[str]]:
+    """
+    Generates plots from the plot request.
+
+    Parameters
+    ----------
+    files : QuerySet[Item]
+        QuerySet of Item objects representing the files for the observation
+    plot_req : PlotRequest
+        Plot request containing the plot types to generate and other parameters
+    labels : list[str] | None, default = None
+        Optional list of labels for each GTI, if None, defaults to GTI number
+
+    Returns
+    -------
+    list[int]
+        List of maximum GTI numbers for each plot type
+    list[str]
+        List of plot divs as HTML strings for each plot type
+    """
+    ti: float
+    plot_type: str
+    max_gti: list[int] = []
+    plot_divs: list[str] = []
+    plot: PlotType
+
+    if not plot_req.plot_types:
+        return [], []
+
+    for plot_type, plot in PLOTS.items():
+        if not plot_type in plot_req.plot_types:
+            continue
+
+        LOGGER.info(f'Processing plot type: {plot_type}')
+        plot.exists = True
+        files = files.filter(
+            file_type=plot.file_type,
+        ).exclude(name__regex=r'_BAND\d+')
+
+        if files.exists():
+            ti = time()
+            files = files.order_by('gti')
+            max_gti.append(files.last().gti)
+            plot_div = plot.function(
+                plot.min_value,
+                ' '.join(map(str, plot_req.combined_obs_ids)) if plot_req.combined_obs_ids else
+                plot_req.obs_id,
+                [os.path.join(
+                    settings.DATA_DIR,
+                    str(file.obs_id),
+                    'jspipe',
+                    file.name,
+                ) for file in files],
+                list(files.values_list('gti', flat=True)),
+                gti_labels=labels,
+            )
+            LOGGER.info(f'{plot_type} function completed in {time() - ti:.3f}s')
+            plot_divs.append(plot_div)
+        else:
+            LOGGER.warning(f'No files found for plot type: {plot_type}')
+    return max_gti, plot_divs
 
 
 def interactive_plot(request: HttpRequest) -> HttpResponse:
@@ -116,186 +249,32 @@ def interactive_plot(request: HttpRequest) -> HttpResponse:
     })
 
 
-def multi_obs_gti(req: PlotRequest) -> JsonResponse:
+def parse_num_query(num_query: str) -> list[int]:
     """
-    Loads the combined GTI plot
+    Parses a number query string into a list of numbers.
 
     Parameters
     ----------
-    req : PlotRequest
-        Plot request containing combined observation IDs and other parameters
+    num_query : str
+        Number query string containing individual numbers and/or ranges (e.g. "1,3-5,7")
 
     Returns
     -------
-    JsonResponse
-        Json response containing the combined GTI plot
+    list[int]
+        List of numbers extracted from the query
     """
-    obs_id: int
-    plot_divs: str
-    plot_kwargs: dict[str, bool | int | float | list[int] | list[str]] = {
-        'is_combined_obs': 'is_combined_obs' in PLOTS[req.plot_type].get('optional_params', []),
-        'min_value': req.min_value,
-        'obs_id': req.obs_id,
-        'data_paths': [],
-        'gti_numbers': [],
-        'gti_labels': [],
-    }
-    idxs: np.ndarray
-    query: Q = Q()
-    files: QuerySet[Item]
-    file: Item
+    end: int
+    start: int
+    nums: list[int] = []
+    parts: list[str] = re.sub(r'[^\d,-]', '', num_query).split(',')
 
-    for obs_id in req.combined_obs_ids:
-        query |= Q(obs_id=obs_id)
-
-    files = Item.objects.filter(
-        query,
-        Q(name__contains=PLOTS[req.plot_type]['file_type']) | Q(name__contains=req.quality),
-        type=Item.file,
-    )
-
-    for file in files:
-        if match := re.search(r'GTI(\d+)', file.name):
-            plot_kwargs['data_paths'].append(str(os.path.join(
-                settings.DATA_DIR,
-                file.obsid,
-                'jspipe',
-                file.name,
-            )))
-            plot_kwargs['gti_numbers'].append(int(match.group(1)))
-            plot_kwargs['gti_labels'].append(f'GTI{match.group(1)} (Obs {obs_id})')
-
-    idxs = np.argsort(plot_kwargs['gti_numbers'])
-    plot_kwargs['data_paths'] = np.array(plot_kwargs['data_paths'])[idxs].tolist()
-    plot_kwargs['gti_numbers'] = np.array(plot_kwargs['gti_numbers'])[idxs].tolist()
-    plot_kwargs['gti_labels'] = np.array(plot_kwargs['gti_labels'])[idxs].tolist()
-
-    if not plot_kwargs['data_paths']:
-        LOGGER.error('No GTI files found')
-        return JsonResponse({
-            'error': 'No GTI files found for the specified combined observations'
-        })
-
-    plot_divs = PLOTS[req.plot_type]['function'](**plot_kwargs)
-    LOGGER.info('Successfully generated plot divs')
-    return JsonResponse({'plotDivs': [plot_divs]})
-
-
-def single_obs_summed(data_dir: str, req: PlotRequest) -> tuple[list[int], list[str]]:
-    """
-    Loads all GTI files for a single observation summed spectrum.
-
-    Parameters
-    ----------
-    data_dir : str
-        Directory path for the observation
-    req : PlotRequest
-        Plot request containing observation ID and other parameters
-
-    Returns
-    -------
-    tuple[list[int], list[str]]
-        Tuple containing a list of GTI numbers and a list of file paths
-    """
-    gti_nums: list[int] = []
-    file_paths: list[str] = []
-    gti_match: re.Match[str] | None
-    files: QuerySet[Item]
-    file: Item
-
-    files = Item.objects.filter(
-        Q(name__contains=req.quality) & Q(name__contains=PLOTS[req.plot_type]['file_type']),
-        obsid=req.obs_id,
-        type=Item.file,
-    )
-
-    for file in files:
-        file_path = os.path.join(data_dir, file.name)
-        file_paths.append(file_path)
-        gti_match = re.search(r'GTI(\d+)', file.name)
-
-        if gti_match:
-            gti_nums.append(int(gti_match.group(1)))
-        else:
-            gti_nums.append(0)
-    return gti_nums, file_paths
-
-
-def single_obs_gti(data_dir: str, req: PlotRequest) -> tuple[list[int], list[str]]:
-    """
-    Loads GTI files for a single observation based on the GTI query.
-
-    Parameters
-    ----------
-    data_dir : str
-        Directory path for the observation
-    req : PlotRequest
-        Plot request containing observation ID and other parameters
-
-    Returns
-    -------
-    tuple[list[int], list[str]]
-        Tuple containing a list of GTI numbers and a list of file paths
-    """
-    i: int
-    gti_num: int
-    gti: str
-    gti_nums: list[int] = []
-    file_paths: list[str] = []
-    gti_match: re.Match[str] | None
-    idxs: np.ndarray
-    files: QuerySet[Item]
-    query: Q = Q()
-    file: Item | None
-
-    gti_query = re.sub(r'[^\d,-]', '', req.gti_query).split(',')
-
-    for gti in gti_query:
-        if re.search(r'\d+-\d+', gti):
-            gti_range = list(map(int, gti.split('-')))
-            gti_range[-1] += 1
-            gti_nums.extend(range(*gti_range))
-        elif gti.isdigit():
-            gti_nums.append(int(gti))
-
-    gti_nums = np.unique(gti_nums).tolist()
-    LOGGER.info(f'Parsed GTIs from query: {gti_nums}')
-
-    for gti_num in gti_nums:
-        query |= Q(name__regex=fr'^\w*GTI{gti_num}\D[-_.\w]*$')
-
-    gti_nums = []
-    files = Item.objects.filter(
-        query,
-        Q(name__contains=req.quality) & Q(name__contains=PLOTS[req.plot_type]['file_type']),
-        obsid=req.obs_id,
-        type=Item.file,
-    )
-
-    for file in files:
-        gti_nums.append(int(re.search(r'GTI(\d+)', file.name).group(1)))
-        file_paths.append(os.path.join(data_dir, file.name))
-
-    idxs = np.argsort(gti_nums)
-    gti_nums = np.array(gti_nums)[idxs].tolist()
-    file_paths = np.array(file_paths)[idxs].tolist()
-
-    if file_paths:
-        return gti_nums, file_paths[::-1]
-
-    LOGGER.info('No files found for specified GTIs (or no GTIs specified in query), attempting '
-                'to use a default GTI')
-
-    if file := files.first():
-        file_paths = [os.path.join(data_dir, file.name)]
-
-        if gti_match := re.search(r'GTI(\d+)', file.name):
-            gti_nums = [int(gti_match.group(1))]
-        else:
-            LOGGER.warning(f'Could not extract GTI number from default file {file.name}, using GTI '
-                           f'0 as fallback for plotting function')
-            gti_nums = [0]
-    return gti_nums, file_paths
+    for part in parts:
+        if re.match(r'^\d+-\d+$', part):
+            start, end = map(int, part.split('-'))
+            nums.extend(range(start, end + 1))
+        elif part.isdigit():
+            nums.append(int(part))
+    return sorted(set(nums))
 
 
 def plot_gti(request: HttpRequest) -> JsonResponse:
@@ -315,73 +294,43 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     JsonResponse
         Json response containing the plot as a list of the HTML element (plotDivs)
     """
-    min_value: int
-    obs_id: int
     ti: float
-    quality: str
-    plot_type: str
-    dir_path: str
+    data_dir: str
     gti_nums: list[int]
     file_paths: list[str]
-    files: QuerySet[Item]
-    plot_req: PlotRequest = PlotRequest(
-        obs_id=int(request.POST.get('obs_id', 0)),
-        min_value=float(request.POST.get('min_value', 0)),
-        quality=request.POST.get('quality', ''),
-        plot_type=request.POST.get('plot_type', '').replace('-', '_'),
-        gti_query=request.POST.get('gti-search', ''),
-        combined_obs_ids=[
-            int(obs) for obs in request.POST.get('combined_obs_ids', '').split(',')
-        ] if 'combined_obs_ids' in request.POST else None,
-    )
+    labels: list[str] | None = None
+    plot_req: PlotRequest = PlotRequest.from_request(request)
+    plot: PlotType = PLOTS[cast(list[str], plot_req.plot_types)[0]]
 
     if not plot_req.min_value:
-        plot_req.min_value = PLOTS[plot_req.plot_type]['min_value']
+        plot_req.min_value = plot.min_value
 
-    data_dir = os.path.join(settings.DATA_DIR, os.path.join(str(plot_req.obs_id), 'jspipe'))
     LOGGER.info(f'Received POST data: {plot_req}')
 
     if not plot_req.obs_id and not plot_req.combined_obs_ids:
         LOGGER.error("obs_id is missing from POST data.")
         return JsonResponse({'error': 'obs_id is required.'}, status=400)
-    if not plot_req.plot_type:
-        LOGGER.error("plot_type is missing from POST data.")
-        return JsonResponse({'error': 'plot_type is required.'}, status=400)
 
-    if plot_req.plot_type not in PLOTS:
-        LOGGER.error(f"Invalid plot type: '{plot_req.plot_type}'")
-        return JsonResponse({'error': f'Invalid plot type: {plot_req.plot_type}'}, status=400)
+    gti_nums = parse_num_query(plot_req.gti_query)
+    files = Item.objects.filter(
+        quality=plot_req.quality,
+        file_type=plot.file_type,
+        **{'obs_id__in': plot_req.combined_obs_ids} if plot_req.combined_obs_ids else
+        {'obs_id': plot_req.obs_id},
+        **{'gti__in': gti_nums} if gti_nums else {},
+    )
+
+    if not files.exists():
+        return JsonResponse({
+            'error': f"No GTI data found for observation ID: {plot_req.obs_id} with GTI query: "
+                     f"'{plot_req.gti_query}'"
+        })
 
     if plot_req.combined_obs_ids:
-        LOGGER.info('Handling combined observations')
-        return multi_obs_gti(plot_req)
+        labels = [f'GTI{file.gti} (Obs {file.obs_id})' for file in files]
 
-    if plot_req.plot_type == 'summed_spectrum':
-        LOGGER.info(f'Handling summed spectrum for ObsID: {plot_req.obs_id}')
-        gti_nums, file_paths = single_obs_summed(data_dir, plot_req)
-    else:
-        LOGGER.info(f'Handling single observation for ObsID: {plot_req.obs_id}')
-        gti_nums, file_paths = single_obs_gti(data_dir, plot_req)
-
-    if not gti_nums or not file_paths:
-        LOGGER.error('No GTI files found')
-        return JsonResponse(
-            {'error': f'No GTI files found for plot type {plot_req.plot_type} in ObsID '
-                      f'{plot_req.obs_id}'},
-            status=400,
-        )
-
-    LOGGER.info(f'Using GTIs: {gti_nums} with files: {file_paths}')
-    ti = time()
-    plot_divs = PLOTS[plot_req.plot_type]['function'](
-        plot_req.min_value,
-        plot_req.obs_id,
-        file_paths,
-        gti_nums
-    )
-    plot_function_time = time() - ti
-    LOGGER.info(f'Generated plot divs in {plot_function_time:.3f} s')
-    return JsonResponse({'plotDivs': [plot_divs]})
+    plot_divs = process_plots(files, plot_req, labels=labels)[1]
+    return JsonResponse({'plotDivs': plot_divs})
 
 
 def plot_data(request: HttpRequest) -> JsonResponse:
@@ -403,191 +352,84 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         observation ID (obsID), quality (quality), if spectrum is plotted (spectrum),
         and if light curve is plotted (lightCurve)
     """
-    root: str
-    dir_path: str
+    data_dir: str
     file_name: str
-    obs_search: bool = request.POST.get('obs_search', 'true').lower() == 'true'
-    obs_id: str = request.POST.get('obs_id', '')
-    source: str = request.POST.get('source', '')
-    quality: str = request.POST.get('quality', '')
-    max_gti: list[int] = []
-    plot_divs: list[str] = []
+    plot_type: str
     infos: list[dict[str, Any]] = []
-    obs_ids: list[dict[str, str]] = []
-    item: Item
-    plot_type: dict[str, Any]
-    info: np.ndarray
-    indices: np.ndarray
-    file_names: np.ndarray
+    obs_info: dict[str, int | float | str | None]
+    result: JsonResponse | None
     files: QuerySet[Item]
     obs_items: QuerySet[Item]
+    item: Item
+    plot_info: PlotType
+    plot_req: PlotRequest = PlotRequest.from_request(request)
 
-    if not obs_search and source:
-        obs_items = Item.objects.filter(
-            source=source,
-            type=Item.dir,
-        ).distinct('path', 'source')
+    if result := process_obs_id_search(plot_req):
+        return result
 
-        for item in obs_items:
-            root = Path(item.path).parts[0]
-            obs_ids.append({'obs_id': root, 'source': item.source})
+    files = Item.objects.filter(
+        obs_id=plot_req.obs_id,
+        quality=plot_req.quality,
+        type=Item.file,
+    )
+    LOGGER.info(f'Found {files.count()} files for obs_id {plot_req.obs_id}')
 
-        if len(obs_ids) > 1:
-            return JsonResponse({
-                'multiple_observations': True,
-                'obs_ids': obs_ids,
-                'source': source
-            })
-
-        obs_id = obs_ids[0]['obs_id'] if obs_ids else ''
-
-    if obs_id:
-        files = Item.objects.filter(
-            name__contains=quality,
-            path__startswith=os.path.join(obs_id, 'jspipe'),
-            type=Item.file,
-        ).order_by('name')
-        print(f"Found {files.count()} files for obs_id {obs_id}")
-
-    if not obs_id or not files.exists():
+    if not files.exists():
         return JsonResponse({
-            'error': f'No observable data found for '
-            f"{f'observation ID: {obs_id}' if obs_search else f'source: {source}'}"
+            'error': f"No observable data found for {
+                f'observation ID: {plot_req.obs_id}' if plot_req.obs_search else
+                f'source: {plot_req.source}'
+            }"
         })
 
-    item = files.first()
+    item = cast(Item, files.first())
+    plot_req.source = plot_req.source or item.source
     obs_info = {
         'ra': item.ra,
         'dec': item.dec,
         'tstart_tt': item.tstart_tt,
         'tstop_tt': item.tstop_tt,
-        'obs_id': obs_id,
-        'source': source or item.source,
+        'obs_id': plot_req.obs_id,
+        'source': plot_req.source,
         'ndets_used': item.ndets_used,
         'ushoot_net_rate': item.ushoot_net_rate,
         'oshoot_net_rate': item.oshoot_net_rate,
         'goodx_0p5_12_rate': item.goodx_0p5_12_rate,
     }
+    data_dir = os.path.join(settings.DATA_DIR, str(plot_req.obs_id), 'jspipe')
 
-    dir_path = os.path.join(settings.DATA_DIR, obs_id, 'jspipe/')
+    for file in files.filter(
+        file_type='summary',
+        gti__isnull=False,
+    ).distinct('gti').order_by('gti'):
+        infos.append(dict(zip(*np.char.replace(np.loadtxt(
+            os.path.join(data_dir, file.name),
+            dtype=str,
+            unpack=True,
+        ), "'", ''))) | {'GTI': f'GTI{file.gti}'})
 
-    # Try to get data for specified plots
-    try:
-        # Get summary files for each GTI
-        file_names = np.array(
-            files.filter(name__contains='BGDATA.summary').values_list('name', flat=True)
-        )
+        if not plot_req.source and 'OBJECT' in infos[-1]:
+            plot_req.source = infos[-1]['OBJECT']
 
-        if file_names.size == 0:
-            return JsonResponse({'error': 'No summary files found for the given source name'})
+    max_gti, plot_divs = process_plots(files, plot_req)
 
-        # Sort by GTI number
-        indices = np.argsort(
-            [int(re.search(r'GTI(\d+)', file_name).group(1)) for file_name in file_names]
-        )
-
-        # Get GTI info
-        found_source = None
-        available_gti = set()
-        for file_name in file_names[indices]:
-            gti_number = int(re.search(r'GTI(\d+)', file_name).group(1))
-            available_gti.add(gti_number)
-
-        if not available_gti:
-            return JsonResponse({'error': 'No GTI data available'})
-
-        for gti in range(max(available_gti) + 1):
-            if gti not in available_gti:
-                break
-            file_name = re.sub(r'js_\d+_', f'js_{obs_id}_', file_names[indices][gti])
-            info = np.char.replace(np.loadtxt(
-                os.path.join(dir_path, file_name),
-                dtype=str,
-                unpack=True,
-            ), "'", '')
-            info_dict = dict(zip(*info))
-            infos.append(info_dict | {'GTI': f'GTI{gti}'})
-
-            if 'OBJECT' in info_dict and not found_source:
-                found_source = info_dict['OBJECT']
-
-        # Plot depending on the data type
-        for plot_type, plot_info in PLOTS.items():
-            # Check if this plot type is requested in the POST data
-            if plot_type.replace('_', '-') in request.POST:
-            # if any(html_name for html_name, plot_key in html_to_plot_type.items()
-                #    if html_name in request.POST and plot_key == plot_type):
-                LOGGER.info(f"[plot_data] Processing plot type: {plot_type}")
-                plot_info['exists'] = True
-                file_names = files.filter(name__contains=plot_info['file_type'])
-                file_names = file_names.exclude(name__regex=r'_BAND\d+')
-                if file_names:
-                    max_gti.append(len(file_names))
-                    plot_function_start = time()
-
-                    # Special handling for summed spectrum - include all GTI files
-                    if plot_type == 'summed_spectrum':
-                        # Get all GTI files for summed spectrum
-                        all_file_paths = []
-                        all_gti_numbers = []
-
-                        for file_item in file_names.order_by('name'):
-                            all_file_paths.append(dir_path + file_item.name)
-                            # Extract GTI number from filename
-                            gti_match = re.search(r'GTI(\d+)', file_item.name)
-                            if gti_match:
-                                all_gti_numbers.append(int(gti_match.group(1)))
-                            else:
-                                all_gti_numbers.append(0)  # fallback
-
-                        LOGGER.info(
-                            f"[plot_data] Summed spectrum using {len(all_file_paths)} "
-                            f"GTI files: GTIs {all_gti_numbers}",
-                        )
-                        plot_div = plot_info['function'](
-                            plot_info['min_value'],
-                            obs_id,
-                            all_file_paths,
-                            all_gti_numbers,
-                        )
-                    else:
-                        # Regular handling for other plot types - use first file only
-                        file_name = file_names.first().name
-                        LOGGER.info(
-                            f"[plot_data] Calling {plot_type} function with file: {file_name}",
-                        )
-                        plot_div = plot_info['function'](
-                            plot_info['min_value'],
-                            obs_id,
-                            [dir_path + file_name],
-                            [0],
-                        )
-
-                    plot_function_time = time() - plot_function_start
-                    LOGGER.info(
-                        f"[plot_data] {plot_type} function completed in {plot_function_time:.3f}s",
-                    )
-                    plot_divs.append(plot_div)
-                else:
-                    LOGGER.warning(f"[plot_data] No files found for plot type: {plot_type}")
-                    max_gti.append(0)
-
-    except AttributeError as error:
-        LOGGER.error(f'{error}\nNo valid data in {dir_path}')
-        return JsonResponse({'error': f'Error processing data: {str(error)}'})
-
+    if not infos and not plot_divs:
+        return JsonResponse({
+            'error': f'No plottable data found for observation ID {plot_req.obs_id} '
+                     f'with quality {plot_req.quality}',
+        })
     return JsonResponse({
         'plotDivs': plot_divs,
-        'obsID': obs_id,
-        'quality': quality,
-        'spectrum': PLOTS['spectrum']['exists'],
-        'summedSpectrum': PLOTS['summed_spectrum']['exists'],
-        'lightCurve': PLOTS['light_curve']['exists'],
-        'powerSpectrum': PLOTS['power_density_spectrum']['exists'],
-        'hardnessIntensity': PLOTS['hardness_intensity_diagram']['exists'],
+        'obsID': plot_req.obs_id,
+        'quality': plot_req.quality,
+        'spectrum': PLOTS['spectrum'].exists,
+        'summedSpectrum': PLOTS['summed_spectrum'].exists,
+        'lightCurve': PLOTS['light_curve'].exists,
+        'powerSpectrum': PLOTS['power_density_spectrum'].exists,
+        'hardnessIntensity': PLOTS['hardness_intensity_diagram'].exists,
         'maxGTI': max_gti,
         'info': infos,
-        'source': found_source or source,
+        'source': plot_req.source,
         'obs_info': obs_info,
     })
 
@@ -611,20 +453,20 @@ def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
     """
     obs_id: str = request.GET.get('obs_id', '')
     source: str = request.GET.get('source', '')
-    suggested_obs: QuerySet[Item]
+    suggested_obs: list[str]
 
     # Query the database for the first 5 observation IDs or source names that match the query
     if obs_id:
-        suggested_obs = Item.objects.filter(
+        suggested_obs = list(Item.objects.filter(
             name__startswith=obs_id,
             path=Item.root,
             type=Item.dir,
-        ).order_by('name')[:count]
+        ).order_by('name')[:count].values_list('name', flat=True))
     elif source:
-        suggested_obs = Item.objects.filter(
+        suggested_obs = list(Item.objects.filter(
             source__istartswith=source,
             type=Item.dir,
-        ).distinct().order_by('source')[:count]
+        ).distinct().order_by('source')[:count].values_list('source', flat=True))
     else:
         return JsonResponse({
             'suggestions': [],
@@ -632,11 +474,9 @@ def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
         })
 
     # Check if any results were found and return them
-    if not suggested_obs.exists():
-        return JsonResponse({'suggestions': [], 'error': 'Observational data not found'})
-    return JsonResponse({
-        'suggestions': list(suggested_obs.values_list('name' if obs_id else 'source', flat=True)),
-    })
+    if len(suggested_obs):
+        return JsonResponse({'suggestions': suggested_obs})
+    return JsonResponse({'suggestions': [], 'error': 'Observational data not found'})
 
 
 def fetch_sources(request: HttpRequest, count: int = 5) -> JsonResponse:

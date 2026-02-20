@@ -57,3 +57,12 @@ export function dropdowns() {
     dropdownFocus(DROPDOWN_FIELD, DROPDOWN_CONTENT);
   }
 }
+
+/**
+ * Converts a string to title case, where the first letter of each word is capitalized.
+ * @param string String to convert to title case
+ * @returns {string} String in title case
+ */
+export function titleCase(string) {
+  return string.replace(/\b\w/g, (c) => c.toUpperCase());
+}

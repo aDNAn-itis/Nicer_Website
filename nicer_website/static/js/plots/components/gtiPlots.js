@@ -8,6 +8,7 @@ import {
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
 import { startOperation, completeOperation, errorOperation, completeOperationsByPattern, clearOperationsByPattern } from './statusBar.js';
+import { creatPlot } from "./graph.js";
 
 /**
  * Shows a popup for selecting which plot types to generate for selected GTIs
@@ -292,53 +293,23 @@ function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
     };
 
     // Update all selected plots
-    Promise.all(selectedPlotTypes.map((plotType, index) => 
+    Promise.all(selectedPlotTypes.map((plotType, index) =>
       updatePlot(plotType, operationIds[index])
     ))
       .then((responses) => {
         responses.forEach((response, index) => {
           const operationId = operationIds[index];
           const plotType = selectedPlotTypes[index];
-          
+
           if (response.error) {
             console.error('Server error:', response.error);
             errorOperation(operationId, 'Error: ' + response.error);
             alert(response.error);
             return;
           }
-          
+
           if (response.plotDivs && response.plotDivs.length > 0) {
-            const plotID = plotType + '-' + obsID;
-
-            // Create plot section if it doesn't exist
-            let $section = $('#' + plotType + '-section');
-            if (!$section.length) {
-              $section = $('<div>', {
-                id: plotType + '-section',
-                class: 'plot-type-section',
-              });
-              $section.append(
-                $('<h3>', {
-                  text: plotType
-                    .split('-')
-                    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                    .join(' '),
-                }),
-              );
-              $('#plots').append($section);
-            }
-
-            // Create or update plot container
-            let $plotContainer = $('#' + plotID);
-            if (!$plotContainer.length) {
-              $plotContainer = $('<div>', {
-                id: plotID,
-                class: 'plot-container',
-              });
-              $section.append($plotContainer);
-            }
-
-            $plotContainer.html(response.plotDivs[0]);
+            creatPlot(obsID, response.plotDivs[0])
             completeOperation(operationId, plotType.replace(/-/g, ' ') + ' plot generated successfully');
           } else {
             completeOperation(operationId, plotType.replace(/-/g, ' ') + ' plot processed');
@@ -546,113 +517,7 @@ export function fetchGTIPlot(event) {
           console.log(`[DEBUG gtiPlots.js updatePlot] No plotDivs in response`);
         }
 
-        // Try multiple selectors to find the correct plot container
-        const plotContainerSelectors = [
-          `#${currentPlotType.replace('_', '-')}-${currentObsID}`, // Main plot container
-          `#${currentPlotType.replace(
-            '_',
-            '-',
-          )}-${currentObsID} .js-plotly-plot`, // Plotly element within container
-          `#${currentPlotType.replace(
-            '_',
-            '-',
-          )}-${currentObsID} .plot-container`, // Alternative container structure
-        ];
-
-        let plotContainer = null;
-        let selectorUsed = '';
-
-        for (const selector of plotContainerSelectors) {
-          const element = $(selector);
-          if (element.length > 0) {
-            plotContainer = element;
-            selectorUsed = selector;
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Found plot container using selector: ${selector}`,
-            );
-            break;
-          } else {
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Selector not found: ${selector}`,
-            );
-          }
-        }
-
-        if (plotContainer && data.plotDivs && data.plotDivs.length > 0) {
-          console.log(
-            `[DEBUG gtiPlots.js updatePlot] Updating plot container with selector: ${selectorUsed}`,
-          );
-
-          // If we found the main container, replace its content with the plot
-          if (selectorUsed.includes('.js-plotly-plot')) {
-            // Replace the plotly element specifically
-            plotContainer.replaceWith(data.plotDivs[0]);
-          } else {
-            // Find the plotly element within the container and replace it, or replace all content
-            const plotlyElement = plotContainer.find('.js-plotly-plot');
-            if (plotlyElement.length > 0) {
-              plotlyElement.replaceWith(data.plotDivs[0]);
-            } else {
-              plotContainer.html(data.plotDivs[0]);
-            }
-          }
-        } else if (!plotContainer && data.plotDivs && data.plotDivs.length > 0) {
-          // No existing plot container found, create new plot section and container
-          console.log(
-            `[DEBUG gtiPlots.js updatePlot] Creating new plot section for ${currentPlotType}`,
-          );
-          
-          // Extract plot ID from the response using the same method as fetchGraphPlots
-          const REGEX = /"title":\{"text":"(.+?)"\}/;
-          const match = REGEX.exec(data.plotDivs[0]);
-          if (!match) {
-            console.error(`[DEBUG gtiPlots.js updatePlot] Could not extract plot ID from response for ${currentPlotType}`);
-            return;
-          }
-          
-          const plotId = match[1].toLowerCase().replaceAll(' ', '-');
-          const plotTypeForId = plotId.replace(`-${currentObsID}`, '');
-          
-          console.log(`[DEBUG gtiPlots.js updatePlot] Extracted plot ID: ${plotId}, plot type: ${plotTypeForId}`);
-          
-          // Create plot section if it doesn't exist
-          if (!$(`#${plotTypeForId}-section`).length) {
-            const $plotSection = $('<div>', {
-              id: `${plotTypeForId}-section`,
-              class: 'plot-type-section',
-            });
-            $plotSection.append(
-              $('<h3>', {
-                text: plotTypeForId.replace('-', ' ').toUpperCase(),
-              }),
-            );
-            $('#plots').append($plotSection);
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Created plot section: ${plotTypeForId}-section`,
-            );
-          }
-          
-          // Create plot div with unique ID if it doesn't exist
-          if (!$(`#${plotId}`).length) {
-            const $plotDiv = $(data.plotDivs[0]).attr('id', plotId);
-            $(`#${plotTypeForId}-section`).append($plotDiv);
-            console.log(
-              `[DEBUG gtiPlots.js updatePlot] Created plot div: ${plotId}`,
-            );
-          }
-        } else {
-          console.error(
-            `[DEBUG gtiPlots.js updatePlot] Could not find plot container for ${currentPlotType}-${currentObsID}. Tried selectors:`,
-            plotContainerSelectors,
-          );
-          if (!data.plotDivs || data.plotDivs.length === 0) {
-            console.error(
-              '[DEBUG gtiPlots.js updatePlot] No plotDivs in response for ',
-              currentPlotType,
-              data,
-            );
-          }
-        }
+        creatPlot(obsID, data.plotDivs[0])
 
         // Re-run MathJax for any math expressions (for both update and new plot scenarios)
         if (typeof MathJax !== 'undefined' && MathJax.typeset) {
@@ -671,15 +536,15 @@ export function fetchGTIPlot(event) {
           if (typeof updateAllSelections !== 'undefined') {
             updateAllSelections();
           }
-          
+
           // Check if the plot was actually created
           const plotExists = $(`#${currentPlotType.replace('_', '-')}-${currentObsID}`).length > 0;
           console.log(`[DEBUG gtiPlots.js updatePlot] Plot exists after creation: ${plotExists}`);
-          
+
           // Check if plots container is visible
           const plotsVisible = $('#plots').is(':visible');
           console.log(`[DEBUG gtiPlots.js updatePlot] Plots container visible: ${plotsVisible}`);
-          
+
           // Scroll to the new plot if it was created
           if (plotExists && plotsVisible) {
             const plotElement = $(`#${currentPlotType.replace('_', '-')}-${currentObsID}`)[0];
@@ -688,19 +553,19 @@ export function fetchGTIPlot(event) {
               plotElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
           }
-          
+
           // Show plots container if it's hidden
           if (!plotsVisible) {
             console.log(`[DEBUG gtiPlots.js updatePlot] Showing plots container`);
             $('#plots').show();
           }
         }, 300);
-        
+
         // Complete the operation for this plot type
         if (currentOperationId) {
           completeOperation(currentOperationId, `Successfully updated ${currentPlotType} plot`);
         }
-        
+
         // Also complete any operations for this plot type
         const pattern = 'gti-change-' + currentPlotType + '-' + currentObsID;
         completeOperationsByPattern(pattern);
@@ -744,12 +609,12 @@ export function fetchGTIPlot(event) {
             `[DEBUG gtiPlots.js updatePlot] Could not find plot container to show error message for ${currentPlotType}-${currentObsID}`,
           );
         }
-        
+
         // Handle error operation completion
         if (currentOperationId) {
           errorOperation(currentOperationId, `Failed to update ${currentPlotType} plot`);
         }
-        
+
         // Also complete any operations for this plot type
         const pattern = 'gti-change-' + currentPlotType + '-' + currentObsID;
         completeOperationsByPattern(pattern);
@@ -773,7 +638,7 @@ export function fetchGTIPlot(event) {
 export function combineAndPlotGTIs(event) {
   // Create form data with the correct parameters
   const TYPE = $(event.target).children('input[name="plot_type"]').val();
-  let obsIDs = new Set();
+  let obsIDs = [];
   let serializedData = $(event.target).serialize();
 
   event.preventDefault();
@@ -781,7 +646,7 @@ export function combineAndPlotGTIs(event) {
   $(`#${TYPE}-section`)
     .children('div')
     .each(function () {
-      obsIDs.add(this.id.replace(`${TYPE}-`, ''));
+      obsIDs.push(this.id.replace(`${TYPE}-`, ''));
     });
 
   // Adds information and security token to the request
@@ -789,7 +654,7 @@ export function combineAndPlotGTIs(event) {
     "input[name='csrfmiddlewaretoken']",
   ).val()}`;
   serializedData += `&quality=${$('#quality-select').val().toLowerCase()}`;
-  serializedData += '&combined_obs_ids=' + Array.from(obsIDs).join(',');
+  serializedData += '&combined_obs_ids=' + obsIDs.join(',');
 
   // Start status tracking for combining GTIs
   const operationId = 'combine-gtis-' + Date.now();
@@ -808,51 +673,26 @@ export function combineAndPlotGTIs(event) {
         return;
       }
 
-      // Create or update combined plot container
-      const PLOT_ID = TYPE + '-combined';
-      let combinedContainer = $('#' + PLOT_ID + '-container');
+      obsIDs.forEach((obsID) => {
+        $(`#${TYPE}-${obsID}`).remove();
+      })
 
-      if (!combinedContainer.length) {
-        combinedContainer = $('<div>', {
-          id: PLOT_ID + '-container',
-          class: 'combined-plot-container',
-        });
-        combinedContainer.append('<h4>', { text: 'Combined GTIs Plot' });
+      const PLOT_ID = creatPlot(obsIDs.join('-'), data.plotDivs[0]);
+      const $PLOT_SECTION = $(`#${PLOT_ID}`).closest('.plot-type-section');
+      const $COMBINE_BUTTON = $PLOT_SECTION.find('form.combine-gtis').first()
+          .find('button[type="submit"]');
+      const $REMOVE_BUTTON = $('<button>', {
+        type: 'button',
+        class: 'remove-combined-plot-btn',
+        text: 'Remove Combined Plot',
+      }).click(function () {
+        $COMBINE_BUTTON.show();
+        $(`#${PLOT_ID}`).remove();
+        $(this).remove();
+      });
 
-        // Add remove button for combined plot
-        const $REMOVE_BUTTON = $('<button>', {
-          class: 'remove-combined-plot-btn',
-          text: 'Remove Combined Plot',
-        }).click(function () {
-          combinedContainer.remove();
-        });
-
-        combinedContainer.append($REMOVE_BUTTON);
-        $('#' + TYPE + '-section').append(combinedContainer);
-      }
-
-      // Update plot
-      if (data.plotDivs && data.plotDivs.length > 0) {
-        const $PLOT_DIV = $(data.plotDivs[0]).attr('id', PLOT_ID);
-        combinedContainer.find('.plot-div').remove();
-        combinedContainer.append($PLOT_DIV);
-        MathJax.typeset();
-
-        // Update synchronized selections after combined plot
-        setTimeout(() => {
-          console.log(
-            'Reinitializing synchronized selection after combined GTI plot',
-          );
-          // First reinitialize for the new plot
-          initSynchronizedSelection();
-          // Then apply any existing selections
-          updateAllSelections();
-        }, 500);
-
-        completeOperation(operationId, 'Successfully combined GTIs from ' + obsIDs.size + ' observations');
-      } else {
-        completeOperation(operationId, 'Combined GTI data processed');
-      }
+      $COMBINE_BUTTON.hide()
+      $PLOT_SECTION.append($REMOVE_BUTTON);
     },
     error: function (xhr, _, error) {
       console.error('Error combining GTIs:', error);

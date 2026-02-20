@@ -114,7 +114,7 @@ def get_hid_data_and_plot(
     Returns
     -------
     str
-        HTML string of the generated HID plot.
+        JSON string of the generated HID plot.
     """
     all_hardness: List[float] = []
     all_intensity: List[float] = []
@@ -127,7 +127,8 @@ def get_hid_data_and_plot(
 
         time, hardness, intensity = process_lc_file(lc_path)
 
-        mask: ndarray = (hardness > 0) & (intensity > 0) & ~np.isnan(hardness) & ~np.isnan(intensity)
+        mask: ndarray = (hardness > 0) & (intensity > 0) & ~np.isnan(hardness) & \
+                        ~np.isnan(intensity)
         all_time.extend(time[mask].tolist())
         all_hardness.extend(hardness[mask].tolist())
         all_intensity.extend(intensity[mask].tolist())
@@ -180,10 +181,12 @@ def get_hid_data_and_plot(
         all_intensity = binned_intensity
         all_time = binned_time
 
-        print(f"HID adaptive binning: {len(sort_indices)} points -> {len(all_hardness)} bins (min_value={min_value})")
+        print(f"HID adaptive binning: {len(sort_indices)} points -> {len(all_hardness)} "
+              f"bins (min_value={min_value})")
 
     # Remove any remaining invalid values after binning
-    final_mask = (all_hardness > 0) & (all_intensity > 0) & np.isfinite(all_hardness) & np.isfinite(all_intensity)
+    final_mask = (all_hardness > 0) & (all_intensity > 0) & np.isfinite(all_hardness) & \
+                 np.isfinite(all_intensity)
     all_hardness = all_hardness[final_mask]
     all_intensity = all_intensity[final_mask]
     all_time = all_time[final_mask]

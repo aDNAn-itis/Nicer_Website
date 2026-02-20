@@ -13,20 +13,24 @@ class Item(models.Model):
     root = '/'
     item_type = [(dir, 'Dir'), (file, 'File')]
 
+    obs_id = models.BigIntegerField(null=True)
+    gti = models.IntegerField(null=True)
+
+    tstart_tt = models.FloatField(null=True)
+    tstop_tt = models.FloatField(null=True)
+    ra = models.FloatField(null=True)
+    dec = models.FloatField(null=True)
+    ndets_used = models.FloatField(null=True)
+    ushoot_net_rate = models.FloatField(null=True)
+    oshoot_net_rate = models.FloatField(null=True)
+    goodx_0p5_12_rate = models.FloatField(null=True)
+
     name = models.CharField(max_length=64)
+    quality = models.CharField(max_length=8, blank=True)
     path = models.CharField(max_length=100, default=root)
+    file_type = models.CharField(max_length=16, blank=True)
     type = models.CharField(max_length=4, choices=item_type, default=dir)
     source = models.CharField(max_length=100, blank=True)
-    obsid = models.BigIntegerField(null=True, blank=True)
-
-    tstart_tt = models.FloatField(null=True, blank=True)
-    tstop_tt = models.FloatField(null=True, blank=True)
-    ra = models.FloatField(null=True, blank=True)
-    dec = models.FloatField(null=True, blank=True)
-    ndets_used = models.FloatField(null=True, blank=True)
-    ushoot_net_rate = models.FloatField(null=True, blank=True)
-    oshoot_net_rate = models.FloatField(null=True, blank=True)
-    goodx_0p5_12_rate = models.FloatField(null=True, blank=True)
 
 
     class Meta:
@@ -40,6 +44,8 @@ class Item(models.Model):
 
         indexes = [
             models.Index(fields=['path'], name='path_idx'),
+            models.Index(fields=['obs_id'], name='obs_idx'),
+            models.Index(fields=['source'], name='source_idx'),
         ]
 
     def __str__(self):

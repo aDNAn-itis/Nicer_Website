@@ -141,7 +141,7 @@ def spectrum_data(
         np.interp(x_bin[bg_interp_indices[1]] + x_error[bg_interp_indices[1]], x_bin, bg_bin)[0],
     ])
 
-    # Remove data outside of the energy range
+    # Remove data outside the energy range
     x_bin = np.delete(x_bin, cut_indices)
     y_bin = np.delete(y_bin, cut_indices)
     x_error = np.delete(x_error, cut_indices)

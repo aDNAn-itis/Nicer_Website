@@ -3,6 +3,7 @@ Updates the PostgreSQL database using psycopg2 to match the folder structure of 
 directory found in config.txt
 """
 import os
+import re
 import json
 import argparse
 import subprocess
@@ -186,7 +187,7 @@ def process_dir(
     dir_name: str = os.path.basename(relative_root) or '/'
     parent_dir: str = os.path.dirname(relative_root) or '/'
     keys: tuple[str, ...] = (
-        'source',
+        'object',
         'obsid',
         'tstart_tt',
         'tstop_tt',
@@ -197,35 +198,52 @@ def process_dir(
         'oshoot_net_rate',
         'goodx_0p5_12_rate',
     )
-    files: ndarray[tuple[int], np.dtype[np.str_]] = root_file[1]
-    summaries: ndarray[tuple[int], np.dtype[np.str_]] = files[np.char.endswith(files, '.summary')]
+    key_map: dict[str, str] = {'object': 'source', 'obsid': 'obs_id'}
     data: dict[str, list[str | None]]
     summary: dict[str, list[str | None]]
+    gti: re.Match[str] | None
+    mask: ndarray[tuple[int], np.dtype[np.bool_]]
+    quality: ndarray[tuple[int], np.dtype[np.str_]]
+    files: ndarray[tuple[int], np.dtype[np.str_]] = root_file[1]
+    summaries: ndarray[tuple[int], np.dtype[np.str_]] = files[np.char.endswith(files, '.summary')]
+    qualities: ndarray[tuple[int], np.dtype[np.str_]] = np.array(
+        ['goddard', 'gold', 'silver', 'radium', 'pyrite'],
+    )
 
     # Remove ARF and RMF files from the list of files and decrement the total count as these
     # aren't needed for now
     if len(files):
-        with lock:
-            total[0] -= np.count_nonzero(np.char.find(files, '.arf') != -1)
-            total[0] -= np.count_nonzero(np.char.find(files, '.rmf') != -1)
+        mask = (np.char.find(files, '.arf') != -1) | (np.char.find(files, '.rmf') != -1)
 
-        files = np.delete(np.array(files), np.char.find(files, '.arf') != -1)
-        files = np.delete(np.array(files), np.char.find(files, '.rmf') != -1)
+        with lock:
+            total[0] -= np.count_nonzero(mask)
+
+        files = np.delete(files, mask)
 
     if len(summaries):
         summary = {key.lower(): [val.strip("'")] for key, val in np.loadtxt(
             os.path.join(root, summaries[0]),
             dtype=str,
-        ) if key.lower() in keys or key.lower() == 'object'}
-        summary['source'] = summary.pop('object')
+        ) if key.lower() in keys}
 
         if summary['goodx_0p5_12_rate'][0]:
             summary['goodx_0p5_12_rate'][0] = str(float(summary['goodx_0p5_12_rate'][0]) * dets)
     else:
-        summary = {key: ['' if key == 'source' else None] for key in keys}
+        summary = {key: ['' if key == 'object' else None] for key in keys}
+
+    for key, mapped_key in key_map.items():
+        if key in summary:
+            summary[mapped_key] = summary.pop(key)
 
     # Load data
-    data = {'name': [dir_name], 'path': [parent_dir], 'type': ['dir']}
+    data = {
+        'gti': [None],
+        'name': [dir_name],
+        'quality': [''],
+        'path': [parent_dir],
+        'file_type': [''],
+        'type': ['dir'],
+    }
 
     with lock:
         count[0] += 1
@@ -235,8 +253,13 @@ def process_dir(
 
     # Add file to the database
     for file in files:
+        data['gti'].append(gti.group(1) if (gti := re.search(r'GTI(\d+)', file)) else None)
         data['name'].append(file)
+        data['quality'].append(
+            quality[0] if len(quality := qualities[np.char.find(file, qualities) != -1]) else '',
+        )
         data['path'].append(relative_root)
+        data['file_type'].append(file.split('.', 1)[-1] if '.' in file else '')
         data['type'].append('file')
 
         with lock:
