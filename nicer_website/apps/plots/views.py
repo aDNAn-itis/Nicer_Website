@@ -277,6 +277,86 @@ def parse_num_query(num_query: str) -> list[int]:
     return sorted(set(nums))
 
 
+def calculate_default_binning(file_path, plot_type):
+    """
+    Calculate default binning to reduce number of plotted points for faster rendering.
+    Target: ~500-1000 points per plot for optimal performance.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the data file
+    plot_type : str
+        Type of plot (spectrum, light_curve, etc.)
+
+    Returns
+    -------
+    int
+        Calculated default binning value
+    """
+    try:
+        from astropy.io import fits
+
+        if plot_type in ['spectrum', 'summed_spectrum']:
+            # For spectrum: reduce number of energy bins
+            with fits.open(file_path) as hdul:
+                if 'SPECTRUM' in hdul:
+                    counts = hdul['SPECTRUM'].data['COUNTS']
+                    total_bins = len(counts)
+                    max_counts = np.max(counts)
+
+                    # set for fast rendering
+                    target_points = 500
+
+                    # Calculate binning factor
+                    bin_factor = max(1, total_bins // target_points)
+
+                    # 1% of max as minimum
+                    min_counts = max(1, int(max_counts * 0.01))
+
+                    default_bin = max(bin_factor, min_counts)
+                    return default_bin
+
+        elif plot_type == 'light_curve':
+            #  have < 100 bins per GTI
+            # ensure minimum counts per bin
+            with fits.open(file_path) as hdul:
+                if 'RATE' in hdul:
+                    rate = hdul['RATE'].data['RATE']
+                    total_bins = len(rate)
+                    mean_rate = np.mean(rate)
+
+                    # Target 100 final bins per GTI
+                    target_bins = 100
+                    bins_to_combine = max(1, total_bins // target_bins)
+
+                    # at least 100 counts per bin
+                    if mean_rate > 0:
+                        min_bins_for_100_counts = max(1, int(100 / mean_rate))
+                    else:
+                        min_bins_for_100_counts = 1
+
+                    # Use one that combines more bins
+                    default_bin = max(bins_to_combine, min_bins_for_100_counts)
+
+                    final_points = total_bins / default_bin
+                    final_counts_per_bin = mean_rate * default_bin
+                    return default_bin
+
+        elif plot_type == 'power_density_spectrum':
+            # For PDS: the min_value controls significance-based binning (higher number means more agressive binning)
+            default_significance = 15
+            return default_significance
+
+        elif plot_type == 'hardness_intensity_diagram':
+            # Return fixed default of 1 (no binning)
+            return 1
+
+    # Fallback to predefined defaults
+    fallback = PLOTS.get(plot_type, {}).get('min_value', 1)
+    return fallback
+
+
 def plot_gti(request: HttpRequest) -> JsonResponse:
     """
     Plots multiple GTI observations for a single plot

@@ -8,7 +8,11 @@ import {
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
 import { fetchGTIPlot } from './gtiPlots.js';
-import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+import {
+  startOperation,
+  completeOperation,
+  errorOperation,
+} from './statusBar.js';
 import { titleCase } from "../utils/utils.js";
 
 /**
@@ -268,36 +272,41 @@ export function showPlotSelectionPopup(obsID) {
       }
 
       // Create forms for each selected plot type and submit to GTI plotting endpoint
-      selectedPlotTypes.forEach(plotType => {
-        console.log(`[DEBUG graph.js] Creating GTI form for plot type: ${plotType}, GTI: ${window.selectedGTI}, ObsID: ${obsID}`);
+      selectedPlotTypes.forEach((plotType) => {
+        console.log(
+          `[DEBUG graph.js] Creating GTI form for plot type: ${plotType}, GTI: ${window.selectedGTI}, ObsID: ${obsID}`,
+        );
         const $gtiForm = $('<form>');
         $gtiForm.append($('<input>', {
           name: 'gti-search',
           type: 'hidden',
-          value: window.selectedGTI
+          value: window.selectedGTI,
         }));
         $gtiForm.append($('<input>', {
           name: 'plot_type',
           type: 'hidden',
-          value: plotType.replace(/-/g, '_') // Convert dashes to underscores for backend
+          value: plotType.replace(/-/g, '_'), // Convert dashes to underscores for backend
         }));
         $gtiForm.append($('<input>', {
           name: 'obs_id',
           type: 'hidden',
-          value: obsID
+          value: obsID,
         }));
         $gtiForm.append($('<input>', {
           name: 'min_value',
           type: 'hidden',
-          value: '1'
+          value: '1',
         }));
 
-        console.log(`[DEBUG graph.js] Form data for ${plotType}:`, $gtiForm.serialize());
+        console.log(
+          `[DEBUG graph.js] Form data for ${plotType}:`,
+          $gtiForm.serialize(),
+        );
 
         // Create mock event for fetchGTIPlot
         const mockEvent = {
           preventDefault: () => {},
-          target: $gtiForm[0]
+          target: $gtiForm[0],
         };
 
         // Call fetchGTIPlot directly
@@ -499,9 +508,19 @@ export function fetchGraphPlots(refresh = false, event) {
           initInteractiveLinking();
         }, 800);
 
-        completeOperation(operationId, 'Successfully loaded ' + response.plotDivs.length + ' plot(s) for observation ' + response.obsID);
+        completeOperation(
+          operationId,
+          'Successfully loaded ' +
+            response.plotDivs.length +
+            ' plot(s) for observation ' +
+            response.obsID,
+        );
       } else {
-        completeOperation(operationId, 'Successfully loaded observation data for ' + (response.obsID || obsId));
+        completeOperation(
+          operationId,
+          'Successfully loaded observation data for ' +
+            (response.obsID || obsId),
+        );
       }
 
       // Add observation removal functionality

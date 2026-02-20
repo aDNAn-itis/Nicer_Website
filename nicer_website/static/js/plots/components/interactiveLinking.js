@@ -1,161 +1,54 @@
 /**
- * Interactive linking between spectrum and light curve plots
- * This module enables user click interaction on spectrum plots to highlight regions of interest
- * and show corresponding points in the light curve
+ * Interactive linking between scientifically related plots
+ * This module enables appropriate linking between plots that share physical or conceptual relationships
+ * Updated to follow Jack Steiner's clarifications on proper data linking scenarios
  */
 
 // Store state for highlighted points
 const highlightState = {
   active: false,
   selectedRange: null,
+  selectedGTI: null, // Track selected GTI for GTI-level linking
   originalOpacities: new Map(), // Store original opacities to restore them
+  linkedPlots: new Set(), // Track which plots are currently linked
+  currentLinkingType: null, // Track the type of linking currently active
 };
 
-// Replace the ENERGY_BANDS constant with a continuous correlation function
-const ENERGY_TIME_CORRELATION = {
-  // Base correlation parameters
-  baseSlope: 0.5, // How much energy increases with time
-  baseOffset: 0.3, // Minimum energy at t=0
-  correlationWidth: 0.2, // Width of the correlation window
-
-  // Calculate the expected energy for a given time
-  getExpectedEnergy: function (time, totalTime) {
-    const normalizedTime = time / totalTime;
-    return this.baseOffset + this.baseSlope * normalizedTime;
+// Define appropriate linking relationships based on Jack Steiner's feedback
+const LINKING_RELATIONSHIPS = {
+  // GTI-level linking: entire spectrum linked to entire light curve for same GTI
+  GTI_LINKING: {
+    plots: ['spectrum', 'summed_spectrum', 'lightcurve'],
+    description:
+      'GTI-level linking where entire spectrum corresponds to entire light curve for same GTI',
+    linkingLevel: 'gti', // Links at GTI level, not point-to-point
   },
 
-  // Calculate the correlation strength between energy and time
-  getCorrelationStrength: function (energy, time, totalTime) {
-    const expectedEnergy = this.getExpectedEnergy(time, totalTime);
-    const energyDiff = Math.abs(energy - expectedEnergy);
-    return Math.max(0, 1 - energyDiff / this.correlationWidth);
+  // HID linking: time-based selection in light curve highlights corresponding HID points
+  HID_LINKING: {
+    plots: ['lightcurve', 'hardness'],
+    description:
+      'Time range selection in light curve highlights corresponding HID points from same time period',
+    linkingLevel: 'temporal', // Links based on temporal correspondence
   },
 
-  // Calculate the expected time for a given energy
-  getExpectedTime: function (energy) {
-    return (energy - this.baseOffset) / this.baseSlope;
+  // Spectrum-HID zoom linking: only these two plot types can have synchronized zooming
+  SPECTRUM_HID_ZOOM_LINKING: {
+    plots: ['spectrum', 'hardness'],
+    description: 'Spectrum and HID plots can have synchronized zooming',
+    linkingLevel: 'zoom', // Links zooming behavior only
   },
 
-  // Calculate the correlation strength between time and energy
-  getCorrelationStrength: function (time, expectedTime, timeWidth) {
-    const timeDiff = Math.abs(time - expectedTime);
-    return Math.max(0, 1 - timeDiff / (timeWidth * this.correlationWidth));
+  // Power spectrum remains independent
+  FREQUENCY_LINKING: {
+    plots: ['power_density'],
+    description: 'Frequency domain plots - independent of time domain',
+    linkingLevel: 'independent',
   },
 };
 
-// Function to convert energy value to time window using continuous interpolation
-function mapEnergyToTimePercentile(energy) {
-  // Handle edge cases
-  if (energy <= ENERGY_TIME_CORRELATION.baseOffset) return [0, 0.2];
-  if (
-    energy >=
-    ENERGY_TIME_CORRELATION.baseOffset + ENERGY_TIME_CORRELATION.baseSlope
-  )
-    return [0.8, 1];
-
-  // Calculate normalized time
-  const normalizedTime =
-    (energy - ENERGY_TIME_CORRELATION.baseOffset) /
-    ENERGY_TIME_CORRELATION.baseSlope;
-  const percentileWidth = 0.2; // Width of the percentile range
-  return [
-    Math.max(0, normalizedTime - percentileWidth / 2),
-    Math.min(1, normalizedTime + percentileWidth / 2),
-  ];
-}
-
 /**
- * Map time range to corresponding energy range based on scientific correlations
- * @param {Array} timeRange - The time range [min, max] in seconds
- * @param {HTMLElement} spectrumPlot - The spectrum plot to extract energy values from
- * @returns {Array} Energy range [min, max] in keV
- */
-function mapTimeToEnergyRange(timeRange, spectrumPlot) {
-  try {
-    // Extract energy range from spectrum data
-    if (!spectrumPlot || !spectrumPlot.data || spectrumPlot.data.length === 0) {
-      console.error('Cannot access spectrum data to map energy range');
-      return null;
-    }
-
-    // Find the data trace (non-background)
-    const dataTrace = spectrumPlot.data.find(
-      (trace) =>
-        trace.x &&
-        trace.x.length > 0 &&
-        (!trace.name || !trace.name.toLowerCase().includes('background')),
-    );
-
-    if (!dataTrace) {
-      console.error('No valid data trace found in spectrum');
-      return null;
-    }
-
-    // Get overall energy range of the spectrum
-    const energies = [...dataTrace.x].sort((a, b) => a - b);
-    const minEnergy = energies[0];
-    const maxEnergy = energies[energies.length - 1];
-    const totalEnergy = maxEnergy - minEnergy;
-
-    // Get the time midpoint and width
-    const timeMidpoint = (timeRange[0] + timeRange[1]) / 2;
-    const timeWidth = timeRange[1] - timeRange[0];
-
-    // Calculate correlation weights for each energy point
-    const weights = energies.map((energy) => {
-      const normalizedEnergy = (energy - minEnergy) / totalEnergy;
-      const expectedTime =
-        ENERGY_TIME_CORRELATION.getExpectedTime(normalizedEnergy);
-      return ENERGY_TIME_CORRELATION.getCorrelationStrength(
-        timeMidpoint,
-        expectedTime,
-        timeWidth,
-      );
-    });
-
-    // Find the energy range with significant correlation
-    const threshold = 0.3; // Minimum correlation strength to consider
-    const significantEnergies = energies.filter(
-      (_, i) => weights[i] > threshold,
-    );
-
-    if (significantEnergies.length === 0) {
-      // If no significant correlation, use the full range
-      return [minEnergy, maxEnergy];
-    }
-
-    // Add padding to the significant range
-    const padding = 0.1 * (maxEnergy - minEnergy);
-    return [
-      Math.max(minEnergy, significantEnergies[0] - padding),
-      Math.min(
-        maxEnergy,
-        significantEnergies[significantEnergies.length - 1] + padding,
-      ),
-    ];
-  } catch (error) {
-    console.error('Error mapping time to energy range:', error);
-    return null;
-  }
-}
-
-/**
- * Map a time value to energy percentiles based on scientific correlations
- * @param {number} time - The time value in seconds
- * @returns {Array} Energy percentiles [min, max]
- */
-function mapTimeToEnergyPercentile(time) {
-  // This is a simplified mapping - in reality, you might want to use more sophisticated correlations
-  const normalizedTime = (time % 100) / 100; // Normalize to 0-1 range
-  const percentileWidth = 0.2; // Width of the percentile range
-  return [
-    Math.max(0, normalizedTime - percentileWidth / 2),
-    Math.min(1, normalizedTime + percentileWidth / 2),
-  ];
-}
-
-/**
- * Initialize the interactive linking between spectrum and light curve plots
+ * Initialize the interactive linking between scientifically related plots
  * This should be called after plots are loaded
  */
 export function initInteractiveLinking() {
@@ -172,583 +65,582 @@ export function initInteractiveLinking() {
     `Found ${plotlyGraphs.length} Plotly graphs to initialize interactive linking`,
   );
 
-  // Log all plot IDs for debugging
-  plotlyGraphs.forEach((plot, index) => {
-    console.log(
-      `Plot ${index + 1}: ID=${plot.id}, Container=${
-        plot.closest('[id]')?.id || 'none'
-      }`,
-    );
-  });
+  // Identify  plots by type
+  const plotsByType = identifyPlotTypes(plotlyGraphs);
 
-  // Find spectrum and light curve plots
-  const { spectrumPlot, lightCurvePlot } = findPlots(plotlyGraphs);
+  console.log('Identified plots:', plotsByType);
 
-  if (!spectrumPlot || !lightCurvePlot) {
-    console.log(
-      'Missing either spectrum or light curve plot - interactive linking cannot be enabled',
-    );
-    return;
-  }
-
-  console.log(`Spectrum plot ID: ${spectrumPlot.id}`);
-  console.log(`Light curve plot ID: ${lightCurvePlot.id}`);
-
-  // Set up click handlers for both plots
-  setupClickHandler(spectrumPlot, lightCurvePlot, true);
-  setupClickHandler(lightCurvePlot, spectrumPlot, false);
-
-  // Add direct event listeners to ensure clicks are captured
-  addDirectEventListeners(spectrumPlot, lightCurvePlot);
-
-  // Force a check to ensure both plots have click handlers
-  setTimeout(() => {
-    console.log('Checking if click handlers were properly set up...');
-    const spectrumHasHandler =
-      spectrumPlot.getAttribute('data-interactive-linking') === 'true';
-    const lightCurveHasHandler =
-      lightCurvePlot.getAttribute('data-interactive-linking') === 'true';
-
-    console.log(`Spectrum plot has handler: ${spectrumHasHandler}`);
-    console.log(`Light curve plot has handler: ${lightCurveHasHandler}`);
-
-    // If light curve doesn't have a handler, try to set it up again
-    if (!lightCurveHasHandler) {
-      console.log(
-        'Light curve plot does not have a handler, trying to set it up again...',
-      );
-      setupClickHandler(lightCurvePlot, spectrumPlot, false);
-    }
-
-    // Add direct Plotly event handlers as a fallback
-    if (typeof Plotly !== 'undefined') {
-      console.log('Adding direct Plotly event handlers as fallback');
-
-      // For light curve plot
-      if (lightCurvePlot) {
-        console.log(
-          `Adding direct Plotly click handler to light curve plot: ${lightCurvePlot.id}`,
-        );
-        Plotly.on(lightCurvePlot, 'plotly_click', function (data) {
-          console.log(
-            'Direct Plotly click detected on light curve plot:',
-            data,
-          );
-          if (data && data.points && data.points.length > 0) {
-            const point = data.points[0];
-            const xValue = point.x;
-
-            // Define region around clicked point
-            const rangeWidth = 0.5; // seconds for light curve
-            const xRange = [xValue - rangeWidth, xValue + rangeWidth];
-
-            console.log(
-              `Highlighting light curve region: [${xRange[0]}, ${xRange[1]}] s`,
-            );
-
-            // Toggle highlighting
-            if (
-              highlightState.active &&
-              highlightState.selectedRange &&
-              Math.abs(highlightState.selectedRange[0] - xRange[0]) < 0.01
-            ) {
-              // If clicking on the same region, turn off highlighting
-              resetHighlights(lightCurvePlot, spectrumPlot);
-            } else {
-              // Highlight new region
-              const energyRange = mapTimeToEnergyRange(xRange, spectrumPlot);
-              highlightRegion(
-                spectrumPlot,
-                lightCurvePlot,
-                energyRange,
-                xRange,
-              );
-            }
-          }
-        });
-      }
-
-      // For spectrum plot
-      if (spectrumPlot) {
-        console.log(
-          `Adding direct Plotly click handler to spectrum plot: ${spectrumPlot.id}`,
-        );
-        Plotly.on(spectrumPlot, 'plotly_click', function (data) {
-          console.log('Direct Plotly click detected on spectrum plot:', data);
-          if (data && data.points && data.points.length > 0) {
-            const point = data.points[0];
-            const xValue = point.x;
-
-            // Define region around clicked point
-            const rangeWidth = 0.5; // keV for spectrum
-            const xRange = [xValue - rangeWidth, xValue + rangeWidth];
-
-            console.log(
-              `Highlighting spectrum region: [${xRange[0]}, ${xRange[1]}] keV`,
-            );
-
-            // Toggle highlighting
-            if (
-              highlightState.active &&
-              highlightState.selectedRange &&
-              Math.abs(highlightState.selectedRange[0] - xRange[0]) < 0.01
-            ) {
-              // If clicking on the same region, turn off highlighting
-              resetHighlights(spectrumPlot, lightCurvePlot);
-            } else {
-              // Highlight new region
-              const timeRange = mapEnergyToTimeRange(xRange, lightCurvePlot);
-              highlightRegion(spectrumPlot, lightCurvePlot, xRange, timeRange);
-            }
-          }
-        });
-      }
-    }
-  }, 500);
+  // Set up appropriate linking relationships based on Jack Steiner's feedback
+  setupGTILevelLinking(plotsByType);
+  setupHIDLinking(plotsByType);
+  setupSpectrumHIDZoomLinking(plotsByType);
 
   console.log(
-    'Interactive linking initialized between spectrum and light curve',
+    'Interactive linking initialized with scientifically appropriate relationships per Jack Steiner feedback',
   );
 }
 
 /**
- * Find spectrum and light curve plots from a collection of Plotly graphs
+ * Identify plot types from a collection of Plotly graphs
  * @param {NodeList} plots - Collection of Plotly graph elements
- * @returns {Object} Object containing spectrumPlot and lightCurvePlot
+ * @returns {Object} Object containing arrays of plots by type
  */
-function findPlots(plots) {
-  let spectrumPlot = null;
-  let lightCurvePlot = null;
+function identifyPlotTypes(plots) {
+  const plotTypes = {
+    spectrum: [],
+    summed_spectrum: [],
+    lightcurve: [],
+    power_density: [],
+    hardness: [],
+    intensity: [],
+  };
 
-  // Log all plots for debugging
-  console.log(`Finding plots among ${plots.length} Plotly graphs`);
   plots.forEach((plot, index) => {
-    const container = plot.closest('[id]');
-    const containerId = container ? container.id : 'none';
-    const title =
-      plot.layout && plot.layout.title ? plot.layout.title.text : 'none';
-    console.log(
-      `Plot ${index + 1}: ID=${
-        plot.id
-      }, Container=${containerId}, Title=${title}`,
-    );
+    const plotType = classifyPlot(plot);
+    if (plotType && plotTypes[plotType]) {
+      plotTypes[plotType].push(plot);
+      console.log(`Plot ${index + 1} classified as: ${plotType}`);
+    } else {
+      console.log(`Plot ${index + 1} could not be classified`);
+    }
   });
 
-  // If we only have two plots, assume the first is spectrum and second is light curve
-  if (plots.length === 2) {
-    console.log(
-      'Using heuristic: assuming first plot is spectrum and second is light curve',
-    );
-    spectrumPlot = plots[0];
-    lightCurvePlot = plots[1];
-    return { spectrumPlot, lightCurvePlot };
-  }
-
-  // Try to identify plots by their container ID or title
-  for (const plot of plots) {
-    // Check container ID
-    const container = plot.closest('[id]');
-    if (container) {
-      const containerId = container.id.toLowerCase();
-      if (containerId.includes('spectrum')) {
-        spectrumPlot = plot;
-        console.log(`Found spectrum plot by container: ${containerId}`);
-      } else if (
-        containerId.includes('light-curve') ||
-        containerId.includes('lightcurve')
-      ) {
-        lightCurvePlot = plot;
-        console.log(`Found light curve plot by container: ${containerId}`);
-      }
-    }
-
-    // If still not identified, check by title
-    if (
-      (!spectrumPlot || !lightCurvePlot) &&
-      plot.layout &&
-      plot.layout.title
-    ) {
-      const title = plot.layout.title.text?.toLowerCase() || '';
-      if (
-        !spectrumPlot &&
-        (title.includes('spectrum') || title.includes('energy'))
-      ) {
-        spectrumPlot = plot;
-        console.log(`Found spectrum plot by title: ${title}`);
-      } else if (
-        !lightCurvePlot &&
-        (title.includes('light curve') ||
-          title.includes('lightcurve') ||
-          title.includes('time'))
-      ) {
-        lightCurvePlot = plot;
-        console.log(`Found light curve plot by title: ${title}`);
-      }
-    }
-  }
-
-  // If still not identified, try to identify by axis labels
-  if (!spectrumPlot || !lightCurvePlot) {
-    for (const plot of plots) {
-      if (plot.layout) {
-        const xAxisTitle = plot.layout.xaxis?.title?.text?.toLowerCase() || '';
-        const yAxisTitle = plot.layout.yaxis?.title?.text?.toLowerCase() || '';
-
-        if (
-          !spectrumPlot &&
-          (xAxisTitle.includes('energy') || xAxisTitle.includes('kev'))
-        ) {
-          spectrumPlot = plot;
-          console.log(`Found spectrum plot by x-axis label: ${xAxisTitle}`);
-        } else if (
-          !lightCurvePlot &&
-          (xAxisTitle.includes('time') || xAxisTitle.includes('second'))
-        ) {
-          lightCurvePlot = plot;
-          console.log(`Found light curve plot by x-axis label: ${xAxisTitle}`);
-        }
-      }
-    }
-  }
-
-  // If still not identified, try to identify by data characteristics
-  if (!spectrumPlot || !lightCurvePlot) {
-    for (const plot of plots) {
-      if (plot.data && plot.data.length > 0) {
-        // Check if this is likely a spectrum plot (energy values typically in keV)
-        const firstTrace = plot.data[0];
-        if (firstTrace.x && firstTrace.x.length > 0) {
-          const sampleX = firstTrace.x[0];
-          if (!spectrumPlot && sampleX > 0 && sampleX < 20) {
-            // Typical keV range
-            spectrumPlot = plot;
-            console.log(
-              `Found spectrum plot by data characteristics: x values around ${sampleX}`,
-            );
-          } else if (!lightCurvePlot && sampleX > 100) {
-            // Typical time values in seconds
-            lightCurvePlot = plot;
-            console.log(
-              `Found light curve plot by data characteristics: x values around ${sampleX}`,
-            );
-          }
-        }
-      }
-    }
-  }
-
-  // If we still don't have both plots, make a best guess
-  if (!spectrumPlot && !lightCurvePlot && plots.length >= 2) {
-    console.log('Could not identify plots by any method, making best guess');
-    spectrumPlot = plots[0];
-    lightCurvePlot = plots[1];
-  } else if (!spectrumPlot && plots.length >= 1) {
-    console.log('Could not identify spectrum plot, using first plot');
-    spectrumPlot = plots[0];
-  } else if (!lightCurvePlot && plots.length >= 2) {
-    console.log('Could not identify light curve plot, using second plot');
-    lightCurvePlot = plots[1];
-  }
-
-  return { spectrumPlot, lightCurvePlot };
+  return plotTypes;
 }
 
 /**
- * Set up click event handler for a plot
+ * Classify a single plot based on various indicators
  * @param {HTMLElement} plot - The plot element
- * @param {HTMLElement} otherPlot - The other plot element to highlight
- * @param {boolean} isSpectrum - Whether this plot is the spectrum plot
+ * @returns {string|null} The plot type or null if unidentified
  */
-function setupClickHandler(plot, otherPlot, isSpectrum) {
+function classifyPlot(plot) {
+  // Check container ID first
+  const container = plot.closest('[id]');
+  if (container) {
+    const containerId = container.id.toLowerCase();
+
+    if (containerId.includes('spectrum')) {
+      if (containerId.includes('summed')) return 'summed_spectrum';
+      return 'spectrum';
+    }
+    if (
+      containerId.includes('light-curve') ||
+      containerId.includes('lightcurve')
+    ) {
+      return 'lightcurve';
+    }
+    if (containerId.includes('power') && containerId.includes('density')) {
+      return 'power_density';
+    }
+    if (containerId.includes('hardness')) {
+      return 'hardness';
+    }
+    if (containerId.includes('intensity')) {
+      return 'intensity';
+    }
+  }
+
+  // Check plot title
+  if (plot.layout && plot.layout.title) {
+    const title = plot.layout.title.text?.toLowerCase() || '';
+
+    if (title.includes('spectrum')) {
+      if (title.includes('summed')) return 'summed_spectrum';
+      return 'spectrum';
+    }
+    if (title.includes('light curve') || title.includes('lightcurve')) {
+      return 'lightcurve';
+    }
+    if (title.includes('power density')) {
+      return 'power_density';
+    }
+    if (title.includes('hardness')) {
+      return 'hardness';
+    }
+    if (title.includes('intensity') && !title.includes('hardness')) {
+      return 'intensity';
+    }
+  }
+
+  // Check axis labels
+  if (plot.layout) {
+    const xAxisTitle = plot.layout.xaxis?.title?.text?.toLowerCase() || '';
+    const yAxisTitle = plot.layout.yaxis?.title?.text?.toLowerCase() || '';
+
+    // Spectrum plots typically have energy (keV) on x-axis
+    if (xAxisTitle.includes('energy') || xAxisTitle.includes('kev')) {
+      return 'spectrum';
+    }
+
+    // Light curve plots have time on x-axis
+    if (xAxisTitle.includes('time') || xAxisTitle.includes('second')) {
+      if (yAxisTitle.includes('hardness')) return 'hardness';
+      if (yAxisTitle.includes('intensity') || yAxisTitle.includes('count'))
+        return 'lightcurve';
+    }
+
+    // Power density plots have frequency on x-axis
+    if (xAxisTitle.includes('frequency') || xAxisTitle.includes('hz')) {
+      return 'power_density';
+    }
+  }
+
+  // Check data characteristics as fallback
+  if (plot.data && plot.data.length > 0) {
+    const firstTrace = plot.data[0];
+    if (firstTrace.x && firstTrace.x.length > 0) {
+      const sampleX = firstTrace.x[0];
+      const maxX = Math.max(...firstTrace.x);
+
+      // Typical energy values (keV range)
+      if (sampleX > 0 && maxX < 20) {
+        return 'spectrum';
+      }
+
+      // Typical time values (seconds, could be large)
+      if (sampleX > 100 || maxX > 1000) {
+        return 'lightcurve'; // Default temporal plot
+      }
+
+      // Frequency values (Hz, typically small)
+      if (sampleX >= 0 && maxX < 100 && sampleX < 10) {
+        return 'power_density';
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Set up GTI-level linking between spectra and light curves
+ * This implements the correct linking where entire spectrum corresponds to entire light curve
+ * @param {Object} plotsByType - Object containing arrays of plots by type
+ */
+function setupGTILevelLinking(plotsByType) {
+  const spectralPlots = [
+    ...plotsByType.spectrum,
+    ...plotsByType.summed_spectrum,
+  ];
+  const lightCurvePlots = [...plotsByType.lightcurve];
+
+  if (spectralPlots.length === 0 || lightCurvePlots.length === 0) {
+    console.log('No spectrum-light curve pairs found for GTI linking');
+    return;
+  }
+
+  console.log(
+    `Setting up GTI-level linking between ${spectralPlots.length} spectral plots and ${lightCurvePlots.length} light curve plots`,
+  );
+
+  // Set up GTI selection handlers
+  [...spectralPlots, ...lightCurvePlots].forEach((plot) => {
+    setupGTIClickHandler(plot, spectralPlots, lightCurvePlots);
+  });
+}
+
+/**
+ * Set up HID (Hardness Intensity Diagram) linking with light curves
+ * Time range selection in light curve highlights corresponding HID points
+ * @param {Object} plotsByType - Object containing arrays of plots by type
+ */
+function setupHIDLinking(plotsByType) {
+  const lightCurvePlots = [...plotsByType.lightcurve, ...plotsByType.intensity];
+  const hardnessPlots = [...plotsByType.hardness];
+
+  if (lightCurvePlots.length === 0 || hardnessPlots.length === 0) {
+    console.log('No light curve-HID pairs found for HID linking');
+    return;
+  }
+
+  console.log(
+    `Setting up HID linking between ${lightCurvePlots.length} temporal plots and ${hardnessPlots.length} hardness plots`,
+  );
+
+  // Set up temporal selection handlers for HID linking
+  lightCurvePlots.forEach((plot) => {
+    const relatedHIDPlots = hardnessPlots;
+    setupHIDClickHandler(plot, relatedHIDPlots);
+  });
+}
+
+/**
+ * Set up zoom linking only between spectrum and HID plots
+ * @param {Object} plotsByType - Object containing arrays of plots by type
+ */
+function setupSpectrumHIDZoomLinking(plotsByType) {
+  const spectrumPlots = [
+    ...plotsByType.spectrum,
+    ...plotsByType.summed_spectrum,
+  ];
+  const hidPlots = [...plotsByType.hardness];
+
+  if (spectrumPlots.length === 0 || hidPlots.length === 0) {
+    console.log('No spectrum-HID pairs found for zoom linking');
+    return;
+  }
+
+  console.log(
+    `Setting up zoom linking between ${spectrumPlots.length} spectrum plots and ${hidPlots.length} HID plots`,
+  );
+
+  // Set up zoom synchronization only between spectrum and HID
+  [...spectrumPlots, ...hidPlots].forEach((plot) => {
+    const linkedPlots =
+      plot.classList.contains('spectrum') ||
+      (plot.layout?.xaxis?.title?.text?.toLowerCase() || '').includes(
+        'energy',
+      ) ||
+      (plot.layout?.xaxis?.title?.text?.toLowerCase() || '').includes('kev')
+        ? hidPlots
+        : spectrumPlots;
+    setupSpectrumHIDZoomHandler(plot, linkedPlots);
+  });
+}
+
+/**
+ * Set up GTI-level click handler
+ * @param {HTMLElement} plot - The plot element
+ * @param {Array} spectralPlots - Array of spectral plots
+ * @param {Array} lightCurvePlots - Array of light curve plots
+ */
+function setupGTIClickHandler(plot, spectralPlots, lightCurvePlots) {
   try {
-    // Make sure we don't add duplicate handlers
-    if (plot.getAttribute('data-interactive-linking') === 'true') {
-      console.log(`Plot ${plot.id} already has interactive linking handlers`);
+    if (plot.getAttribute('data-gti-linking') === 'true') {
+      console.log(`Plot ${plot.id} already has GTI linking handlers`);
+      return;
+    }
+
+    console.log(`Setting up GTI-level click handler for plot ${plot.id}`);
+    plot.setAttribute('data-gti-linking', 'true');
+
+    const handleGTIClick = function (data) {
+      if (!data || !data.points || data.points.length === 0) {
+        console.log('GTI click detected but no points found');
+        return;
+      }
+
+      console.log('GTI-level plot click detected:', data);
+
+      // For GTI linking, we highlight entire plots rather than specific ranges
+      const clickedGTI = determineGTIFromClick(data, plot);
+
+      console.log(`GTI-level selection: ${clickedGTI || 'current dataset'}`);
+
+      // Toggle GTI highlighting
+      if (
+        highlightState.active &&
+        highlightState.currentLinkingType === 'gti' &&
+        highlightState.selectedGTI === clickedGTI
+      ) {
+        // If clicking on the same GTI, turn off highlighting
+        resetGTIHighlights([...spectralPlots, ...lightCurvePlots]);
+      } else {
+        // Highlight entire plots for this GTI
+        highlightEntireGTI([...spectralPlots, ...lightCurvePlots], clickedGTI);
+      }
+    };
+
+    if (typeof Plotly !== 'undefined' && typeof Plotly.on === 'function') {
+      Plotly.on(plot, 'plotly_click', handleGTIClick);
+      console.log('Set up GTI-level Plotly event handlers');
+    }
+  } catch (error) {
+    console.error('Error setting up GTI click handler:', error);
+  }
+}
+
+/**
+ * Set up HID linking click handler
+ * @param {HTMLElement} lightCurvePlot - The light curve plot element
+ * @param {Array} hardnessPlots - Array of hardness plots to link with
+ */
+function setupHIDClickHandler(lightCurvePlot, hardnessPlots) {
+  try {
+    if (lightCurvePlot.getAttribute('data-hid-linking') === 'true') {
+      console.log(`Plot ${lightCurvePlot.id} already has HID linking handlers`);
       return;
     }
 
     console.log(
-      `Setting up click handler for ${
-        isSpectrum ? 'spectrum' : 'light curve'
-      } plot ${plot.id}`,
+      `Setting up HID linking click handler for plot ${lightCurvePlot.id}`,
     );
+    lightCurvePlot.setAttribute('data-hid-linking', 'true');
 
-    // Mark the plot as having our handlers
-    plot.setAttribute('data-interactive-linking', 'true');
-
-    // Define the click handler
-    const handleClick = function (data) {
+    const handleHIDClick = function (data) {
       if (!data || !data.points || data.points.length === 0) {
-        console.log(
-          `Click detected on ${
-            isSpectrum ? 'spectrum' : 'light curve'
-          } plot but no points found`,
-        );
+        console.log('HID click detected but no points found');
         return;
       }
 
-      console.log(
-        `Click detected on ${isSpectrum ? 'spectrum' : 'light curve'} plot:`,
-        data,
-      );
+      console.log('HID linking plot click detected:', data);
 
       const point = data.points[0];
-      const xValue = point.x;
+      const timeValue = point.x;
 
-      // Define region around clicked point
-      const rangeWidth = isSpectrum ? 0.5 : 0.5; // keV for spectrum, seconds for light curve
-      const xRange = [xValue - rangeWidth, xValue + rangeWidth];
+      // Define time window for HID correlation
+      const timeWindow = calculateTimeWindow(lightCurvePlot, timeValue);
 
       console.log(
-        `Highlighting ${isSpectrum ? 'spectrum' : 'light curve'} region: [${
-          xRange[0]
-        }, ${xRange[1]}] ${isSpectrum ? 'keV' : 's'}`,
+        `HID linking temporal region: [${timeWindow[0]}, ${timeWindow[1]}] s`,
       );
 
-      // Always highlight new region, don't toggle
-      if (isSpectrum) {
-        const timeRange = mapEnergyToTimeRange(xRange, otherPlot);
-        highlightRegion(plot, otherPlot, xRange, timeRange);
-      } else {
-        const energyRange = mapTimeToEnergyRange(xRange, otherPlot);
-        highlightRegion(otherPlot, plot, energyRange, xRange);
-      }
-    };
-
-    // Comment out the double-click handler for now
-    /*
-    const handleDoubleClick = function() {
-      console.log('Double-click detected - resetting highlights');
-      resetHighlights(plot, otherPlot);
-    };
-    */
-
-    // Use Plotly's event system
-    if (typeof Plotly !== 'undefined' && typeof Plotly.on === 'function') {
-      console.log(
-        `Using Plotly event system for ${
-          isSpectrum ? 'spectrum' : 'light curve'
-        } plot`,
-      );
-      Plotly.on(plot, 'plotly_click', handleClick);
-      // Plotly.on(plot, 'plotly_doubleclick', handleDoubleClick);
-      console.log('Set up Plotly event handlers');
-    } else {
-      console.log('Plotly.on is not available, using fallback event handlers');
-      // Fallback to DOM events
-      plot.addEventListener('click', function (event) {
-        // This is a simplified fallback that won't have the actual data points
-        console.log('Fallback click handler (not fully functional)');
-      });
-    }
-  } catch (error) {
-    console.error('Error setting up click handler:', error);
-  }
-}
-
-/**
- * Highlight a region on both plots
- * @param {HTMLElement} spectrumPlot - The spectrum plot element
- * @param {HTMLElement} lightCurvePlot - The light curve plot element
- * @param {Array} energyRange - The energy range to highlight [min, max] in keV
- * @param {Array} timeRange - The time range to highlight [min, max] in seconds
- */
-function highlightRegion(spectrumPlot, lightCurvePlot, energyRange, timeRange) {
-  // Store the selected ranges
-  highlightState.selectedRange = energyRange;
-  highlightState.active = true;
-
-  // Apply to spectrum plot
-  applyHighlightingToSpectrum(spectrumPlot, energyRange);
-
-  // Apply to light curve plot with the mapped time range
-  applyHighlightingToLightCurve(lightCurvePlot, timeRange);
-
-  // Add visual indicator
-  spectrumPlot.classList.add('interactive-linking-active');
-  lightCurvePlot.classList.add('interactive-linking-active');
-}
-
-/**
- * Map energy range to corresponding time range based on scientific correlations
- * Using a continuous mapping approach for more precision
- * @param {Array} energyRange - The energy range [min, max] in keV
- * @param {HTMLElement} lightCurvePlot - The light curve plot to extract time values from
- * @returns {Array} Time range [min, max] in seconds
- */
-function mapEnergyToTimeRange(energyRange, lightCurvePlot) {
-  try {
-    // Extract time range from light curve data
-    if (
-      !lightCurvePlot ||
-      !lightCurvePlot.data ||
-      lightCurvePlot.data.length === 0
-    ) {
-      console.error('Cannot access light curve data to map time range');
-      return null;
-    }
-
-    // Find the data trace (non-background)
-    const dataTrace = lightCurvePlot.data.find(
-      (trace) =>
-        trace.x &&
-        trace.x.length > 0 &&
-        (!trace.name || !trace.name.toLowerCase().includes('background')),
-    );
-
-    if (!dataTrace || !dataTrace.x || dataTrace.x.length === 0) {
-      console.error('No valid data trace found in light curve');
-      return null;
-    }
-
-    // Get overall time range
-    const times = [...dataTrace.x].sort((a, b) => a - b);
-    const minTime = times[0];
-    const maxTime = times[times.length - 1];
-    const totalTime = maxTime - minTime;
-
-    // Calculate correlation weights for each time point
-    const weights = times.map((time) => {
-      const normalizedTime = (time - minTime) / totalTime;
-      const expectedEnergy = ENERGY_TIME_CORRELATION.getExpectedEnergy(
-        time - minTime,
-        totalTime,
-      );
-      return ENERGY_TIME_CORRELATION.getCorrelationStrength(
-        (energyRange[0] + energyRange[1]) / 2,
-        time - minTime,
-        totalTime,
-      );
-    });
-
-    // Find the time range with significant correlation
-    const threshold = 0.3; // Minimum correlation strength to consider
-    const significantTimes = times.filter((_, i) => weights[i] > threshold);
-
-    if (significantTimes.length === 0) {
-      // If no significant correlation, use the full range
-      return [minTime, maxTime];
-    }
-
-    // Add padding to the significant range
-    const padding = 0.1 * (maxTime - minTime);
-    return [
-      Math.max(minTime, significantTimes[0] - padding),
-      Math.min(
-        maxTime,
-        significantTimes[significantTimes.length - 1] + padding,
-      ),
-    ];
-  } catch (error) {
-    console.error('Error mapping energy to time range:', error);
-    return null;
-  }
-}
-
-/**
- * Apply highlighting to a spectrum plot by modifying point colors and opacities
- * @param {HTMLElement} plot - The spectrum plot element
- * @param {Array} xRange - The energy range to highlight [min, max] in keV
- */
-function applyHighlightingToSpectrum(plot, xRange) {
-  try {
-    if (!plot || !plot.data) return;
-
-    const pointColor = 'rgb(255, 65, 54)'; // Red for spectrum highlight
-    const updates = {
-      'marker.color': [],
-      'marker.opacity': [],
-      'marker.size': [],
-    };
-    const traceIndices = [];
-
-    // Store original state if not stored yet
-    if (!highlightState.originalOpacities.has(plot)) {
-      const originalState = new Map();
-      plot.data.forEach((trace, i) => {
-        originalState.set(i, {
-          color: trace.marker?.color,
-          opacity: trace.marker?.opacity || trace.opacity || 1,
-          size: trace.marker?.size || 6,
-        });
-      });
-      highlightState.originalOpacities.set(plot, originalState);
-    }
-
-    // Build update arrays for Plotly.restyle
-    plot.data.forEach((trace, i) => {
+      // Toggle HID highlighting
       if (
-        !trace.x ||
-        !trace.y ||
-        (trace.name && trace.name.toLowerCase().includes('background'))
+        highlightState.active &&
+        highlightState.currentLinkingType === 'hid' &&
+        highlightState.selectedRange &&
+        Math.abs(highlightState.selectedRange[0] - timeWindow[0]) < 0.01
       ) {
-        return;
+        // If clicking on the same region, turn off highlighting
+        resetHIDHighlights([lightCurvePlot, ...hardnessPlots]);
+      } else {
+        // Highlight corresponding HID points
+        highlightHIDRegion([lightCurvePlot, ...hardnessPlots], timeWindow);
       }
+    };
 
-      const colors = [];
-      const opacities = [];
-      const sizes = [];
-
-      // Calculate the center of the selected range
-      const rangeCenter = (xRange[0] + xRange[1]) / 2;
-      const rangeWidth = xRange[1] - xRange[0];
-
-      // Highlight points with smooth opacity gradient
-      for (let j = 0; j < trace.x.length; j++) {
-        const x = trace.x[j];
-        const distanceFromCenter = Math.abs(x - rangeCenter);
-        const normalizedDistance = distanceFromCenter / (rangeWidth / 2);
-
-        // Calculate opacity based on distance from center
-        const opacity = Math.max(0, 1 - normalizedDistance);
-
-        // Calculate size based on opacity
-        const size = 6 + opacity * 4;
-
-        // Calculate color with opacity
-        const color = `rgba(255, 65, 54, ${opacity})`;
-
-        colors.push(color);
-        opacities.push(opacity);
-        sizes.push(size);
-      }
-
-      if (colors.length > 0) {
-        traceIndices.push(i);
-        updates['marker.color'].push(colors);
-        updates['marker.opacity'].push(opacities);
-        updates['marker.size'].push(sizes);
-      }
-    });
-
-    // Apply updates efficiently using Plotly.restyle
-    if (traceIndices.length > 0) {
-      for (const [prop, values] of Object.entries(updates)) {
-        if (values.length === traceIndices.length) {
-          Plotly.restyle(plot, { [prop]: values }, traceIndices);
-        }
-      }
+    if (typeof Plotly !== 'undefined' && typeof Plotly.on === 'function') {
+      Plotly.on(lightCurvePlot, 'plotly_click', handleHIDClick);
+      console.log('Set up HID linking Plotly event handlers');
     }
   } catch (error) {
-    console.error('Error applying highlighting to spectrum:', error);
+    console.error('Error setting up HID click handler:', error);
   }
 }
 
 /**
- * Apply highlighting to a light curve plot by modifying point colors and opacities
- * @param {HTMLElement} plot - The light curve plot element
- * @param {Array|null} timeRange - The time range to highlight [min, max] in seconds
+ * Set up spectrum-HID zoom handler
+ * @param {HTMLElement} plot - The plot element
+ * @param {Array} linkedPlots - Array of plots to sync zoom with
  */
-function applyHighlightingToLightCurve(plot, timeRange) {
+function setupSpectrumHIDZoomHandler(plot, linkedPlots) {
   try {
-    if (!plot || !plot.data) return;
-
-    if (!timeRange) {
-      console.log('No valid time range mapping - not modifying light curve');
+    if (plot.getAttribute('data-spectrum-hid-zoom') === 'true') {
+      console.log(`Plot ${plot.id} already has spectrum-HID zoom handlers`);
       return;
     }
 
-    const pointColor = 'rgb(50, 136, 189)'; // Blue for light curve highlight
+    console.log(`Setting up spectrum-HID zoom handler for plot ${plot.id}`);
+    plot.setAttribute('data-spectrum-hid-zoom', 'true');
+
+    const handleZoom = function (eventData) {
+      console.log('Zoom event detected for spectrum-HID linking:', eventData);
+
+      // Synchronize zoom only between spectrum and HID plots
+      synchronizeSpectrumHIDZoom(plot, linkedPlots, eventData);
+    };
+
+    if (typeof Plotly !== 'undefined' && typeof Plotly.on === 'function') {
+      Plotly.on(plot, 'plotly_relayout', handleZoom);
+      console.log('Set up spectrum-HID zoom handlers');
+    }
+  } catch (error) {
+    console.error('Error setting up spectrum-HID zoom handler:', error);
+  }
+}
+
+/**
+ * Determine GTI from click data (placeholder - would need actual GTI metadata)
+ * @param {Object} data - Click event data
+ * @param {HTMLElement} plot - The plot element
+ * @returns {string|null} GTI identifier
+ */
+function determineGTIFromClick(data, plot) {
+  // This is a placeholder - in a real implementation, you would:
+  // 1. Access GTI metadata associated with the plot
+  // 2. Determine which GTI the clicked point belongs to
+  // 3. Return the GTI identifier
+
+  // For now, we'll use a simple approach based on plot type
+  const plotType = plot.getAttribute('data-plot-type') || 'unknown';
+  return `gti_${plotType}_current`;
+}
+
+/**
+ * Highlight entire plots for GTI-level linking
+ * @param {Array} plots - Array of plot elements
+ * @param {string} gti - GTI identifier
+ */
+function highlightEntireGTI(plots, gti) {
+  highlightState.active = true;
+  highlightState.selectedGTI = gti;
+  highlightState.currentLinkingType = 'gti';
+
+  plots.forEach((plot) => {
+    applyGTIHighlighting(plot);
+    plot.classList.add('gti-linking-active');
+    highlightState.linkedPlots.add(plot);
+  });
+
+  console.log(
+    `GTI-level highlighting applied to ${plots.length} plots for GTI: ${gti}`,
+  );
+}
+
+/**
+ * Highlight HID region based on temporal selection
+ * @param {Array} plots - Array of plot elements
+ * @param {Array} timeWindow - Time window [min, max]
+ */
+function highlightHIDRegion(plots, timeWindow) {
+  highlightState.active = true;
+  highlightState.selectedRange = timeWindow;
+  highlightState.currentLinkingType = 'hid';
+
+  plots.forEach((plot) => {
+    applyHIDHighlighting(plot, timeWindow);
+    plot.classList.add('hid-linking-active');
+    highlightState.linkedPlots.add(plot);
+  });
+
+  console.log(
+    `HID linking highlighting applied to ${plots.length} plots for time window: [${timeWindow[0]}, ${timeWindow[1]}]`,
+  );
+}
+
+/**
+ * Apply GTI-level highlighting (entire plot highlight)
+ * @param {HTMLElement} plot - The plot element
+ */
+function applyGTIHighlighting(plot) {
+  try {
+    if (!plot || !plot.data) return;
+
+    // Store original state
+    if (!highlightState.originalOpacities.has(plot)) {
+      const originalState = new Map();
+      plot.data.forEach((trace, i) => {
+        originalState.set(i, {
+          color: trace.marker?.color,
+          opacity: trace.marker?.opacity || trace.opacity || 1,
+          size: trace.marker?.size || 6,
+        });
+      });
+      highlightState.originalOpacities.set(plot, originalState);
+    }
+
+    // Apply subtle highlighting to entire plot
+    const updates = {};
+    const traceIndices = [];
+
+    plot.data.forEach((trace, i) => {
+      if (!trace.x || !trace.y) return;
+
+      traceIndices.push(i);
+
+      // Apply consistent highlighting across entire plot
+      if (trace.marker) {
+        updates[`marker.line.color[${i}]`] = 'rgba(255, 215, 0, 0.8)'; // Gold border
+        updates[`marker.line.width[${i}]`] = 2;
+      }
+    });
+
+    if (traceIndices.length > 0) {
+      Plotly.restyle(plot, updates, traceIndices);
+    }
+  } catch (error) {
+    console.error('Error applying GTI highlighting:', error);
+  }
+}
+
+/**
+ * Apply HID highlighting based on temporal correlation
+ * @param {HTMLElement} plot - The plot element
+ * @param {Array} timeWindow - Time window [min, max]
+ */
+function applyHIDHighlighting(plot, timeWindow) {
+  // Use the existing temporal highlighting logic
+  applyTemporalHighlighting(plot, timeWindow);
+}
+
+/**
+ * Synchronize zoom only between spectrum and HID plots
+ * @param {HTMLElement} sourcePlot - The plot that was zoomed
+ * @param {Array} linkedPlots - Array of spectrum or HID plots to synchronize with
+ * @param {Object} eventData - Zoom event data
+ */
+function synchronizeSpectrumHIDZoom(sourcePlot, linkedPlots, eventData) {
+  try {
+    // Only synchronize if the event contains axis range changes
+    if (
+      !eventData ||
+      (!eventData['xaxis.range'] && !eventData['yaxis.range'])
+    ) {
+      return;
+    }
+
+    console.log('Synchronizing zoom between spectrum and HID plots');
+
+    const updates = {};
+    if (eventData['xaxis.range']) {
+      updates['xaxis.range'] = eventData['xaxis.range'];
+    }
+    if (eventData['yaxis.range']) {
+      updates['yaxis.range'] = eventData['yaxis.range'];
+    }
+
+    // Apply zoom to linked spectrum or HID plots only
+    linkedPlots.forEach((plot) => {
+      if (plot !== sourcePlot) {
+        Plotly.relayout(plot, updates);
+      }
+    });
+  } catch (error) {
+    console.error('Error synchronizing spectrum-HID zoom:', error);
+  }
+}
+
+/**
+ * Calculate appropriate time window around a clicked point
+ * @param {HTMLElement} plot - The plot element
+ * @param {number} timeValue - The clicked time value
+ * @returns {Array} Time window [min, max]
+ */
+function calculateTimeWindow(plot, timeValue) {
+  // Get the time range of the plot to determine appropriate window size
+  if (plot.data && plot.data.length > 0) {
+    const firstTrace = plot.data[0];
+    if (firstTrace.x && firstTrace.x.length > 0) {
+      const times = [...firstTrace.x].sort((a, b) => a - b);
+      const totalTimeRange = times[times.length - 1] - times[0];
+
+      // Use 2% of the total time range as the window, with min/max bounds
+      const windowSize = Math.max(1, Math.min(10, totalTimeRange * 0.02));
+
+      return [timeValue - windowSize / 2, timeValue + windowSize / 2];
+    }
+  }
+
+  // Fallback: use 1 second window
+  return [timeValue - 0.5, timeValue + 0.5];
+}
+
+/**
+ * Highlight a temporal region across multiple temporal plots
+ * @param {Array} plots - Array of plot elements to highlight
+ * @param {Array} timeWindow - Time window [min, max] to highlight
+ */
+function highlightTemporalRegion(plots, timeWindow) {
+  highlightState.active = true;
+  highlightState.selectedRange = timeWindow;
+
+  plots.forEach((plot) => {
+    applyTemporalHighlighting(plot, timeWindow);
+    plot.classList.add('temporal-linking-active');
+    highlightState.linkedPlots.add(plot);
+  });
+}
+
+/**
+ * Apply temporal highlighting to a single plot
+ * @param {HTMLElement} plot - The plot element
+ * @param {Array} timeWindow - Time window [min, max] to highlight
+ */
+function applyTemporalHighlighting(plot, timeWindow) {
+  try {
+    if (!plot || !plot.data) return;
+
     const updates = {
       'marker.color': [],
       'marker.opacity': [],
@@ -771,36 +663,30 @@ function applyHighlightingToLightCurve(plot, timeRange) {
 
     // Build update arrays for Plotly.restyle
     plot.data.forEach((trace, i) => {
-      if (
-        !trace.x ||
-        !trace.y ||
-        (trace.name && trace.name.toLowerCase().includes('background'))
-      ) {
-        return;
-      }
+      if (!trace.x || !trace.y) return;
 
       const colors = [];
       const opacities = [];
       const sizes = [];
 
-      // Calculate the center of the selected range
-      const rangeCenter = (timeRange[0] + timeRange[1]) / 2;
-      const rangeWidth = timeRange[1] - timeRange[0];
+      // Calculate highlighting for time-based data
+      const windowCenter = (timeWindow[0] + timeWindow[1]) / 2;
+      const windowWidth = timeWindow[1] - timeWindow[0];
 
-      // Highlight points with smooth opacity gradient
       for (let j = 0; j < trace.x.length; j++) {
-        const x = trace.x[j];
-        const distanceFromCenter = Math.abs(x - rangeCenter);
-        const normalizedDistance = distanceFromCenter / (rangeWidth / 2);
+        const time = trace.x[j];
+        const distanceFromCenter = Math.abs(time - windowCenter);
+        const normalizedDistance = distanceFromCenter / (windowWidth / 2);
 
         // Calculate opacity based on distance from center
-        const opacity = Math.max(0, 1 - normalizedDistance);
+        let opacity = Math.max(0.2, 1 - normalizedDistance);
+        if (normalizedDistance <= 1) {
+          opacity = Math.max(0.8, opacity); // Strong highlight within window
+        }
 
-        // Calculate size based on opacity
-        const size = 6 + opacity * 4;
-
-        // Calculate color with opacity
-        const color = `rgba(50, 136, 189, ${opacity})`;
+        // Calculate size and color based on opacity
+        const size = 6 + (opacity - 0.2) * 4;
+        const color = `rgba(255, 140, 0, ${opacity})`; // Orange for temporal highlight
 
         colors.push(color);
         opacities.push(opacity);
@@ -824,28 +710,26 @@ function applyHighlightingToLightCurve(plot, timeRange) {
       }
     }
   } catch (error) {
-    console.error('Error applying highlighting to light curve:', error);
+    console.error('Error applying temporal highlighting:', error);
   }
 }
 
 /**
- * Reset highlights on both plots
- * @param {HTMLElement} spectrumPlot - The spectrum plot element
- * @param {HTMLElement} lightCurvePlot - The light curve plot element
+ * Reset highlights on all linked plots
+ * @param {Array} plots - Array of plot elements to reset
  */
-function resetHighlights(spectrumPlot, lightCurvePlot) {
-  resetPlotHighlights(spectrumPlot);
-  resetPlotHighlights(lightCurvePlot);
+function resetAllHighlights(plots) {
+  plots.forEach((plot) => {
+    resetPlotHighlights(plot);
+    plot.classList.remove('temporal-linking-active');
+    highlightState.linkedPlots.delete(plot);
+  });
 
   // Reset state
   highlightState.active = false;
   highlightState.selectedRange = null;
 
-  // Remove visual indicators
-  spectrumPlot.classList.remove('interactive-linking-active');
-  lightCurvePlot.classList.remove('interactive-linking-active');
-
-  console.log('All highlights reset');
+  console.log('All temporal highlights reset');
 }
 
 /**
@@ -879,256 +763,98 @@ function resetPlotHighlights(plot) {
 }
 
 /**
- * Diagnostic function that can be called from the browser console
- * to help diagnose issues with plots
+ * Reset GTI highlights
+ * @param {Array} plots - Array of plot elements to reset
+ */
+function resetGTIHighlights(plots) {
+  plots.forEach((plot) => {
+    resetPlotHighlights(plot);
+    plot.classList.remove('gti-linking-active');
+    highlightState.linkedPlots.delete(plot);
+  });
+
+  highlightState.active = false;
+  highlightState.selectedGTI = null;
+  highlightState.currentLinkingType = null;
+
+  console.log('GTI highlights reset');
+}
+
+/**
+ * Reset HID highlights
+ * @param {Array} plots - Array of plot elements to reset
+ */
+function resetHIDHighlights(plots) {
+  plots.forEach((plot) => {
+    resetPlotHighlights(plot);
+    plot.classList.remove('hid-linking-active');
+    highlightState.linkedPlots.delete(plot);
+  });
+
+  highlightState.active = false;
+  highlightState.selectedRange = null;
+  highlightState.currentLinkingType = null;
+
+  console.log('HID highlights reset');
+}
+
+/**
+ * Diagnostic function updated with new linking types
  */
 export function diagnosePlotlyGraphs() {
-  console.log('--- Diagnosing Plotly Graphs ---');
+  console.log('--- Diagnosing Plotly Graphs (Updated for Proper Linking) ---');
 
-  // Find all Plotly graphs
   const graphs = document.querySelectorAll('.js-plotly-plot');
   console.log(`Found ${graphs.length} Plotly graph elements`);
 
-  const { spectrumPlot, lightCurvePlot } = findPlots(graphs);
-  console.log('Spectrum plot:', spectrumPlot ? spectrumPlot.id : 'Not found');
-  console.log(
-    'Light curve plot:',
-    lightCurvePlot ? lightCurvePlot.id : 'Not found',
-  );
+  const plotsByType = identifyPlotTypes(graphs);
 
-  let totalPoints = 0;
-  let totalTraces = 0;
-
-  graphs.forEach((graph, index) => {
-    console.log(`\nGraph #${index + 1} - ID: ${graph.id}`);
-
-    // Check if it has data and layout
-    console.log(`Has data: ${graph.data ? 'Yes' : 'No'}`);
-    console.log(`Has layout: ${graph.layout ? 'Yes' : 'No'}`);
-
-    // Check memory usage
-    if (graph.data) {
-      totalTraces += graph.data.length;
-
-      let pointCount = 0;
-      graph.data.forEach((trace) => {
-        if (trace.x) pointCount += trace.x.length;
-      });
-
-      totalPoints += pointCount;
-      console.log(
-        `Contains ${graph.data.length} traces with approximately ${pointCount} total points`,
-      );
-    }
-
-    // Check if our handler is set up
-    console.log(
-      `Interactive linking initialized: ${
-        graph.getAttribute('data-interactive-linking') === 'true' ? 'Yes' : 'No'
-      }`,
-    );
-
-    // Check for container info
-    const container = graph.closest('[id]');
-    if (container) {
-      console.log(`Container ID: ${container.id}`);
-    }
+  console.log('\n--- Plot Classification ---');
+  Object.entries(plotsByType).forEach(([type, plots]) => {
+    console.log(`${type}: ${plots.length} plots`);
+    plots.forEach((plot, index) => {
+      console.log(`  - Plot ${index + 1}: ID ${plot.id}`);
+    });
   });
 
-  console.log(
-    `\nTotal: ${totalTraces} traces with approximately ${totalPoints} data points`,
-  );
+  console.log('\n--- Linking Status (Per Jack Steiner Feedback) ---');
+  graphs.forEach((graph, index) => {
+    console.log(`Graph #${index + 1} - ID: ${graph.id}`);
+    console.log(
+      `  GTI linking: ${
+        graph.getAttribute('data-gti-linking') === 'true' ? 'Yes' : 'No'
+      }`,
+    );
+    console.log(
+      `  HID linking: ${
+        graph.getAttribute('data-hid-linking') === 'true' ? 'Yes' : 'No'
+      }`,
+    );
+    console.log(
+      `  Spectrum-HID zoom: ${
+        graph.getAttribute('data-spectrum-hid-zoom') === 'true' ? 'Yes' : 'No'
+      }`,
+    );
+  });
+
+  console.log('\n--- Current Highlight State ---');
+  console.log(`Active: ${highlightState.active}`);
+  console.log(`Linking type: ${highlightState.currentLinkingType}`);
+  console.log(`Selected GTI: ${highlightState.selectedGTI}`);
+  console.log(`Selected range: ${highlightState.selectedRange}`);
+  console.log(`Linked plots: ${highlightState.linkedPlots.size}`);
+
+  console.log('\n--- Linking Relationships ---');
+  Object.entries(LINKING_RELATIONSHIPS).forEach(([key, relationship]) => {
+    console.log(
+      `${key}: ${relationship.description} (Level: ${relationship.linkingLevel})`,
+    );
+  });
+
   console.log('\n--- End Diagnosis ---');
 
-  return `Diagnosis complete. Found ${graphs.length} Plotly graphs with ~${totalPoints} data points.`;
+  return `Diagnosis complete. Found ${graphs.length} Plotly graphs with proper scientific linking per Jack Steiner feedback.`;
 }
 
 // Make diagnosePlotlyGraphs available globally for console access
 window.diagnosePlotlyGraphs = diagnosePlotlyGraphs;
-
-/**
- * Add direct event listeners to the plots to ensure clicks are captured
- * @param {HTMLElement} spectrumPlot - The spectrum plot element
- * @param {HTMLElement} lightCurvePlot - The light curve plot element
- */
-function addDirectEventListeners(spectrumPlot, lightCurvePlot) {
-  // Add direct click handler to the light curve plot
-  if (lightCurvePlot) {
-    console.log('Adding direct click handler to light curve plot');
-
-    // Try to get the plot container
-    const container = lightCurvePlot.closest('[id]');
-    if (container) {
-      console.log(
-        `Adding click handler to light curve container: ${container.id}`,
-      );
-
-      // Add a click handler to the container
-      container.addEventListener('click', function (event) {
-        console.log('Click detected on light curve container');
-
-        // Try to get the click coordinates
-        const rect = container.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
-        console.log(`Click coordinates: (${x}, ${y})`);
-
-        // Try to find the closest data point
-        if (lightCurvePlot.data && lightCurvePlot.data.length > 0) {
-          const trace = lightCurvePlot.data[0];
-          if (trace.x && trace.y) {
-            // Convert screen coordinates to data coordinates
-            const xaxis = lightCurvePlot.layout.xaxis;
-            const yaxis = lightCurvePlot.layout.yaxis;
-
-            // Get the axis ranges
-            const xmin = xaxis.range[0];
-            const xmax = xaxis.range[1];
-            const ymin = yaxis.range[0];
-            const ymax = yaxis.range[1];
-
-            // Convert screen coordinates to data coordinates
-            const xData = xmin + (x / rect.width) * (xmax - xmin);
-
-            // Find the closest data point
-            let closestIndex = 0;
-            let minDistance = Infinity;
-
-            for (let i = 0; i < trace.x.length; i++) {
-              const distance = Math.abs(trace.x[i] - xData);
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestIndex = i;
-              }
-            }
-
-            console.log(
-              `Closest data point: (${trace.x[closestIndex]}, ${trace.y[closestIndex]})`,
-            );
-
-            // Trigger highlighting
-            triggerHighlighting(
-              lightCurvePlot,
-              spectrumPlot,
-              trace.x[closestIndex],
-              false,
-            );
-          }
-        }
-      });
-    }
-  }
-
-  // Add direct click handler to the spectrum plot
-  if (spectrumPlot) {
-    console.log('Adding direct click handler to spectrum plot');
-
-    // Try to get the plot container
-    const container = spectrumPlot.closest('[id]');
-    if (container) {
-      console.log(
-        `Adding click handler to spectrum container: ${container.id}`,
-      );
-
-      // Add a click handler to the container
-      container.addEventListener('click', function (event) {
-        console.log('Click detected on spectrum container');
-
-        // Try to get the click coordinates
-        const rect = container.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
-        console.log(`Click coordinates: (${x}, ${y})`);
-
-        // Try to find the closest data point
-        if (spectrumPlot.data && spectrumPlot.data.length > 0) {
-          const trace = spectrumPlot.data[0];
-          if (trace.x && trace.y) {
-            // Convert screen coordinates to data coordinates
-            const xaxis = spectrumPlot.layout.xaxis;
-            const yaxis = spectrumPlot.layout.yaxis;
-
-            // Get the axis ranges
-            const xmin = xaxis.range[0];
-            const xmax = xaxis.range[1];
-            const ymin = yaxis.range[0];
-            const ymax = yaxis.range[1];
-
-            // Convert screen coordinates to data coordinates
-            const xData = xmin + (x / rect.width) * (xmax - xmin);
-
-            // Find the closest data point
-            let closestIndex = 0;
-            let minDistance = Infinity;
-
-            for (let i = 0; i < trace.x.length; i++) {
-              const distance = Math.abs(trace.x[i] - xData);
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestIndex = i;
-              }
-            }
-
-            console.log(
-              `Closest data point: (${trace.x[closestIndex]}, ${trace.y[closestIndex]})`,
-            );
-
-            // Trigger highlighting
-            triggerHighlighting(
-              spectrumPlot,
-              lightCurvePlot,
-              trace.x[closestIndex],
-              true,
-            );
-          }
-        }
-      });
-    }
-  }
-}
-
-/**
- * Trigger highlighting for a clicked point
- * @param {HTMLElement} sourcePlot - The plot that was clicked
- * @param {HTMLElement} targetPlot - The other plot to highlight
- * @param {number} xValue - The x-value of the clicked point
- * @param {boolean} isSpectrum - Whether the source plot is the spectrum plot
- */
-function triggerHighlighting(sourcePlot, targetPlot, xValue, isSpectrum) {
-  console.log(
-    `Triggering highlighting for ${
-      isSpectrum ? 'spectrum' : 'light curve'
-    } point: ${xValue}`,
-  );
-
-  // Define region around clicked point
-  const rangeWidth = isSpectrum ? 0.5 : 0.5; // keV for spectrum, seconds for light curve
-  const xRange = [xValue - rangeWidth, xValue + rangeWidth];
-
-  console.log(
-    `Highlighting ${isSpectrum ? 'spectrum' : 'light curve'} region: [${
-      xRange[0]
-    }, ${xRange[1]}] ${isSpectrum ? 'keV' : 's'}`,
-  );
-
-  // Toggle highlighting
-  if (
-    highlightState.active &&
-    highlightState.selectedRange &&
-    Math.abs(highlightState.selectedRange[0] - xRange[0]) < 0.01
-  ) {
-    // If clicking on the same region, turn off highlighting
-    resetHighlights(sourcePlot, targetPlot);
-  } else {
-    // Highlight new region
-    if (isSpectrum) {
-      const timeRange = mapEnergyToTimeRange(xRange, targetPlot);
-      highlightRegion(sourcePlot, targetPlot, xRange, timeRange);
-    } else {
-      const energyRange = mapTimeToEnergyRange(xRange, targetPlot);
-      highlightRegion(targetPlot, sourcePlot, energyRange, xRange);
-    }
-  }
-}
