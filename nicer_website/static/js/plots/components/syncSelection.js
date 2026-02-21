@@ -154,7 +154,7 @@ export function initSynchronizedSelection() {
     setupRelayoutListener(graph);
 
     // Set up click listener for GTI selection
-    setupGTIClickListener(graph);
+    //setupGTIClickListener(graph);
   });
 
   console.log(

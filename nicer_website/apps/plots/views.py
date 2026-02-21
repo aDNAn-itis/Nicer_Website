@@ -227,7 +227,6 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         # Detect Split: "101,102" -> ["101", "102"]
         if ',' in raw_obs_id_input:
             obs_id_list = [x.strip() for x in raw_obs_id_input.split(',')]
-            logger.info(f"[plot_data] Multi-Obs detected: {obs_id_list}")
         else:
             obs_id_list = [raw_obs_id_input]
 
@@ -290,7 +289,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                 continue
 
             try:
-                plot_div = plot_info['function'](plot_info['min_value'], raw_obs_id_input, all_file_paths_combined, all_gti_numbers_combined)
+                plot_div = plot_info['function'](plot_info['min_value'], ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined)
                 plot_divs.append(plot_div)
             except Exception as e:
                 logger.exception(f"[plot_data] Error plotting {plot_type_key}: {e}")
@@ -433,7 +432,7 @@ def download_data(request: HttpRequest):
                if len(gti_numbers) == 1:
                    gti_num = gti_numbers[0]
                    gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI{gti_num}*'))
-                   if not gti_files: return HttpResponse(f'No files found for GTI{gti_num}', status=404)
+                   if not gti_.files: return HttpResponse(f'No files found for GTI{gti_num}', status=404)
                    if len(gti_files) == 1: return FileResponse(open(str(gti_files[0]), 'rb'), as_attachment=True, filename=gti_files[0].name)
                    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
                        with zipfile.ZipFile(tmp.name, 'w') as archive:
