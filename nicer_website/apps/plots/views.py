@@ -167,7 +167,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         is_obsid_gti_format = False
         if '-' in gti_query_str:
             # Check the part before the first hyphen of each comma-separated value
-            is_obsid_gti_format = any(len(part.split('-')[0].strip()) > 5 for part in gti_query_str.split(','))
+            is_obsid_gti_format = any(len(part.split('-')[0].strip()) > 2 for part in gti_query_str.split(','))
 
         if is_obsid_gti_format:
             parts = gti_query_str.split(',')
