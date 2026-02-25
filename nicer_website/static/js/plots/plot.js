@@ -7,6 +7,8 @@ import { downloadData } from './components/download.js';
 import { fetchOptions } from './components/dropdowns.js';
 import { StatusBar } from './components/statusBar.js';
 
+let gtiMap = {}; // Cache for GTIs: { obsId: [gti1, gti2, ...], ... }
+let selectedGtis = []; // [{ obsId: "...", gti: N }]
 let allObservationsData = [];
 
 
