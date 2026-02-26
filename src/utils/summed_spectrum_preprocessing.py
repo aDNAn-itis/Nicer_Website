@@ -668,6 +668,8 @@ def summed_spectrum_plot(
                 'xaxis_type': 'log',
                 'yaxis_type': 'log',
                 'showlegend': True,
+                'plot_bgcolor': 'white',
+                'paper_bgcolor': 'white',
             },
             gti_labels=[f'Net Spectrum ({gti_range})']
         )

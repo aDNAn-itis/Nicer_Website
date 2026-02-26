@@ -131,11 +131,17 @@ def get_pds_data_and_plot(
                 )
 
     else:
-        # === ORIGINAL LOGIC FOR SINGLE OBSERVATION (Your Code) ===
-        base_path = data_paths[0]
-        for gti_number in gti_numbers:
-            pds_path = base_path.replace('GTI0', f'GTI{gti_number}')
-            rsp_path = pds_path.replace('-bin.pds', '-fak.rsp')
+        # === CORRECTED LOGIC FOR SINGLE OBSERVATION ===
+        for i, pds_path in enumerate(data_paths):
+            gti_number = gti_numbers[i]
+            
+            # Derive RSP path directly from PDS path
+            if '-bin.pds' in pds_path:
+                rsp_path = pds_path.replace('-bin.pds', '-fak.rsp')
+            elif '.pds' in pds_path:
+                rsp_path = pds_path.replace('.pds', '.rsp')
+            else:
+                rsp_path = pds_path + ".rsp"
 
             pds_data_list, _ = read_fits_file(pds_path, [gti_number])
             rsp_data_list, _ = read_fits_file(rsp_path, [gti_number])
