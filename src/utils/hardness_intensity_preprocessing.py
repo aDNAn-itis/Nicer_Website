@@ -92,8 +92,8 @@ def get_hid_data_and_plot(
     """
     obs_str = str(obs_id)
     
-    # Check if multiple observations are present (comma separated)
-    if ',' in obs_str:
+    # Check if multiple observations are present OR if multiple GTIs are selected for a single obs
+    if ',' in obs_str or len(gti_numbers) > 1:
         return _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers)
     else:
         return _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers)
