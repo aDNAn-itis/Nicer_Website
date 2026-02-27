@@ -195,7 +195,7 @@ def light_curve_plot(
     gti_numbers : list[int]
         List of GTI numbers
     gti_labels : list[str] | None, default = None
-        List of GTI labels
+        List of labels for each GTI, if None GTI numbers will be used as labels
     is_combined_obs : bool
         Flag indicating if this is a combined observation plot
 

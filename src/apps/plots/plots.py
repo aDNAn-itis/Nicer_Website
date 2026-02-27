@@ -36,7 +36,7 @@ def data_plot(
     gti_numbers : list[int] | None, default = None
         List of GTI numbers
     gti_labels : list[str] | None, default = None
-        List of labels for each GTI
+        List of labels for each GTI, if None GTI numbers will be used as labels
     colors : list[str] | None, default = None
         List of colours for each GTI, if None uses qualitative.Plotly
     x_errors : list[ndarray] | None, default = None

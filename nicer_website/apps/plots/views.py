@@ -8,6 +8,7 @@ import tempfile
 import logging as log
 from time import time
 from pathlib import Path
+from astropy.io import fits
 from dataclasses import dataclass
 from typing import Any, cast, Callable
 
@@ -191,6 +192,7 @@ def process_plots(
     plot_type: str
     max_gti: list[int] = []
     plot_divs: list[str] = []
+    plot_files: QuerySet[Item]
     plot: PlotType
 
     if not plot_req.plot_types:
@@ -202,13 +204,13 @@ def process_plots(
 
         LOGGER.info(f'Processing plot type: {plot_type}')
         plot.exists = True
-        files = files.filter(
+        plot_files = files.filter(
             file_type=plot.file_type,
         ).exclude(name__regex=r'_BAND\d+')
 
-        if files.exists():
+        if plot_files.exists():
             ti = time()
-            files = files.order_by('gti')
+            plot_files = plot_files.order_by('gti')
             max_gti.append(files.last().gti)
             plot_div = plot.function(
                 plot.min_value,
@@ -219,8 +221,8 @@ def process_plots(
                     str(file.obs_id),
                     'jspipe',
                     file.name,
-                ) for file in files],
-                list(files.values_list('gti', flat=True)),
+                ) for file in plot_files],
+                list(plot_files.values_list('gti', flat=True)),
                 gti_labels=labels,
             )
             LOGGER.info(f'{plot_type} function completed in {time() - ti:.3f}s')
@@ -294,63 +296,60 @@ def calculate_default_binning(file_path, plot_type):
     int
         Calculated default binning value
     """
-    try:
-        from astropy.io import fits
+    if plot_type in ['spectrum', 'summed_spectrum']:
+        # For spectrum: reduce number of energy bins
+        with fits.open(file_path) as hdul:
+            if 'SPECTRUM' in hdul:
+                counts = hdul['SPECTRUM'].data['COUNTS']
+                total_bins = len(counts)
+                max_counts = np.max(counts)
 
-        if plot_type in ['spectrum', 'summed_spectrum']:
-            # For spectrum: reduce number of energy bins
-            with fits.open(file_path) as hdul:
-                if 'SPECTRUM' in hdul:
-                    counts = hdul['SPECTRUM'].data['COUNTS']
-                    total_bins = len(counts)
-                    max_counts = np.max(counts)
+                # set for fast rendering
+                target_points = 500
 
-                    # set for fast rendering
-                    target_points = 500
+                # Calculate binning factor
+                bin_factor = max(1, total_bins // target_points)
 
-                    # Calculate binning factor
-                    bin_factor = max(1, total_bins // target_points)
+                # 1% of max as minimum
+                min_counts = max(1, int(max_counts * 0.01))
 
-                    # 1% of max as minimum
-                    min_counts = max(1, int(max_counts * 0.01))
+                default_bin = max(bin_factor, min_counts)
+                return default_bin
 
-                    default_bin = max(bin_factor, min_counts)
-                    return default_bin
+    elif plot_type == 'light_curve':
+        #  have < 100 bins per GTI
+        # ensure minimum counts per bin
+        with fits.open(file_path) as hdul:
+            if 'RATE' in hdul:
+                rate = hdul['RATE'].data['RATE']
+                total_bins = len(rate)
+                mean_rate = np.mean(rate)
 
-        elif plot_type == 'light_curve':
-            #  have < 100 bins per GTI
-            # ensure minimum counts per bin
-            with fits.open(file_path) as hdul:
-                if 'RATE' in hdul:
-                    rate = hdul['RATE'].data['RATE']
-                    total_bins = len(rate)
-                    mean_rate = np.mean(rate)
+                # Target 100 final bins per GTI
+                target_bins = 100
+                bins_to_combine = max(1, total_bins // target_bins)
 
-                    # Target 100 final bins per GTI
-                    target_bins = 100
-                    bins_to_combine = max(1, total_bins // target_bins)
+                # at least 100 counts per bin
+                if mean_rate > 0:
+                    min_bins_for_100_counts = max(1, int(100 / mean_rate))
+                else:
+                    min_bins_for_100_counts = 1
 
-                    # at least 100 counts per bin
-                    if mean_rate > 0:
-                        min_bins_for_100_counts = max(1, int(100 / mean_rate))
-                    else:
-                        min_bins_for_100_counts = 1
+                # Use one that combines more bins
+                default_bin = max(bins_to_combine, min_bins_for_100_counts)
 
-                    # Use one that combines more bins
-                    default_bin = max(bins_to_combine, min_bins_for_100_counts)
+                final_points = total_bins / default_bin
+                final_counts_per_bin = mean_rate * default_bin
+                return default_bin
 
-                    final_points = total_bins / default_bin
-                    final_counts_per_bin = mean_rate * default_bin
-                    return default_bin
+    elif plot_type == 'power_density_spectrum':
+        # For PDS: the min_value controls significance-based binning (higher number means more agressive binning)
+        default_significance = 15
+        return default_significance
 
-        elif plot_type == 'power_density_spectrum':
-            # For PDS: the min_value controls significance-based binning (higher number means more agressive binning)
-            default_significance = 15
-            return default_significance
-
-        elif plot_type == 'hardness_intensity_diagram':
-            # Return fixed default of 1 (no binning)
-            return 1
+    elif plot_type == 'hardness_intensity_diagram':
+        # Return fixed default of 1 (no binning)
+        return 1
 
     # Fallback to predefined defaults
     fallback = PLOTS.get(plot_type, {}).get('min_value', 1)

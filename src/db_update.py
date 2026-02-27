@@ -1,10 +1,9 @@
 """
 Updates the PostgreSQL database using psycopg2 to match the folder structure of the specified
-directory found in config.txt
+directory found in config.json
 """
 import os
 import re
-import json
 import argparse
 import subprocess
 from time import time
@@ -21,7 +20,7 @@ from numpy import ndarray
 from psycopg2.extras import execute_values
 
 from src.utils.utils import progress_bar
-from nicer_website.settings import DATABASES, BASE_DIR
+from nicer_website.settings import DATABASES, DATA_DIR
 
 
 DB_CONFIG: dict[str, str] = {
@@ -152,7 +151,6 @@ def universal_count(directory: str) -> int:
 
 
 def process_dir(
-        data_dir: str,
         count: list[int],
         total: list[int],
         root_file: tuple[str, ndarray[tuple[int], np.dtype[np.str_]]],
@@ -162,8 +160,6 @@ def process_dir(
 
     Parameters
     ----------
-    data_dir : str
-        The base directory for data.
     count : list[int]
         A list containing the current count of processed items, used for thread-safe updates.
     total : list[int]
@@ -183,7 +179,7 @@ def process_dir(
     min_num: int = 1000
     file: str
     root: str = root_file[0]
-    relative_root: str = root.replace(data_dir, '') or '/'
+    relative_root: str = root.replace(DATA_DIR, '') or '/'
     dir_name: str = os.path.basename(relative_root) or '/'
     parent_dir: str = os.path.dirname(relative_root) or '/'
     keys: tuple[str, ...] = (
@@ -288,7 +284,6 @@ def main(update: bool = False, batch: int = int(1e5), limit: int = -1) -> None:
     """
     min_num: int = 1000
     ti: float = time()
-    data_dir: str
     count: list[int] = [0]
     total: list[int] = [0]
     root_files: list[tuple[str, ndarray[tuple[int], np.dtype[np.str_]]]] = []
@@ -308,14 +303,10 @@ def main(update: bool = False, batch: int = int(1e5), limit: int = -1) -> None:
                                      'existing entries or clear database with: python manage.py '
                                      'flush')
 
-    # Get data directory location from config.txt
-    with open(os.path.join(BASE_DIR, 'config.txt'), mode='r', encoding='utf-8') as config:
-        data_dir = os.path.join(BASE_DIR, json.load(config)['data_dir'])
-
     # Calculate the total number of folders and files
-    for root, _, files in os.walk(data_dir):
+    for root, _, files in os.walk(DATA_DIR):
         root_files.append((root, np.array(files, dtype=str)))
-        total[0] += len(files) + int(root != data_dir)
+        total[0] += len(files) + int(root != DATA_DIR)
 
         if total[0] % min_num == 0:
             print(f'\rCount: {total[0]}', end='', flush=True)
@@ -326,11 +317,11 @@ def main(update: bool = False, batch: int = int(1e5), limit: int = -1) -> None:
 
     if not total[0]:
         raise ValueError(f'No files or folders found, check parent directory is correct: '
-                         f'{data_dir}')
+                         f'{DATA_DIR}')
 
     print(f'\rTotal number of files and folders: {total[0]}\tTime taken: {time() - ti:.2f} s')
     ti = time()
-    partial_func = partial(process_dir, data_dir, count, total, lock=lock)
+    partial_func = partial(process_dir, count, total, lock=lock)
     print('\nProcessing files and folders...')
 
     with ThreadPoolExecutor() as executor:

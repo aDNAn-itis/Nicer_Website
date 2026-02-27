@@ -178,6 +178,8 @@ def spectrum_plot(
         List of GTI numbers
     cut_off : list, default = [0.3, 10]
         Range of accepted data in keV
+    gti_labels : list[str] | None, default = None
+        List of labels for each GTI, if None GTI numbers will be used as labels
 
     Returns
     -------
@@ -190,9 +192,6 @@ def spectrum_plot(
     background: list[ndarray] = []
     x_background: list[ndarray] = []
     y_uncertainties: list[ndarray] = []
-
-    if gti_labels is None:
-        gti_labels = [f'GTI{gti}' for gti in gti_numbers]
 
     # Get spectrum data
     for data_path in data_paths:

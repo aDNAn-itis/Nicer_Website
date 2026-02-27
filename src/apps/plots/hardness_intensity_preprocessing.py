@@ -96,21 +96,23 @@ def get_hid_data_and_plot(
     min_value: int,
     obs_id: int,
     data_paths: List[str],
-    gti_numbers: List[int]
-) -> str:
+    gti_numbers: List[int],
+    gti_labels: list[str] | None) -> str:
     """
     Process multiple lightcurve files and create a Hardness-Intensity Diagram (HID) plot.
 
     Parameters
     ----------
     min_value : int
-        Binning factor (number of time bins to combine).
+        Binning factor (number of time bins to combine)
     obs_id : int
         Observation ID
     data_paths : list[str]
-        List of file paths to the lightcurve data files.
+        List of file paths to the lightcurve data files
     gti_numbers : list[int]
-        List of GTI numbers to process.
+        List of GTI numbers to process
+    gti_labels : list[str] | None, default = None
+        List of labels for each GTI, if None GTI numbers will be used as labels
 
     Returns
     -------
@@ -233,5 +235,6 @@ def get_hid_data_and_plot(
             'xaxis_range': xaxis_range,
             'yaxis_range': yaxis_range,
             'showlegend': False,
-        }
+        },
+        gti_labels=gti_labels,
     )

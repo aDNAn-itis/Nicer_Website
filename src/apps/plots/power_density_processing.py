@@ -140,7 +140,8 @@ def get_pds_data_and_plot(
     min_value: int,
     obs_id: int,
     data_paths: List[str],
-    gti_numbers: List[int]) -> str:
+    gti_numbers: List[int],
+    gti_labels: list[str] | None = None) -> str:
     """
     Processes and plots PDS data for multiple files.
 
@@ -151,9 +152,11 @@ def get_pds_data_and_plot(
     obs_id : int
         Observation ID
     data_paths : List[str]
-        List of paths to PDS files.
+        List of paths to PDS files
     gti_numbers : List[int]
-        List of GTI numbers.
+        List of GTI numbers
+    gti_labels : list[str] | None, default = None
+        List of labels for each GTI, if None GTI numbers will be used as labels
 
     Returns
     -------
@@ -203,19 +206,18 @@ def get_pds_data_and_plot(
 
                     # Apply binning to log-frequency and power data
                     data_stack = np.stack([log_freq, power_density, error_density, freq_center])
-                    (binned_log_freq, binned_power, binned_error, binned_freq_linear), _, _ = binning(
+                    binned_log_freq, binned_power,  binned_error,  binned_freq_linear = binning(
                         min_bins,
                         data_stack,
-                    )
+                    )[0]
 
                     # Use binned data
                     freq_center = binned_freq_linear  # Use the binned linear frequency
                     power_density = binned_power
                     error_density = binned_error
-
-                    print(f"PDS adaptive binning GTI{gti_number}: {len(pseudo_counts)} points -> {len(freq_center)} bins (min_value={min_value})")
                 else:
-                    print(f"PDS GTI{gti_number}: Insufficient data for adaptive binning ({len(pseudo_counts)} points, sum={np.sum(pseudo_counts):.1f})")
+                    print(f"PDS GTI{gti_number}: Insufficient data for adaptive binning "
+                          f"({len(pseudo_counts)} points, sum={np.sum(pseudo_counts):.1f})")
 
             x_data_list.append(freq_center)
             y_data_list.append(power_density)
@@ -235,13 +237,10 @@ def get_pds_data_and_plot(
         np.min(data, where=data > 0, initial=np.max(data)) for data in y_data_list
     ))
     y_max = np.log10(max(np.max(data) for data in y_data_list))
-
     x_margin = (x_max - x_min) * margin_factor
     y_margin = (y_max - y_min) * margin_factor
-
     xaxis_range = [x_min - x_margin, x_max + x_margin]
     yaxis_range = [y_min - y_margin, y_max + y_margin]
-
     return data_plot(
         gti_numbers=gti_numbers,
         x_data_list=x_data_list,
@@ -257,7 +256,8 @@ def get_pds_data_and_plot(
             'showlegend': True,
             'xaxis_range': xaxis_range,
             'yaxis_range': yaxis_range,
-        }
+        },
+        gti_labels=gti_labels,
     )
 
 
