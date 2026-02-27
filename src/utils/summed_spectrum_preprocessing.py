@@ -453,7 +453,7 @@ def summed_spectrum_data(
 
 def summed_spectrum_plot(
     min_value: int,
-    obs_id: int,
+    obs_id: str,
     data_paths: List[str],
     gti_numbers: List[int],
     cut_off: Optional[Tuple[float, float]] = None,
@@ -480,7 +480,7 @@ def summed_spectrum_plot(
     ----------
     min_value : int
         Minimum value for each bin (currently not used for summed spectrum)
-    obs_id : int
+    obs_id : str
         Observation ID
     data_paths : List[str]
         File paths to the spectra (.jsgrp files)
@@ -499,10 +499,10 @@ def summed_spectrum_plot(
     if cut_off is None:
         cut_off = (0.3, 12)
     
-    logger.info(f"Starting summed spectrum plot for observation {obs_id}")
+    logger.info(f"Starting summed spectrum plot for observation(s) {obs_id}")
     logger.info(f"Input: {len(data_paths)} data paths, {len(gti_numbers)} GTI numbers")
     logger.info(f"Energy cut-off: {cut_off} keV")
-    
+
     # Validate inputs
     if not data_paths:
         logger.error("No data paths provided for summed spectrum")
@@ -515,252 +515,87 @@ def summed_spectrum_plot(
     if len(data_paths) != len(gti_numbers):
         logger.error(f"Mismatch: {len(data_paths)} data paths vs {len(gti_numbers)} GTI numbers")
         return "Error: Number of data paths must match number of GTI numbers"
-    
-    # Check for existing files
-    logger.info("Validating file paths")
-    valid_paths = []
-    valid_gtis = []
-    missing_files = []
-    
-    for path, gti in zip(data_paths, gti_numbers):
-        if os.path.exists(path):
-            valid_paths.append(path)
-            valid_gtis.append(gti)
-            logger.debug(f"Found file for GTI {gti}: {path}")
-        else:
-            missing_files.append(f"GTI{gti}: {path}")
-            logger.warning(f"Missing file for GTI {gti}: {path}")
-    
-    if not valid_paths:
-        error_msg = f"Error: No valid spectrum files found. Missing files: {'; '.join(missing_files)}"
-        logger.error(error_msg)
-        return error_msg
-    
-    if missing_files:
-        warning_msg = f"Warning: Some files missing for summed spectrum: {'; '.join(missing_files)}"
-        logger.warning(warning_msg)
-        print(warning_msg)
-    
-    logger.info(f"Processing {len(valid_paths)} valid files for GTIs: {valid_gtis}")
-    
-    try:
-        # Get summed spectrum data
-        plot_start_time = time.time()
-        logger.info("Calling summed_spectrum_data function")
-        x_bin, net_rate, net_rate_error, net_background, x_error = summed_spectrum_data(
-            valid_paths, valid_gtis, cut_off
-        )
-        data_time = time.time() - plot_start_time
-        logger.info(f"Data processing completed in {data_time:.3f}s")
-        
-        # Calculate total exposure times from already processed data by re-reading headers efficiently
-        logger.debug("Reading exposure times for final summary")
-        total_exposure = 0.0
-        total_52time = 0.0
-        
-        # More efficient: read only headers, not full data
-        for path in valid_paths:
-            try:
-                with fits.open(path) as spec_file:
-                    spectrum_info = spec_file[1].header
-                    response = spectrum_info['RESPFILE']
-                    nfpm = int(re.search(r'_d(\d+)', response).group(1))
-                    gti_time = float(spectrum_info['EXPOSURE'])
-                    total_exposure += gti_time
-                    total_52time += gti_time * nfpm / 52.0
-            except Exception as e:
-                logger.warning(f"Could not read exposure from {path}: {e}")
-                continue
-        
-        # Create plot with both net spectrum and background
-        if len(valid_gtis) > 1:
-            gti_range = f"GTI {min(valid_gtis)}-{max(valid_gtis)} ({len(valid_gtis)} GTIs)"
-        else:
-            gti_range = f"GTI {valid_gtis[0]}"
-        
-        logger.info(f"Creating plot for {gti_range}")
-        logger.info(f"Plot data summary: {len(x_bin)} energy bins, net_rate range: {net_rate.min():.3e} to {net_rate.max():.3e}")
-        logger.info(f"Background range: {net_background.min():.3e} to {net_background.max():.3e}")
-        
-        # Print final plot data summary with error handling
-        print("\n" + "="*80)
-        print("FINAL PLOT DATA SUMMARY")
-        print("="*80)
-        print(f"Observation ID: {obs_id}")
-        print(f"GTI range: {gti_range}")
-        print(f"Energy range plotted: {x_bin.min():.3f} - {x_bin.max():.3f} keV")
-        print(f"Number of data points: {len(x_bin)}")
-        
-        # Verify we have valid exposure times
-        if total_52time > 0:
-            print(f"Total exposure time: {total_exposure:.3f} s")
-            print(f"52-FPM normalized exposure: {total_52time:.3f} s")
-            
-            # Calculate equivalent counts from final rates
-            equivalent_total_net = np.sum(net_rate) * total_52time
-            equivalent_total_bg = np.sum(net_background) * total_52time
-            
-            print(f"Final plot counts (within energy range):")
-            print(f"  Equivalent net counts: {equivalent_total_net:.1f}")
-            print(f"  Equivalent background counts: {equivalent_total_bg:.1f}")
-            print(f"  Equivalent total counts: {equivalent_total_net + equivalent_total_bg:.1f}")
-        else:
-            logger.warning("Could not calculate exposure times - equivalent counts unavailable")
-        
-        # Basic statistics (always available) - now per channel
-        print(f"Net rate statistics (per channel):")
-        print(f"  Min: {net_rate.min():.3e} counts/s/det/channel")
-        print(f"  Max: {net_rate.max():.3e} counts/s/det/channel")
-        print(f"  Mean: {net_rate.mean():.3e} counts/s/det/channel")
-        print(f"  Median: {np.median(net_rate):.3e} counts/s/det/channel")
-        print(f"  Sum: {np.sum(net_rate):.3e} counts/s/det/channel")
-        print(f"Background statistics (per channel):")
-        print(f"  Min: {net_background.min():.3e} counts/s/det/channel")
-        print(f"  Max: {net_background.max():.3e} counts/s/det/channel")
-        print(f"  Mean: {net_background.mean():.3e} counts/s/det/channel")
-        print(f"  Sum: {np.sum(net_background):.3e} counts/s/det/channel")
-        
-        # Check for valid peak
-        if len(net_rate) > 0:
-            peak_idx = np.argmax(net_rate)
-            print(f"Peak energy bin: {x_bin[peak_idx]:.3f} keV (rate: {net_rate[peak_idx]:.3e}/channel)")
-        
-        # Print all final plot data points with bounds checking
-        print(f"\nALL FINAL PLOT DATA POINTS ({len(x_bin)} bins):")
-        print(f"{'Bin':<4} {'Energy':<10} {'Net Rate/ch':<12} {'BG Rate/ch':<12} {'Error/ch':<12}")
-        print("-" * 60)
-        for i in range(len(x_bin)):
-            print(f"{i+1:<4} {x_bin[i]:<10.3f} {net_rate[i]:<12.3e} {net_background[i]:<12.3e} {net_rate_error[i]:<12.3e}")
-        print("-" * 60)
-        
-        # Safe calculation of combined error
-        combined_error = np.sqrt(np.sum(net_rate_error**2)) if len(net_rate_error) > 0 else 0.0
-        print(f"{'SUM':<4} {'ALL':<10} {np.sum(net_rate):<12.3e} {np.sum(net_background):<12.3e} {combined_error:<12.3e}")
-        print("="*80)
-        print()
-        
-        plot_creation_start = time.time()
-        
-        # Validate data before plotting
-        if len(x_bin) == 0 or len(net_rate) == 0:
-            raise ValueError("No data available for plotting after processing")
-        
-        if not np.all(np.isfinite(x_bin)) or not np.all(np.isfinite(net_rate)):
-            logger.warning("Non-finite values detected in plot data - replacing with zeros")
-            x_bin = np.nan_to_num(x_bin)
-            net_rate = np.nan_to_num(net_rate)
-            net_rate_error = np.nan_to_num(net_rate_error)
-            net_background = np.nan_to_num(net_background)
-        
-        result = data_plot(
-            gti_numbers=[0],  # Single trace for summed data
-            x_data_list=[x_bin],
-            y_data_list=[net_rate],
-            x_background_list=[x_bin],
-            background_list=[net_background],
-            x_errors=[x_error],
-            y_uncertainties=[net_rate_error],
-            plot_kwargs={'mode': 'markers'},
-            layout_kwargs={
-                'title': f'Summed Spectrum {obs_id}',
-                'xaxis_title': r'$\text{Energy}\ (keV)$',
-                'yaxis_title': r'$\text{Net Rate}\ (counts\ s^{-1}\ det^{-1})$',
-                'xaxis_type': 'log',
-                'yaxis_type': 'log',
-                'showlegend': True,
-                'plot_bgcolor': 'white',
-                'paper_bgcolor': 'white',
-            },
-            gti_labels=[f'Net Spectrum ({gti_range})']
-        )
-        
-        # Integrate download button directly into the plot HTML
-        if len(valid_gtis) > 1:
-            gti_range_str = f"GTI{min(valid_gtis)}-{max(valid_gtis)}"
-        else:
-            gti_range_str = f"GTI{valid_gtis[0]}"
-        
-        # Add download button and script directly within the plot div
-        download_button = f"""
-        <div style="position: relative;">
-            {result}
-            <div style="position: absolute; bottom: 30px; right: 10px; z-index: 1000;">
-                <button onclick="downloadExportedFiles('{gti_range_str}', '{obs_id}')" 
-                        style="background-color: #4CAF50; color: black; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); opacity: 0.9; transition: opacity 0.2s;"
-                        onmouseover="this.style.opacity=1" 
-                        onmouseout="this.style.opacity=0.9">
-                    Download
-                </button>
-            </div>
-        </div>
-        <script>
-        function downloadExportedFiles(gtiRange, obsId) {{
-            // Create a download link for the spectrum files
-            const downloadUrl = `/download_exported_spectra/${{obsId}}_${{gtiRange}}/`;
-            window.open(downloadUrl, '_blank');
-        }}
-        </script>
-        """
-        
-        result = download_button
-        plot_creation_time = time.time() - plot_creation_start
-        logger.info(f"Plot creation completed in {plot_creation_time:.3f}s")
-        logger.info(f"Plot HTML length: {len(result)} characters")
-        logger.info(f"Plot HTML preview: {result[:200]}...")
-        
-        total_plot_time = time.time() - plot_start_time
-        logger.info(f"Total summed spectrum plot generation time: {total_plot_time:.3f}s")
-        
-        # Generate exportable files for verification
-        export_start_time = time.time()
-        logger.info("Generating exportable FITS files for verification...")
-        
-        try:
-            # Create output directory if it doesn't exist
-            export_dir = "exported_spectra"  # Relative to workspace
-            os.makedirs(export_dir, exist_ok=True)
-            
-            # Create output base filename
-            if len(valid_gtis) > 1:
-                gti_range = f"GTI{min(valid_gtis)}-{max(valid_gtis)}"
-            else:
-                gti_range = f"GTI{valid_gtis[0]}"
-            
-            output_base = os.path.join(export_dir, f"obs_{obs_id}_{gti_range}")
-            
-            # Generate exportable files
-            export_result = create_exportable_summed_spectrum(
-                valid_paths,
-                valid_gtis,
-                output_base,
-                str(obs_id)
-            )
-            
-            export_time = time.time() - export_start_time
-            logger.info(f"Exportable files created in {export_time:.3f}s")
-            logger.info(f"Export result: {export_result}")
-            
-            # Print file creation summary
-            print("\n" + "="*80)
-            print("EXPORTABLE FILES GENERATED")
-            print("="*80)
-            print(export_result)
-            print("="*80)
-            print()
-            
 
-            
+    # Group files by observation ID
+    obs_id_to_files = {}
+    obs_id_to_gtis = {}
+    for path, gti in zip(data_paths, gti_numbers):
+        match = re.search(r'/(\d{10,})/jspipe/', path)
+        if match:
+            current_obs_id = match.group(1)
+            if current_obs_id not in obs_id_to_files:
+                obs_id_to_files[current_obs_id] = []
+                obs_id_to_gtis[current_obs_id] = []
+            obs_id_to_files[current_obs_id].append(path)
+            obs_id_to_gtis[current_obs_id].append(gti)
+
+    if not obs_id_to_files:
+        return "Error: Could not extract observation IDs from file paths."
+
+    x_data_list = []
+    y_data_list = []
+    x_errors_list = []
+    y_uncertainties_list = []
+    plot_labels = []
+
+    for current_obs_id, files in obs_id_to_files.items():
+        gtis = obs_id_to_gtis[current_obs_id]
+        logger.info(f"Processing summed spectrum for observation {current_obs_id}")
+        
+        valid_paths = []
+        valid_gtis = []
+        missing_files = []
+        for path, gti in zip(files, gtis):
+            if os.path.exists(path):
+                valid_paths.append(path)
+                valid_gtis.append(gti)
+            else:
+                missing_files.append(f"GTI{gti}: {path}")
+
+        if not valid_paths:
+            logger.warning(f"No valid files for observation {current_obs_id}")
+            continue
+
+        try:
+            x_bin, net_rate, net_rate_error, _, x_error = summed_spectrum_data(
+                valid_paths, valid_gtis, cut_off
+            )
+            x_data_list.append(x_bin)
+            y_data_list.append(net_rate)
+            x_errors_list.append(x_error)
+            y_uncertainties_list.append(net_rate_error)
+            plot_labels.append(f"{current_obs_id} (GTIs: {len(valid_gtis)})")
         except Exception as e:
-            export_error = f"Warning: Could not create exportable files: {str(e)}"
-            logger.warning(export_error)
-            print(f"\n{export_error}\n")
-        
-        return result
-        
-    except Exception as e:
-        error_msg = f"Error generating summed spectrum: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        return error_msg
+            logger.error(f"Error processing summed spectrum for {current_obs_id}: {e}")
+            continue
+
+    if not x_data_list:
+        return "Error: No data could be processed for any observation."
+
+    # Create plot with multiple traces
+    title = f'Summed Spectrum for {obs_id}' if ',' in obs_id else f'Summed Spectrum for {obs_id}'
+
+    result = data_plot(
+        gti_numbers=list(range(len(x_data_list))),  # Dummy numbers for traces
+        x_data_list=x_data_list,
+        y_data_list=y_data_list,
+        x_errors=x_errors_list,
+        y_uncertainties=y_uncertainties_list,
+        plot_kwargs={'mode': 'markers'},
+        layout_kwargs={
+            'title': title,
+            'xaxis_title': r'$\text{Energy}\ (keV)$',
+            'yaxis_title': r'$\text{Net Rate}\ (counts\ s^{-1}\ det^{-1})$',
+            'xaxis_type': 'log',
+            'yaxis_type': 'log',
+            'showlegend': True,
+            'plot_bgcolor': 'white',
+            'paper_bgcolor': 'white',
+        },
+        gti_labels=plot_labels
+    )
+    
+    return result
 
 
 def create_exportable_summed_spectrum(
