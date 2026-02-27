@@ -2,8 +2,7 @@
 <link rel="stylesheet" href="{% static '/css/plot.css' %}" />
 <link rel="stylesheet" href="{% static '/css/interactive-linking.css' %}" />
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-<script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-3.3.0.min.js" charset="utf-8"></script>
 <script id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 
 <script>
@@ -50,9 +49,9 @@
         <div class="row" style="align-items: end; gap: 1rem">
           <div class="column">
             <label for="search-type">Search by:</label>
-            <select id="search-type" name="search_type" class="dropdown-field">
-              <option value="obs_id" selected>Observation ID</option>
-              <option value="source">Source Name</option>
+            <select id="search-type" name="obs_search" class="dropdown-field">
+              <option value="true" selected>Observation ID</option>
+              <option value="false">Source Name</option>
             </select>
           </div>
 

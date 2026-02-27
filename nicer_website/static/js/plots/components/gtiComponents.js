@@ -17,7 +17,7 @@ import { setGTICrossLinking, clearGTIHighlighting } from './gtiCrossLinking.js';
  * @param {number} obsID Observation ID for the plot
  * @param {String} plotType Which plot is the GTI selection field being added to
  * @param {number} defaultBinning Default binning value (1% of max counts)
- * @returns {HTMLFormElement} HTML form element containing
+ * @returns {JQuery<HTMLFormElement>} HTML form element containing
  * the GTI selection field and submit button
  */
 export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1) {
@@ -94,7 +94,7 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1) {
   const $SEARCH = $('<input>', {
     name: 'gti-search',
     type: 'text',
-    placeholder: `GTI numbers (,) and/or range (-) between 0 and ${maxGTI - 1}`,
+    placeholder: `GTI numbers (,) and/or range (-) between 0 and ${maxGTI}`,
   });
 
   // store the actual binning value sent to server
@@ -228,7 +228,7 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1) {
         'Updating ' + cleanPlotType.replace(/_/g, ' ') + ' plot...',
       );
 
-      
+
 
       // Use jQuery trigger which bubbles and hits jQuery handlers
       $FORM.trigger('submit');
@@ -378,12 +378,10 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1) {
         'Updating ' + cleanPlotType.replace(/_/g, ' ') + ' plot...',
       );
 
-
       // Check if the form has a submit handler attached
       const events = $._data($FORM[0], 'events');
       // Automatically submit the form when the search input changes
-      $FORM.trigger('submit');
-     
+      $FORM.submit();
     }, 500); // 500ms debounce for text input
   });
 

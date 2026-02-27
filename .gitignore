@@ -11,3 +11,6 @@
 **/*[Tt][Ee][Ss][Tt]*
 **/*[Tt][Ee][Mm][Pp]*.*
 /node_modules/
+config.json
+db_user.json
+/exported_spectra/*

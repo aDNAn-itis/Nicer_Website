@@ -5,6 +5,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name":"DB Update",
+            "type":"debugpy",
+            "request":"launch",
+            "module":"src.db_update",
+            "args": [
+                "--update",
+                "--limit", "10000"
+            ]
+        },
+        {
             "name": "Django Server",
             "type": "debugpy",
             "request": "launch",
@@ -20,9 +30,14 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
+            // "module": "${command:extension.commandvariable.file.relativeFileDotsNoExtension}",
+            "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "cwd": "${fileDirname}"
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ]
 }

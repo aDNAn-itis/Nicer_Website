@@ -1,122 +1,21 @@
-{% extends 'base.html' %}
-
-{% block title %}Directory{% endblock %}
-
-{% block head %}
-<style>
-.column {
-	float: left;
-	width: 50%;
-}
-
-.row::after {
-	clear: both;
-}
-
-@media screen and (max-width: 600px) {
-	.column {
-		width: 100%;
-	}
-}
-</style>
+{% extends 'base.html' %} {% block title %}Directory{% endblock %} {% load static %} {% block head %}
+<link rel="stylesheet" href="{% static 'css/file_mgr/directory.css' %}" />
 
 <script>
-	const QUANTITY = 20;
-	var end = 0;
-	
-	function height() {
-		var body = document.body;
-		var html = document.documentElement;
-		return Math.max(body.scrollHeight, body.offsetHeight, html.clientHeight, html.scrollHeight, html.offsetHeight);
-	};
-
-	function addItem(item) {
-		const LIST_Element = document.createElement('li');
-		const ITEM_ELEMENT = document.createElement('a');
-		const ITEM_TEXT = document.createTextNode(item.name);
-		const PATH_CATEGORY = item.type == 'file' ? `{% url 'file_mgr:file' 'TEMP' %}` : `{% url 'file_mgr:directory' 'TEMP' %}`;
-		const RELATIVE_PATH = item.path ? `${item.path}${item.name}` : item.name;
-
-		ITEM_ELEMENT.href = PATH_CATEGORY.replace('TEMP', RELATIVE_PATH)
-		ITEM_ELEMENT.appendChild(ITEM_TEXT);
-		LIST_Element.appendChild(ITEM_ELEMENT);
-
-		document.querySelector(`#${item.type}`).append(LIST_Element);
-	};
-			
-	function loadData() {
-		const START = end;
-		var items_added = true;
-		end += QUANTITY;
-		
-		fetch(`/manager/file_request?start=${START}&end=${end}&path={{ current_dir }}`)
-		.then(response => response.json())
-		.then(data => {
-			data.dirs.forEach(addItem);
-			data.files.forEach(addItem);
-
-			items_added = Math.max(data.dirs.length, data.files.length) == 0 ? false : true;
-		})
-		.then(_ => {
-			if (window.innerHeight == height() && items_added) {
-				loadData();
-			}
-		})
-	};
-
-	function currentDir() {
-		const HEADING_ELEMENT = document.createElement('h1');
-		let headingText = document.createTextNode('{{ current_dir }}');
-
-		if ('{{ current_dir }}' == '/') {
-			headingText = document.createTextNode('Root');
-		}
-
-		HEADING_ELEMENT.appendChild(headingText);
-		document.querySelector(`#current_dir`).append(HEADING_ELEMENT);
-	};
-
-	document.addEventListener('DOMContentLoaded', () => {
-		currentDir();
-		loadData();
-	});
-	
-	window.onscroll = () => {
-		if (window.innerHeight + window.scrollY >= height() - 1) {
-			loadData();
-		}
-	};
+  const CURRENT_DIR = '{{ current_dir }}';
+  const FILE_PATH = "{% url 'file_mgr:file' 'TEMP' %}";
+  const DIRECTORY_PATH = "{% url 'file_mgr:directory' 'TEMP' %}";
 </script>
-{% endblock %}
 
-{% block content %}
-<div id="current_dir"></div>
+<script src="{% static 'js/file_mgr/file_mgr.js' %}" type="module"></script>
 
-<div>
-	{% url 'file_mgr:directory' parent_path as parent_url %}
-	<a href="{{ parent_url }}">
-		Parent Directory
-	</a>
-</div>
-
-<div class="row">
-	{% if dirs_exist %}
-		<div class="column">
-			<h2>Directories</h2>
-			<ul id="dir"></ul>
-		</div>
-	{% endif %}
-	{% if files_exist %}
-		<div class="column">
-			<h2>Files</h2>
-			<ul id="file"></ul>
-		</div>
-	{% endif %}
-</div>
+{% endblock %} {% block content %}
+<div id="current-dir"></div>
 
 <div>
-	{% if not dirs_exist and not files_exist %}
-		Empty Directory
-	{% endif %}
+  {% url 'file_mgr:directory' parent_path as parent_url %}
+  <a href="{{ parent_url }}"> Parent Directory </a>
 </div>
+
+<div id="contents" class="row"></div>
 {% endblock %}

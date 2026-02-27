@@ -79,8 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#search-type').change(function () {
-    $('#obs-id-dropdown').toggle();
-    $('#source-name-dropdown').toggle();
+    const OBS_SEARCH = $(this).val() === 'true';
+    $('#obs-id-dropdown').toggle(OBS_SEARCH);
+    $('#source-name-dropdown').toggle(!OBS_SEARCH);
   });
 
   $('#advance-search-btn').click(function () {

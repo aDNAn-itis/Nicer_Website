@@ -1,14 +1,16 @@
 """
 Main functions for backend functionality of the file manager page
 """
+import os
+
 from django.shortcuts import render
 from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse
 
-from .models import Item
+from nicer_website.apps.file_mgr.models import Item
 
 
-def dir_file_fetcher(start: int, end: int, path: str) -> tuple[QuerySet, QuerySet]:
+def dir_file_fetcher(start: int, end: int, path: str) -> tuple[QuerySet[Item], QuerySet[Item]]:
     """
     Fetches the directories and files for the current directory level
 
@@ -23,12 +25,13 @@ def dir_file_fetcher(start: int, end: int, path: str) -> tuple[QuerySet, QuerySe
 
     Returns
     -------
-    tuple[QuerySet, QuerySet]
+    tuple[QuerySet[Item], QuerySet[Item]]
         Directories and files
     """
-    dirs = Item.objects.filter(path=path, type=Item.item_type[0][0]).order_by('name')[start:end]
-    files = Item.objects.filter(path=path, type=Item.item_type[1][0]).order_by('name')[start:end]
-    return dirs, files
+    return (
+        Item.objects.filter(path=path, type=Item.dir).order_by('name')[start:end],
+        Item.objects.filter(path=path, type=Item.file).order_by('name')[start:end],
+    )
 
 
 def directory(request: HttpRequest, path: str) -> HttpResponse:
@@ -47,20 +50,11 @@ def directory(request: HttpRequest, path: str) -> HttpResponse:
     HttpResponse
         Http response containing the directory page
     """
-    if path:
-        path = path.strip('/') + '/'
-
-    sub_dirs, sub_files = dir_file_fetcher(0, 1, path)
-    parent_path = '/'.join(path.split('/')[:-2]) + '/'
-
+    parent_path: str = os.path.dirname(path) or Item.root
     return render(
         request,
-        'file_mgr/directory.html', {
-            'current_dir': path,
-            'dirs_exist': sub_dirs.exists(),
-            'files_exist': sub_files.exists(),
-            'parent_path': parent_path,
-        })
+        'file_mgr/directory.html', {'current_dir': path, 'parent_path': parent_path},
+    )
 
 
 def file(request: HttpRequest, path: str) -> HttpResponse:
@@ -79,20 +73,14 @@ def file(request: HttpRequest, path: str) -> HttpResponse:
     HttpResponse
         Http response containing the file page
     """
-    parent_path = '/'.join(path.split('/')[:-1])
-    file_name = path.split('/')[-1]
-
-    if not parent_path:
-        parent_path = Item._meta.get_field('path').get_default()  # pylint: disable=protected-access
-
-    file_object = Item.objects.filter(path=parent_path + '/').get(name=file_name)
+    file_name: str = os.path.basename(path)
+    parent_path: str = os.path.dirname(path) or Item.root
+    file_object = Item.objects.filter(path=parent_path).get(name=file_name)
 
     return render(
         request,
-        'file_mgr/file.html', {
-            'parent_path': parent_path,
-            'file': file_object,
-        })
+        'file_mgr/file.html', {'parent_path': parent_path, 'file': file_object},
+    )
 
 
 def file_request(request: HttpRequest) -> JsonResponse:
@@ -109,19 +97,8 @@ def file_request(request: HttpRequest) -> JsonResponse:
     JsonResponse
         Directories and files to display in the current directory level
     """
-    start = int(request.GET.get('start'))
-    end = int(request.GET.get('end'))
-    path = request.GET.get('path')
-
-    if path == 'Root':
-        path = Item._meta.get_field('path').get_default()  # pylint: disable=protected-access
-
-    sub_dirs, sub_files = dir_file_fetcher(start, end, path)
-
-    sub_dirs = list(sub_dirs.values())
-    sub_files = list(sub_files.values())
-
-    return JsonResponse({
-        "dirs": sub_dirs,
-        "files": sub_files,
-    })
+    start = int(request.GET.get('start', 0))
+    end = int(request.GET.get('end', -1))
+    path = request.GET.get('path', '') or Item.root
+    dirs, files = dir_file_fetcher(start, end, path)
+    return JsonResponse({"dirs": list(dirs.values()), "files": list(files.values())})

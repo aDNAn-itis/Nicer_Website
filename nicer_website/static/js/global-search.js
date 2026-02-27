@@ -23,9 +23,9 @@ class GlobalSearch {
           <div class="search-header">
             <div class="search-input-container">
               <i class="fas fa-search"></i>
-              <input 
-                type="text" 
-                id="global-search-input" 
+              <input
+                type="text"
+                id="global-search-input"
                 placeholder="Search NICER data, documentation, and features..."
                 autocomplete="off"
               >
@@ -41,7 +41,7 @@ class GlobalSearch {
                     <i class="fas fa-chart-line"></i>
                     <span>Interactive Analysis</span>
                   </a>
-                  <a href="/manager/" class="suggestion-item">
+                  <a href="/browser/" class="suggestion-item">
                     <i class="fas fa-database"></i>
                     <span>Browse Data Archive</span>
                   </a>
@@ -335,7 +335,7 @@ class GlobalSearch {
         title: 'Data Archive',
         description:
           'Browse and download NICER observation data from the comprehensive mission archive.',
-        url: '/manager/',
+        url: '/browser/',
         category: 'Data Access',
         keywords: [
           'data',
@@ -471,7 +471,7 @@ class GlobalSearch {
               <i class="fas fa-chart-line"></i>
               <span>Interactive Analysis</span>
             </a>
-            <a href="/manager/" class="suggestion-item">
+            <a href="/browser/" class="suggestion-item">
               <i class="fas fa-database"></i>
               <span>Browse Data Archive</span>
             </a>

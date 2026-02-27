@@ -1,7 +1,13 @@
-from flask import send_file, request, Response
 import os
+import shutil
+import zipfile
+import tempfile
 from pathlib import Path
-import json
+
+from flask import send_file, request, Response
+
+from nicer_website.settings import DATA_DIR
+
 
 @app.route('/api/download')
 def download_data():
@@ -24,17 +30,14 @@ def download_data():
                 download_name=os.path.basename(file_path)
             )
 
-        # Handle different data types
-        with open('../../../config.txt', mode='r', encoding='utf8') as file:
-            DATA_DIR = json.load(file)['data_dir']
-        base_path = Path(DATA_DIR)
-        
         if data_type == 'gti':
             if gti_numbers:
                 # Handle multiple GTIs
                 gti_list = gti_numbers.split(',')
                 if len(gti_list) == 1:
-                    file_path = base_path / obs_id / 'xti' / 'event_cl' / f'{obs_id}_GTI{gti_list[0]}.fits'
+                    file_path = (Path(DATA_DIR) / obs_id /
+                                 f'xti/event_cl/{obs_id}_GTI{gti_list[0]}.fits')
+
                     if not file_path.exists():
                         return Response('File not found', status=404)
                     return send_file(
@@ -44,9 +47,9 @@ def download_data():
                     )
                 else:
                     # Create a zip file containing multiple GTIs
-                    return create_gti_archive(obs_id, gti_list, base_path)
+                    return create_gti_archive(obs_id, gti_list)
             else:
-                file_path = base_path / obs_id / 'xti' / 'event_cl' / f'{obs_id}_gti.fits'
+                file_path = Path(DATA_DIR) / obs_id / f'xti/event_cl/{obs_id}_gti.fits'
         elif data_type == 'obs':
             return create_obs_archive(obs_id)
         else:
@@ -64,24 +67,22 @@ def download_data():
     except Exception as e:
         return Response(f'Error: {str(e)}', status=500)
 
-def create_gti_archive(obs_id, gti_list, base_path):
+def create_gti_archive(obs_id, gti_list):
     """Create a zip archive of selected GTI files"""
-    import tempfile
-    import zipfile
-    
     with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
         with zipfile.ZipFile(tmp.name, 'w') as archive:
             for gti_num in gti_list:
                 # Look in the jspipe directory for GTI files
-                file_path = base_path / obs_id / 'jspipe' / f'js_{obs_id}_GTI{gti_num}_BGDATA.fits'
+                file_path = Path(DATA_DIR) / obs_id / f'jspipe/js_{obs_id}_GTI{gti_num}_BGDATA.fits'
                 if file_path.exists():
                     archive.write(str(file_path), file_path.name)
                 else:
                     # Try alternative path in event_cl directory
-                    alt_file_path = base_path / obs_id / 'xti' / 'event_cl' / f'{obs_id}_GTI{gti_num}.fits'
+                    alt_file_path = (Path(DATA_DIR) / obs_id /
+                                     f'xti/event_cl/{obs_id}_GTI{gti_num}.fits')
                     if alt_file_path.exists():
                         archive.write(str(alt_file_path), alt_file_path.name)
-        
+
         return send_file(
             tmp.name,
             as_attachment=True,
@@ -90,14 +91,8 @@ def create_gti_archive(obs_id, gti_list, base_path):
 
 def create_obs_archive(obs_id):
     """Create a zip archive of an entire observation"""
-    import tempfile
-    import shutil
-    
-    with open('../../../config.txt', mode='r', encoding='utf8') as file:
-        DATA_DIR = json.load(file)['data_dir']
-    base_path = Path(DATA_DIR)
-    obs_path = base_path / obs_id
-    
+    obs_path = Path(DATA_DIR) / obs_id
+
     if not obs_path.exists():
         return Response('Observation not found', status=404)
 
@@ -108,4 +103,4 @@ def create_obs_archive(obs_id):
             tmp.name,
             as_attachment=True,
             download_name=f'{obs_id}_full.zip'
-        ) 
+        )

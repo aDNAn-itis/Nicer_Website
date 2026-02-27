@@ -1,3 +1,5 @@
+/* global Plotly */
+
 import { displayInfo, handleMultipleObservations } from './observationInfo.js';
 import { GTISelection } from './gtiComponents.js';
 import {
@@ -11,6 +13,7 @@ import {
   completeOperation,
   errorOperation,
 } from './statusBar.js';
+import { titleCase } from "../utils/utils.js";
 
 /**
  *  CSS styles for the popup to the document head
@@ -259,11 +262,9 @@ export function showPlotSelectionPopup(obsID) {
     if (window.selectedGTI && window.selectedGTIObsId === obsID) {
       // Handle GTI-specific plotting
       const selectedPlotTypes = [];
-      $(this)
-        .find('input[type="checkbox"]:checked')
-        .each(function () {
-          selectedPlotTypes.push($(this).attr('name'));
-        });
+      $(this).find('input[type="checkbox"]:checked').each(function() {
+        selectedPlotTypes.push($(this).attr('name'));
+      });
 
       if (selectedPlotTypes.length === 0) {
         alert('Please select at least one plot type.');
@@ -276,34 +277,26 @@ export function showPlotSelectionPopup(obsID) {
           `[DEBUG graph.js] Creating GTI form for plot type: ${plotType}, GTI: ${window.selectedGTI}, ObsID: ${obsID}`,
         );
         const $gtiForm = $('<form>');
-        $gtiForm.append(
-          $('<input>', {
-            name: 'gti-search',
-            type: 'hidden',
-            value: window.selectedGTI,
-          }),
-        );
-        $gtiForm.append(
-          $('<input>', {
-            name: 'plot_type',
-            type: 'hidden',
-            value: plotType.replace(/-/g, '_'), // Convert dashes to underscores for backend
-          }),
-        );
-        $gtiForm.append(
-          $('<input>', {
-            name: 'obs_id',
-            type: 'hidden',
-            value: obsID,
-          }),
-        );
-        $gtiForm.append(
-          $('<input>', {
-            name: 'min_value',
-            type: 'hidden',
-            value: '1',
-          }),
-        );
+        $gtiForm.append($('<input>', {
+          name: 'gti-search',
+          type: 'hidden',
+          value: window.selectedGTI,
+        }));
+        $gtiForm.append($('<input>', {
+          name: 'plot_type',
+          type: 'hidden',
+          value: plotType.replace(/-/g, '_'), // Convert dashes to underscores for backend
+        }));
+        $gtiForm.append($('<input>', {
+          name: 'obs_id',
+          type: 'hidden',
+          value: obsID,
+        }));
+        $gtiForm.append($('<input>', {
+          name: 'min_value',
+          type: 'hidden',
+          value: '1',
+        }));
 
         console.log(
           `[DEBUG graph.js] Form data for ${plotType}:`,
@@ -337,6 +330,85 @@ export function showPlotSelectionPopup(obsID) {
 }
 
 /**
+ * Creates or updates a Plotly plot for the given observation ID and plot configuration
+ *
+ * @param obsID {string} Observation ID for the plot
+ * @param plotDiv {Object} Plotly plot configuration object containing data, layout, and config
+ * @param maxGTI {number} Maximum GTI number for the observation, used for GTI selection form
+ * (optional)
+ * @param prefix {string} Optional prefix for the plot title and ID
+ * @param suffix {string} Optional suffix for the plot title and ID
+ * @return {string} The ID of the plot div where the plot was created or updated
+ */
+export function creatPlot(
+    obsID,
+    plotDiv,
+    {maxGTI = 0,
+    prefix = '',
+    suffix = ''} = {}) {
+  plotDiv = JSON.parse(plotDiv)
+  const PLOT_ID = (prefix + plotDiv.layout.title.text + suffix).toLowerCase()
+      .replaceAll(' ', '-');
+  const TYPE = PLOT_ID.replace(`-${obsID}`, '');
+  plotDiv.config = {displaylogo: false, ...(plotDiv.config || {})};
+
+  if (!$(`#${TYPE}-section`).length) {
+    const $PLOT_SECTION = $('<div>', {
+      id: `${TYPE}-section`,
+      class: 'plot-type-section',
+    });
+    $PLOT_SECTION.append(
+      $('<h3>', {
+        text: titleCase(TYPE.replaceAll('-', ' ')),
+      }),
+    );
+
+    const $COMBINE_FORM = $('<form>', { class: 'combine-gtis hide' });
+    $COMBINE_FORM.append(
+      $('<input>', { type: 'hidden', name: 'plot_type', value: TYPE }),
+    );
+    $COMBINE_FORM.append(
+      $('<input>', {
+        type: 'hidden',
+        name: 'quality',
+        value: $('#quality-select').val().toLowerCase(),
+      }),
+    );
+    const $COMBINE_BUTTON = $('<button>', {
+      type: 'submit',
+      text: 'Combine Observations',
+    });
+
+    $COMBINE_FORM.append($COMBINE_BUTTON);
+    $PLOT_SECTION.append($COMBINE_FORM);
+    $('#plots').append($PLOT_SECTION);
+  }
+
+  if ($(`#${PLOT_ID}`).length === 0) {
+    const $PLOT_DIV = $('<div>', {id: PLOT_ID});
+    $(`#${TYPE}-section`).append($PLOT_DIV);
+    Plotly.newPlot(PLOT_ID, plotDiv.data, plotDiv.layout, plotDiv.config)
+        .catch(err => console.error('Plotly error:', err));
+
+    // Add GTI selection form (but not for summed spectrum plots as they already have combined GTIs)
+    if (TYPE !== 'summed-spectrum') {
+      const $GTI_FORM = GTISelection(
+        maxGTI,
+        obsID,
+        TYPE,
+      );
+      $PLOT_DIV.append($GTI_FORM);
+    }
+  } else {
+    Plotly.react(PLOT_ID, plotDiv.data, plotDiv.layout, plotDiv.config)
+        .catch(err => console.error('Plotly error:', err));
+  }
+  updateCombineButtonVisibility(TYPE);
+
+  return PLOT_ID;
+}
+
+/**
  * Fetches and displays the table for the given observation ID or source name
  * If plots are requested, also fetches and displays plots
  *
@@ -344,7 +416,6 @@ export function showPlotSelectionPopup(obsID) {
  * @param {Event} event Event generated by form submit
  */
 export function fetchGraphPlots(refresh = false, event) {
-  const REGEX = /"title":\{"text":"(.+?)"\}/;
   if (!event || !event.target) {
     console.error('Event or event.target is undefined in fetchGraphPlots');
     return;
@@ -419,123 +490,7 @@ export function fetchGraphPlots(refresh = false, event) {
 
       if (hasPlotTypes && response.plotDivs && response.plotDivs.length > 0) {
         response.plotDivs.forEach((plotDiv, i) => {
-          // Extract title to determine type
-          const titleMatch = REGEX.exec(plotDiv);
-          let rawTitle = titleMatch ? titleMatch[1] : 'unknown-plot';
-          let TYPE = rawTitle.toLowerCase().replaceAll(' ', '-');
-
-          // Standardize HID plot type
-          if (
-            TYPE === 'hardness_intensity_diagram' ||
-            TYPE === 'hardness-intensity-diagram'
-          ) {
-            TYPE = 'hardness-intensity-diagram';
-          }
-
-          // Construct unique ID for observation's plot
-          let PLOT_ID = `${TYPE}-${response.obsID}`;
-          if (TYPE.endsWith(`-${response.obsID}`)) {
-            PLOT_ID = TYPE;
-            TYPE = TYPE.replace(`-${response.obsID}`, '');
-          }
-
-          console.log(
-            `[DEBUG graph.js] Generated PLOT_ID: ${PLOT_ID} for TYPE: ${TYPE}`,
-          );
-
-          // Create plot section if it doesn't exist
-          if (!$(`#${TYPE}-section`).length) {
-            const $PLOT_SECTION = $('<div>', {
-              id: `${TYPE}-section`,
-              class: 'plot-type-section',
-            });
-            $PLOT_SECTION.append(
-              $('<h3>', {
-                text: TYPE.replace('-', ' ').toUpperCase(),
-              }),
-            );
-
-            const $COMBINE_FORM = $('<form>', { class: 'combine-gtis hide' });
-            $COMBINE_FORM.append(
-              $('<input>', { type: 'hidden', name: 'plot_type', value: TYPE }),
-            );
-            $COMBINE_FORM.append(
-              $('<input>', {
-                type: 'hidden',
-                name: 'quality',
-                value: $('#quality-select').val().toLowerCase(),
-              }),
-            );
-            const $COMBINE_BUTTON = $('<button>', {
-              type: 'submit',
-              text: 'Combine GTIs from All Observations',
-            });
-
-            $COMBINE_FORM.append($COMBINE_BUTTON);
-            $PLOT_SECTION.append($COMBINE_FORM);
-            $('#plots').append($PLOT_SECTION);
-          }
-
-          // Add new observation to plot if not already present
-          if ($(`#${PLOT_ID}`).length === 0) {
-            // Create plot div with unique ID
-            const $PLOT_DIV = $(plotDiv).attr('id', PLOT_ID);
-
-            // Add GTI selection form (but not for summed spectrum plots as they already have combined GTIs)
-            if (TYPE !== 'summed_spectrum') {
-              // Get default binning for this plot type from response
-              const plotTypeKey = TYPE.replace(/-/g, '_');
-              const defaultBinning =
-                response.defaultBinnings?.[plotTypeKey] || 1;
-              console.log(
-                `[DEBUG graph.js] Using default binning for ${TYPE}: ${defaultBinning}`,
-              );
-
-              const GTI_FORM = GTISelection(
-                response.maxGTI[i],
-                response.obsID,
-                TYPE,
-                defaultBinning,
-              );
-
-              $PLOT_DIV.append(GTI_FORM);
-
-              // attach the submit handler AFTER the form is appended to the DOM
-              const appendedForm = $PLOT_DIV.find('form.fetch-gti');
-             
-              if (appendedForm.length > 0) {
-                // Remove any existing handlers to prevent duplicates
-                appendedForm.off('submit');
-
-                // Attach the submit handler
-                appendedForm.on('submit', function (event) {
-                  // Prevent default form submission
-                  event.preventDefault();
-                  try {
-                    fetchGTIPlot(event);
-                  } catch (error) {
-                    console.error(
-                      `[DEBUG graph.js] Error in fetchGTIPlot call:`,
-                      error,
-                    );
-                  }
-                });
-
-                // Verify the handler was attached
-                const formEvents = $._data(appendedForm[0], 'events');
-                console.log(
-                  `[DEBUG graph.js] Appended form events after handler attachment:`,
-                  formEvents ? Object.keys(formEvents) : 'none',
-                );
-              } else {
-                console.error(
-                  `[DEBUG graph.js] Could not find appended form to attach submit handler!`,
-                );
-              }
-            }
-            $(`#${TYPE}-section`).append($PLOT_DIV);
-          }
-          updateCombineButtonVisibility(TYPE);
+          creatPlot(response.obsID, plotDiv, {maxGTI: response.maxGTI[i]});
         });
 
         // Typeset any math expressions
