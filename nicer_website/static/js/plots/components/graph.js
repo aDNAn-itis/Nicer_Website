@@ -4,8 +4,8 @@
 */
 import { displayInfo, handleMultipleObservations } from './observationInfo.js';
 import { GTISelection } from './gtiComponents.js';
-import { updateAllSelections, initSynchronizedSelection } from './syncSelection.js?v=2000';
-import { initInteractiveLinking } from './interactiveLinking.js?v=2000'; // 🟢 FORCE v2000
+import { updateAllSelections, initSynchronizedSelection } from './syncSelection.js?v=2001';
+import { initInteractiveLinking } from './interactiveLinking.js?v=2001'; // 🟢 FORCE v2000
 import { fetchGTIPlot } from './gtiPlots.js';
 import { startOperation, completeOperation, errorOperation } from './statusBar.js';
 

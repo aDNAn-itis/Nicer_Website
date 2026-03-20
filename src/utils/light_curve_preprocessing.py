@@ -14,7 +14,9 @@ from src.utils.plots import data_plot
 
 def light_curve_data(
         min_value: int,
-        data_path: str) -> tuple[
+        data_path: str,
+        start_time: float = None,
+        stop_time: float = None) -> tuple[
             ndarray[tuple[int], np.dtype[np.float64]],
             ndarray[tuple[int], np.dtype[np.float64]],
             ndarray[tuple[int], np.dtype[np.float64]],
@@ -45,6 +47,17 @@ def light_curve_data(
             background = np.loadtxt(data_path.replace('.lc.gz', '.bg-lc.gz'), usecols=2)
         except:
             background = np.zeros(len(data[0]))
+
+        # Filter by time if start_time and stop_time are provided
+        if start_time is not None and stop_time is not None:
+            time_mask = (data[0] >= start_time) & (data[0] <= stop_time)
+            data = data[:, time_mask]
+            if background.size > 0:
+                # Ensure background array is not empty and has same length as data after mask
+                if background.size == len(time_mask):
+                    background = background[time_mask]
+                else: # If background has a different size, we may need to re-evaluate or log a warning
+                    background = np.zeros(len(data[0])) # Fallback to zeros if sizes mismatch
 
         time_diff = data[0][1] - data[0][0]
         counts = data[1] * time_diff
@@ -156,7 +169,9 @@ def light_curve_plot(
     data_paths: list[str],
     gti_numbers: list[int],
     gti_labels: list[str] | None = None,
-    is_combined_obs: bool = False) -> str:
+    is_combined_obs: bool = False,
+    start_time: float = None,
+    stop_time: float = None) -> str:
     """
     Gets and plots the corrected light curve data.
     """
@@ -191,6 +206,8 @@ def light_curve_plot(
         x_bin, y_bin, bg_x_bin, bg_bin, x_err, uncertainty = light_curve_data(
             min_value,
             data_path,
+            start_time=start_time,
+            stop_time=stop_time
         )
         if len(x_bin) > 0:
             x_data.append(x_bin)

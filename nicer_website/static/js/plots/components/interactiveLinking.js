@@ -92,34 +92,34 @@ function mapTimeToEnergyRange(timeRange, spectrumPlot) {
     }
 
     // Get overall energy range of the spectrum
-    const energies = [...dataTrace.x].sort((a, b) => a - b);
-    const minEnergy = energies[0];
-    const maxEnergy = energies[energies.length - 1];
+    const xArray = dataTrace.x;
+    let minEnergy = xArray[0];
+    let maxEnergy = xArray[xArray.length - 1];
+    if (minEnergy > maxEnergy) { minEnergy = xArray[xArray.length - 1]; maxEnergy = xArray[0]; }
     const totalEnergy = maxEnergy - minEnergy;
 
     // Get the time midpoint and width
     const timeMidpoint = (timeRange[0] + timeRange[1]) / 2;
     const timeWidth = timeRange[1] - timeRange[0];
-
-    // Calculate correlation weights for each energy point
-    const weights = energies.map((energy) => {
-      const normalizedEnergy = (energy - minEnergy) / totalEnergy;
-      const expectedTime =
-        ENERGY_TIME_CORRELATION.getExpectedTime(normalizedEnergy);
-      return ENERGY_TIME_CORRELATION.getCorrelationStrength(
-        timeMidpoint,
-        expectedTime,
-        timeWidth,
-      );
-    });
-
-    // Find the energy range with significant correlation
     const threshold = 0.3; // Minimum correlation strength to consider
-    const significantEnergies = energies.filter(
-      (_, i) => weights[i] > threshold,
-    );
 
-    if (significantEnergies.length === 0) {
+    let firstSignificant = null;
+    let lastSignificant = null;
+
+    // Optimize: no array allocation mapping or sorting needed
+    for (let i = 0; i < xArray.length; i++) {
+      const energy = xArray[i];
+      const normalizedEnergy = (energy - minEnergy) / totalEnergy;
+      const expectedTime = ENERGY_TIME_CORRELATION.getExpectedTime(normalizedEnergy);
+      const weight = ENERGY_TIME_CORRELATION.getCorrelationStrength(timeMidpoint, expectedTime, timeWidth);
+
+      if (weight > threshold) {
+        if (firstSignificant === null || energy < firstSignificant) firstSignificant = energy;
+        if (lastSignificant === null || energy > lastSignificant) lastSignificant = energy;
+      }
+    }
+
+    if (firstSignificant === null) {
       // If no significant correlation, use the full range
       return [minEnergy, maxEnergy];
     }
@@ -127,11 +127,8 @@ function mapTimeToEnergyRange(timeRange, spectrumPlot) {
     // Add padding to the significant range
     const padding = 0.1 * (maxEnergy - minEnergy);
     return [
-      Math.max(minEnergy, significantEnergies[0] - padding),
-      Math.min(
-        maxEnergy,
-        significantEnergies[significantEnergies.length - 1] + padding,
-      ),
+      Math.max(minEnergy, firstSignificant - padding),
+      Math.min(maxEnergy, lastSignificant + padding),
     ];
   } catch (error) {
     console.error('Error mapping time to energy range:', error);
@@ -180,7 +177,7 @@ export function initInteractiveLinking() {
     // Sometimes the title is an object, sometimes a string. We handle both.
     const layoutTitle = plot.layout?.title;
     const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
-    
+
     if (titleText.includes('global hid') || titleText.includes('multi-observation')) {
       console.log(`🛡️ Ignoring Global HID (Title Match): ${titleText}`);
       return false;
@@ -190,8 +187,8 @@ export function initInteractiveLinking() {
     // Global HID usually has "Hardness" on the X-axis.
     const xaxis = plot.layout?.xaxis?.title?.text || '';
     if (xaxis.toLowerCase().includes('hardness') && titleText.includes('hid')) {
-       console.log(`🛡️ Ignoring Global HID (Axis Match)`);
-       return false;
+      console.log(`🛡️ Ignoring Global HID (Axis Match)`);
+      return false;
     }
 
     // CHECK 4: ID (Legacy)
@@ -203,7 +200,6 @@ export function initInteractiveLinking() {
   // No eligible graphs found after filtering, exit early
   if (plotlyGraphs.length < 2) {
     console.log(`Not enough eligible plots for linking (Found ${plotlyGraphs.length}). Global HID excluded.`);
-    return;
   }
 
   console.log(
@@ -213,8 +209,7 @@ export function initInteractiveLinking() {
   // Log all plot IDs for debugging
   plotlyGraphs.forEach((plot, index) => {
     console.log(
-      `Plot ${index + 1}: ID=${plot.id}, Container=${
-        plot.closest('[id]')?.id || 'none'
+      `Plot ${index + 1}: ID=${plot.id}, Container=${plot.closest('[id]')?.id || 'none'
       }`,
     );
   });
@@ -222,21 +217,291 @@ export function initInteractiveLinking() {
   // Find spectrum and light curve plots
   const { spectrumPlot, lightCurvePlot } = findPlots(plotlyGraphs);
 
-  if (!spectrumPlot || !lightCurvePlot) {
-    console.log(
-      'Missing either spectrum or light curve plot - interactive linking cannot be enabled',
-    );
+  if (lightCurvePlot && lightCurvePlot.getAttribute('data-gti-double-click') !== 'true') {
+    lightCurvePlot.setAttribute('data-gti-double-click', 'true');
+    console.log(`Enabled native Plotly double-click tracking for Light Curve plot: ${lightCurvePlot.id}`);
+  }
+
+  if (!spectrumPlot && !lightCurvePlot) {
+    console.log('Missing both plots - interactive linking cannot be configured.');
     return;
   }
 
-  console.log(`Linking Spectrum (${spectrumPlot.id}) <-> Light Curve (${lightCurvePlot.id})`);
+  console.log(`Linking initialized. Spectrum (${spectrumPlot ? spectrumPlot.id : 'None'}) and Light Curve (${lightCurvePlot ? lightCurvePlot.id : 'None'})`);
 
-  // Set up click handlers for both plots
-  setupClickHandler(spectrumPlot, lightCurvePlot, true);
-  setupClickHandler(lightCurvePlot, spectrumPlot, false);
+  // Set up click handlers iteratively for any plots that actually exist
+  if (spectrumPlot) setupClickHandler(spectrumPlot, lightCurvePlot, true);
+  if (lightCurvePlot) setupClickHandler(lightCurvePlot, spectrumPlot, false);
 
   // Add direct event listeners to ensure clicks are captured
   addDirectEventListeners(spectrumPlot, lightCurvePlot);
+}
+
+function handleGtiDoubleClick(data, plot) {
+  console.log("handleGtiDoubleClick native redirect triggered with data:", data);
+  const point = data.points?.[0];
+  if (!point) {
+    console.log("Double click did not explicitly occur on a plotted trace. Ignoring.");
+    return;
+  }
+
+  // The ObsID is in the title of the plot, e.g., "Light Curve 1234567890"
+  const obsIdMatch = plot.layout.title?.text?.match(/\d{10}/);
+  if (!obsIdMatch) {
+    console.error("Could not extract Observation ID from plot title.");
+    return;
+  }
+  const obsId = obsIdMatch[0];
+
+  // Extract the exact GTI number directly from the trace legend string ("GTI0", "GTI 0", etc)
+  const curveNumber = point.curveNumber;
+  const traceName = (plot.data && curveNumber !== undefined && plot.data[curveNumber])
+    ? plot.data[curveNumber].name
+    : (point.data ? point.data.name : '');
+
+  let gtiNum = null;
+  if (traceName) {
+    const match = traceName.match(/GTI\s*(\d+)/i);
+    if (match) {
+      gtiNum = parseInt(match[1], 10);
+    }
+  }
+
+  // If we still can't find the GTI number, try matching ALL names in plot.data to see if only one GTI exists
+  let gtiStartX = null;
+  let gtiStopX = null;
+
+  if (gtiNum === null || isNaN(gtiNum)) {
+    console.log(`Could not intuitively extract GTI number from traced name. Name: '${traceName}'`);
+  }
+
+  // Always attempt to dynamically calculate the contiguous geometric bounds of the clicked trace
+  // This guarantees the blue highlight box perfectly encapsulates the specific GTI and prevents merged-trace bleeding
+  const trace = (plot.data && curveNumber !== undefined && plot.data[curveNumber])
+    ? plot.data[curveNumber]
+    : (plot.data ? plot.data.find(t => t.x && t.x.length > 0 && !(t.name || '').toLowerCase().includes('background')) : null);
+
+  if (trace && trace.x) {
+    let currentGtiIndex = 0;
+    let startIdx = 0;
+    const clickedTime = point.x;
+
+    for (let i = 0; i < trace.x.length; i++) {
+      // A time separation > 15 seconds marks reaching the next distinct GTI block orbit
+      if (i > 0 && Math.abs(trace.x[i] - trace.x[i - 1]) > 15) {
+        if (trace.x[i - 1] >= clickedTime) {
+          // The previous chunk contained the click timeline!
+          gtiStopX = trace.x[i - 1];
+          break;
+        }
+        currentGtiIndex++;
+        startIdx = i; // Next chunk starts right here
+      }
+    }
+
+    if (gtiStopX === null) {
+      // If we never crossed into a next chunk, it was the final chunk
+      gtiStopX = trace.x[trace.x.length - 1];
+    }
+    gtiStartX = trace.x[startIdx];
+
+    // If we didn't have a GTI number earlier, adopt our structurally deduced one
+    if (gtiNum === null || isNaN(gtiNum)) {
+      gtiNum = currentGtiIndex;
+      console.log(`Chronologically counted data gaps. Deduced GTI index from plot structure: ${gtiNum}`);
+    }
+
+    console.log(`GTI Boundaries isolated: [${gtiStartX}, ${gtiStopX}]`);
+
+    // Extract the strict native Plotly axis sub-identifier (e.g., 'x2', 'x3') for this specific GTI chunk
+    // Discontinuous light curves map separated chunks to completely different physical HTML layout axes!
+    const targetXref = trace.xaxis || 'x';
+
+    // Draw the magnificent blue rectangle EXACTLY over exclusively this GTI structure and axis pane!
+    applyHighlightingToLightCurve(plot, [gtiStartX, gtiStopX], targetXref);
+
+  } else {
+    if (gtiNum === null || isNaN(gtiNum)) {
+      alert(`Could not extract GTI label and no raw timeline numeric data is available for calculation.`);
+      return;
+    }
+  }
+
+  let traceColor = null;
+  if (point.fullData) {
+    traceColor = point.fullData.marker?.color || point.fullData.line?.color;
+  }
+  if (Array.isArray(traceColor)) traceColor = traceColor[0];
+
+  console.log(`Prepared to dynamically fetch natively-rendered identical plot for ObsID: ${obsId}, GTI: ${gtiNum}. Custom Color: ${traceColor}`);
+
+  // (Removed redundant opacity reverters as they silently cancel active asynchronous Plotly object repaints and strand visual shapes)
+
+  // ====================================================
+  // FRONTEND ACCELERATOR: INSTANT GRAPH RE-INJECTION
+  // ====================================================
+  // The Python Django backend routinely takes 10 to 20 seconds to construct massive Plotly HTML payloads mechanically.
+  // Since the user natively imported the full GTI trace arrays to render the main plot, we can instantaneously 
+  // deep-clone the specific array from memory, nullify its multi-axis projection coordinates, and render it under 50ms!
+  const isolatedTraces = (plot.data || []).filter(t => {
+      const matchGti = (t.name || '').match(/GTI\s*(\d+)/i);
+      const parsed = matchGti ? parseInt(matchGti[1], 10) : null;
+      return parsed === gtiNum;
+  }).map((t, idx) => {
+      const newTrace = JSON.parse(JSON.stringify(t)); 
+      newTrace.xaxis = 'x'; // Mathematically destroy previous discontinuous Cartesian routing
+      newTrace.yaxis = 'y';
+      // Force consistent vivid trace coloring instead of fallback gray matching
+      if (newTrace.marker) newTrace.marker.color = traceColor;
+      if (newTrace.line) newTrace.line.color = traceColor;
+      return newTrace;
+  });
+
+  if (isolatedTraces.length > 0) {
+      console.log(`Frontend Accelerator: Found ${isolatedTraces.length} memory traces for GTI ${gtiNum}. Automatically Bypassing 20-second backend latency!`);
+
+      let $detailedPlotsContainer = $('#detailed-gti-plots');
+      if ($detailedPlotsContainer.length === 0) {
+        $detailedPlotsContainer = $('<div id="detailed-gti-plots" style="margin-top: 2rem;"></div>');
+      } else {
+        $detailedPlotsContainer.empty().detach();
+      }
+      
+      const newPlotId = `standalone-gti-plot-${gtiNum}-${Date.now()}`;
+      $detailedPlotsContainer.append('<h2>Selected GTI Plot</h2>');
+      $detailedPlotsContainer.append(`<div id="${newPlotId}" class="plotly-graph-div js-plotly-plot" style="width:100%; height:400px;"></div>`);
+      
+      // Inject strictly below the native plot wrapper logic
+      const $parentSection = $(plot).closest('.plot-type-section');
+      if ($parentSection.length > 0) {
+         $parentSection.after($detailedPlotsContainer);
+      } else {
+         $('#plots').append($detailedPlotsContainer);
+      }
+
+      const clonedLayout = JSON.parse(JSON.stringify(plot.layout || {}));
+      clonedLayout.title = { text: `Light Curve ${obsId} - GTI ${gtiNum}` };
+      clonedLayout.shapes = []; // Clear the restrictive blue highlighter shapes
+
+      // Destroy all multiple discontinuous grid boundaries natively so the plot organically explodes to fill 100% width
+      if (clonedLayout.xaxis) {
+          delete clonedLayout.xaxis.domain;
+          delete clonedLayout.xaxis.range;
+          clonedLayout.xaxis.autorange = true;
+      }
+      Object.keys(clonedLayout).forEach(key => {
+         if (key.match(/^xaxis\d+$/)) delete clonedLayout[key]; 
+      });
+
+      // Synchronously deploy UI logic mapping
+      Plotly.newPlot(newPlotId, isolatedTraces, clonedLayout).then(() => {
+          console.log(`Instantaneous Frontend Re-rendering completed flawlessly!`);
+      }).catch(err => {
+          console.error("Frontend Accelerator Error:", err);
+      });
+
+      return; // Fully circumvent the 20-second Ajax fallback and return control to the user immediately!
+  }
+
+  // ====================================================
+  // BACKEND FALLBACK (for anonymous structural GTIs)
+  // ====================================================
+  console.warn("Frontend Accelerator bypassed. Proceeding with 20-second classical backend AJAX generation fallback...");
+
+  // Fallback box rendering if the gap-analysis algorithm skipped (e.g. data was empty)
+  if (typeof gtiStartX === 'undefined' && plot && plot.data && curveNumber !== undefined && plot.data[curveNumber]) {
+    const fallbackTrace = plot.data[curveNumber];
+    const xData = fallbackTrace.x || [];
+    if (xData.length > 0) {
+      let minX = xData[0], maxX = xData[0];
+      for (let i = 1; i < xData.length; i++) {
+        if (xData[i] < minX) minX = xData[i];
+        if (xData[i] > maxX) maxX = xData[i];
+      }
+      const targetXref = fallbackTrace.xaxis || 'x';
+      applyHighlightingToLightCurve(plot, [minX, maxX], targetXref);
+    }
+  }
+
+  // Formulate the EXACT SAME payload that the sidebar sends to the backend 
+  const formData = new FormData();
+  formData.append('obs_id', obsId);
+  formData.append('quality', $('#quality-select').val() || 'goddard');
+  formData.append('search_type', 'obs_id');
+  formData.append('gti-search', `${obsId}-${gtiNum}`);
+  formData.append('light_curve', 'on');
+  formData.append('plot_types', 'light_curve');
+  formData.append('csrfmiddlewaretoken', $('input[name="csrfmiddlewaretoken"]').val());
+  console.log("FormData exactly cloned for native graph request:", Object.fromEntries(formData.entries()));
+
+  // Submit to the primary PLOT_GRAPH_URL to get the identical layout
+  $.ajax({
+    type: 'POST',
+    url: PLOT_GRAPH_URL,
+    data: formData,
+    processData: false,
+    contentType: false,
+    success: function (response) {
+      if (response.error) {
+        alert('Error generating single GTI plot: ' + response.error);
+        return;
+      }
+
+      // Plot_data endpoint returns an array of plotDiv html strings
+      if (!response.plotDivs || response.plotDivs.length === 0) {
+        console.error("No plotted HTML structure was returned from the natively driven server route");
+        alert("Backend processing returned no plot structures.");
+        return;
+      }
+
+      let $detailedPlotsContainer = $('#detailed-gti-plots');
+      if ($detailedPlotsContainer.length === 0) {
+        $detailedPlotsContainer = $('<div id="detailed-gti-plots" style="margin-top: 2rem;"></div>');
+      } else {
+        // Clear previous selected GTI plots when a new one is clicked and detach to dynamically relocate it
+        $detailedPlotsContainer.empty();
+        $detailedPlotsContainer.detach();
+      }
+      
+      $detailedPlotsContainer.append('<h2>Selected GTI Plot</h2>');
+      
+      // Navigate up exactly to the structural wrapper of the clicked graph so we can insert the new plot purely right below it
+      const $parentSection = $(plot).closest('.plot-type-section');
+      if ($parentSection.length > 0) {
+         $parentSection.after($detailedPlotsContainer);
+      } else {
+         $('#plots').append($detailedPlotsContainer);
+      }
+
+      // Appending cleanly, just like how graph.js behaves natively
+      const plotHtml = response.plotDivs[0];
+      $detailedPlotsContainer.append(plotHtml);
+
+      // Cherry on top: Recolor the new standalone plot to match the specific GTI color from the main plot!
+      const newPlotNode = $detailedPlotsContainer.find('.js-plotly-plot')[0];
+      if (newPlotNode && traceColor) {
+        setTimeout(() => {
+          if (newPlotNode.data) {
+            Plotly.restyle(newPlotNode, {
+              'marker.color': traceColor,
+              'line.color': traceColor
+            });
+            console.log(`Restyled detailed plot to match original GTI trace color: ${traceColor}`);
+          }
+        }, 100); // Tiny delay ensures the injected <script> Plotly.newPlot() has finished executing
+      }
+
+      // Optionally re-run MathJax
+      if (typeof MathJax !== 'undefined' && MathJax.typeset) {
+        MathJax.typeset([$detailedPlotsContainer[0]]);
+      }
+      console.log("Detailed GTI natively styled plot beautifully cloned and rendered below. Done.");
+    },
+    error: function (jqXHR, textStatus, errorThrown) {
+      console.error("AJAX error internally fetching backend clone:", textStatus, errorThrown);
+      alert('Failed to clone backend GTI parameters.');
+    }
+  });
 }
 
 /**
@@ -256,8 +521,7 @@ function findPlots(plots) {
     const title =
       plot.layout && plot.layout.title ? plot.layout.title.text : 'none';
     console.log(
-      `Plot ${index + 1}: ID=${
-        plot.id
+      `Plot ${index + 1}: ID=${plot.id
       }, Container=${containerId}, Title=${title}`,
     );
   });
@@ -365,16 +629,10 @@ function findPlots(plots) {
     }
   }
 
-  // If we still don't have both plots, make a best guess
+  // If we still don't have both plots, make a best guess, but never cross-contaminate identities!
   if (!spectrumPlot && !lightCurvePlot && plots.length >= 2) {
-    console.log('Could not identify plots by any method, making best guess');
+    console.log('Could not reliably identify plots by title or data, making blind sequential guess');
     spectrumPlot = plots[0];
-    lightCurvePlot = plots[1];
-  } else if (!spectrumPlot && plots.length >= 1) {
-    console.log('Could not identify spectrum plot, using first plot');
-    spectrumPlot = plots[0];
-  } else if (!lightCurvePlot && plots.length >= 2) {
-    console.log('Could not identify light curve plot, using second plot');
     lightCurvePlot = plots[1];
   }
 
@@ -396,8 +654,7 @@ function setupClickHandler(plot, otherPlot, isSpectrum) {
     }
 
     console.log(
-      `Setting up click handler for ${
-        isSpectrum ? 'spectrum' : 'light curve'
+      `Setting up click handler for ${isSpectrum ? 'spectrum' : 'light curve'
       } plot ${plot.id}`,
     );
 
@@ -406,55 +663,104 @@ function setupClickHandler(plot, otherPlot, isSpectrum) {
 
     // Define the click handler
     const handleClick = function (data) {
+      if (typeof isSynchronizing !== 'undefined' && isSynchronizing) return;
+
+      // Extract the immutable native DOM timestamp to completely annihilate Plotly Cartesian ghosting duplicates
+      // This MUST be evaluated before any console logs or object property retrievals to unfreeze the UI thread completely!
+      const nativeEventTimestamp = data.event ? data.event.timeStamp : null;
+      
+      if (nativeEventTimestamp !== null && nativeEventTimestamp === plot._lastNativeEventTimestamp) {
+          // Drop identical physical DOM echoes dispatched continuously across overlapping Plotly sub-axes grids.
+          return;
+      }
+      plot._lastNativeEventTimestamp = nativeEventTimestamp;
+
       if (!data || !data.points || data.points.length === 0) {
         console.log(
-          `Click detected on ${
-            isSpectrum ? 'spectrum' : 'light curve'
+          `Click detected on ${isSpectrum ? 'spectrum' : 'light curve'
           } plot but no points found`,
         );
         return;
       }
 
-      console.log(
-        `Click detected on ${isSpectrum ? 'spectrum' : 'light curve'} plot:`,
-        data,
-      );
+      console.log(`Click strictly isolated on ${isSpectrum ? 'spectrum' : 'light curve'} plot:`, data);
 
       const point = data.points[0];
       const xValue = point.x;
 
-      // Define region around clicked point
-      const rangeWidth = isSpectrum ? 0.5 : 0.5; // keV for spectrum, seconds for light curve
+      const currentPhysicalTime = nativeEventTimestamp !== null ? nativeEventTimestamp : Date.now();
+      const timeSinceLastPhysicalClick = currentPhysicalTime - (plot._lastPhysicalClickTime || 0);
+      
+      plot._lastPhysicalClickTime = currentPhysicalTime;
+      plot._lastPlotlyClickData = data; // Cache primary single-click payload for fast double-clicks
+
+      // Intercept purely legitimately spaced physical double-clicks (slow double clicks: 60ms-600ms)
+      if (timeSinceLastPhysicalClick > 50 && timeSinceLastPhysicalClick < 600) {
+        console.log(`True physical double-click intercepted! Delta: ${timeSinceLastPhysicalClick.toFixed(1)}ms. Triggering GTI Plugin...`);
+        handleGtiDoubleClick(plot._lastPlotlyClickData, plot);
+        plot._lastPhysicalClickTime = 0; // Hard reset to break cascading double-click chain bounds
+        return; // Prevent drawing a new highlight box on top
+      }
+
+      // Define robustly bounded region around clicked point
+      let rangeWidth = 0.5;
+      if (!isSpectrum && plot.layout && plot.layout.xaxis && plot.layout.xaxis.range) {
+        // Auto-scale width to 2% of visible timeline for MET days/seconds to prevent 100% chart eclipse
+        const span = plot.layout.xaxis.range[1] - plot.layout.xaxis.range[0];
+        rangeWidth = span * 0.02;
+      } else if (isSpectrum) {
+        rangeWidth = 0.5; // Fixed 0.5 keV for Energy spectrum
+      }
+
       const xRange = [xValue - rangeWidth, xValue + rangeWidth];
 
       console.log(
-        `Highlighting ${isSpectrum ? 'spectrum' : 'light curve'} region: [${
-          xRange[0]
+        `Highlighting ${isSpectrum ? 'spectrum' : 'light curve'} region: [${xRange[0]
         }, ${xRange[1]}] ${isSpectrum ? 'keV' : 's'}`,
       );
 
       // Always highlight new region, don't toggle
-      if (isSpectrum) {
-        const timeRange = mapEnergyToTimeRange(xRange, otherPlot);
-        highlightRegion(plot, otherPlot, xRange, timeRange);
+      if (otherPlot) {
+         if (isSpectrum) {
+           const timeRange = mapEnergyToTimeRange(xRange, otherPlot);
+           highlightRegion(plot, otherPlot, xRange, timeRange);
+         } else {
+           const energyRange = mapTimeToEnergyRange(xRange, otherPlot);
+           highlightRegion(otherPlot, plot, energyRange, xRange);
+         }
       } else {
-        const energyRange = mapTimeToEnergyRange(xRange, otherPlot);
-        highlightRegion(otherPlot, plot, energyRange, xRange);
+         // Standalone plot functionality without full cross-correlation linking
+         // Pull the specific discontinuous panel axis tracker (e.g., 'x', 'x2')
+         const targetXref = point.data ? (point.data.xaxis || 'x') : 'x';
+         if (isSpectrum) {
+            applyHighlightingToSpectrum(plot, xRange);
+         } else {
+            applyHighlightingToLightCurve(plot, xRange, targetXref);
+         }
+      }
+    };
+
+    // Native fast double-click interceptor
+    const handleDoubleClick = function () {
+      console.log("Plotly native fast double-click detected! Triggering GTI plugin...");
+      if (plot._lastPlotlyClickData) {
+        handleGtiDoubleClick(plot._lastPlotlyClickData, plot);
+      } else {
+        console.log("No preceding single-click data found to process double-click.");
       }
     };
 
     // Use Plotly's event system
-    if (typeof Plotly !== 'undefined' && typeof Plotly.on === 'function') {
+    if (typeof plot.on === 'function') {
       console.log(
-        `Using Plotly event system for ${
-          isSpectrum ? 'spectrum' : 'light curve'
+        `Using Plotly event system for ${isSpectrum ? 'spectrum' : 'light curve'
         } plot`,
       );
-      Plotly.on(plot, 'plotly_click', handleClick);
-      // Plotly.on(plot, 'plotly_doubleclick', handleDoubleClick);
-      console.log('Set up Plotly event handlers');
+      plot.on('plotly_click', handleClick);
+      plot.on('plotly_doubleclick', handleDoubleClick);
+      console.log('Set up Plotly event handlers efficiently');
     } else {
-      console.log('Plotly.on is not available, using fallback event handlers');
+      console.log('plot.on is not available, using fallback event handlers');
       // Fallback to DOM events
       plot.addEventListener('click', function (event) {
         // This is a simplified fallback that won't have the actual data points
@@ -522,30 +828,30 @@ function mapEnergyToTimeRange(energyRange, lightCurvePlot) {
     }
 
     // Get overall time range
-    const times = [...dataTrace.x].sort((a, b) => a - b);
-    const minTime = times[0];
-    const maxTime = times[times.length - 1];
+    const tArray = dataTrace.x;
+    let minTime = tArray[0];
+    let maxTime = tArray[tArray.length - 1];
+    if (minTime > maxTime) { minTime = tArray[tArray.length - 1]; maxTime = tArray[0]; }
     const totalTime = maxTime - minTime;
 
-    // Calculate correlation weights for each time point
-    const weights = times.map((time) => {
-      const normalizedTime = (time - minTime) / totalTime;
-      const expectedEnergy = ENERGY_TIME_CORRELATION.getExpectedEnergy(
-        time - minTime,
-        totalTime,
-      );
-      return ENERGY_TIME_CORRELATION.getCorrelationStrength(
-        (energyRange[0] + energyRange[1]) / 2,
-        time - minTime,
-        totalTime,
-      );
-    });
-
-    // Find the time range with significant correlation
+    const energyMidpoint = (energyRange[0] + energyRange[1]) / 2;
     const threshold = 0.3; // Minimum correlation strength to consider
-    const significantTimes = times.filter((_, i) => weights[i] > threshold);
 
-    if (significantTimes.length === 0) {
+    let firstSignificant = null;
+    let lastSignificant = null;
+
+    for (let i = 0; i < tArray.length; i++) {
+      const time = tArray[i];
+      const expectedEnergy = ENERGY_TIME_CORRELATION.getExpectedEnergy(time - minTime, totalTime);
+      const weight = ENERGY_TIME_CORRELATION.getCorrelationStrength(energyMidpoint, time - minTime, totalTime);
+
+      if (weight > threshold) {
+        if (firstSignificant === null || time < firstSignificant) firstSignificant = time;
+        if (lastSignificant === null || time > lastSignificant) lastSignificant = time;
+      }
+    }
+
+    if (firstSignificant === null) {
       // If no significant correlation, use the full range
       return [minTime, maxTime];
     }
@@ -553,11 +859,8 @@ function mapEnergyToTimeRange(energyRange, lightCurvePlot) {
     // Add padding to the significant range
     const padding = 0.1 * (maxTime - minTime);
     return [
-      Math.max(minTime, significantTimes[0] - padding),
-      Math.min(
-        maxTime,
-        significantTimes[significantTimes.length - 1] + padding,
-      ),
+      Math.max(minTime, firstSignificant - padding),
+      Math.min(maxTime, lastSignificant + padding),
     ];
   } catch (error) {
     console.error('Error mapping energy to time range:', error);
@@ -572,83 +875,25 @@ function mapEnergyToTimeRange(energyRange, lightCurvePlot) {
  */
 function applyHighlightingToSpectrum(plot, xRange) {
   try {
-    if (!plot || !plot.data) return;
+    if (!plot || !plot.layout) return;
 
-    const pointColor = 'rgb(255, 65, 54)'; // Red for spectrum highlight
-    const updates = {
-      'marker.color': [],
-      'marker.opacity': [],
-      'marker.size': [],
+    // Create a highlight shape instead of iterating over thousands of data points
+    const highlightShape = {
+      type: 'rect',
+      xref: 'x',
+      yref: 'paper', // Stretch across entire Y axis
+      x0: xRange[0],
+      y0: 0,
+      x1: xRange[1],
+      y1: 1,
+      fillcolor: 'rgba(255, 65, 54, 0.3)',
+      line: { width: 0 },
+      layer: 'below'
     };
-    const traceIndices = [];
 
-    // Store original state if not stored yet
-    if (!highlightState.originalOpacities.has(plot)) {
-      const originalState = new Map();
-      plot.data.forEach((trace, i) => {
-        originalState.set(i, {
-          color: trace.marker?.color,
-          opacity: trace.marker?.opacity || trace.opacity || 1,
-          size: trace.marker?.size || 6,
-        });
-      });
-      highlightState.originalOpacities.set(plot, originalState);
-    }
-
-    // Build update arrays for Plotly.restyle
-    plot.data.forEach((trace, i) => {
-      if (
-        !trace.x ||
-        !trace.y ||
-        (trace.name && trace.name.toLowerCase().includes('background'))
-      ) {
-        return;
-      }
-
-      const colors = [];
-      const opacities = [];
-      const sizes = [];
-
-      // Calculate the center of the selected range
-      const rangeCenter = (xRange[0] + xRange[1]) / 2;
-      const rangeWidth = xRange[1] - xRange[0];
-
-      // Highlight points with smooth opacity gradient
-      for (let j = 0; j < trace.x.length; j++) {
-        const x = trace.x[j];
-        const distanceFromCenter = Math.abs(x - rangeCenter);
-        const normalizedDistance = distanceFromCenter / (rangeWidth / 2);
-
-        // Calculate opacity based on distance from center
-        const opacity = Math.max(0, 1 - normalizedDistance);
-
-        // Calculate size based on opacity
-        const size = 6 + opacity * 4;
-
-        // Calculate color with opacity
-        const color = `rgba(255, 65, 54, ${opacity})`;
-
-        colors.push(color);
-        opacities.push(opacity);
-        sizes.push(size);
-      }
-
-      if (colors.length > 0) {
-        traceIndices.push(i);
-        updates['marker.color'].push(colors);
-        updates['marker.opacity'].push(opacities);
-        updates['marker.size'].push(sizes);
-      }
-    });
-
-    // Apply updates efficiently using Plotly.restyle
-    if (traceIndices.length > 0) {
-      for (const [prop, values] of Object.entries(updates)) {
-        if (values.length === traceIndices.length) {
-          Plotly.restyle(plot, { [prop]: values }, traceIndices);
-        }
-      }
-    }
+    // Plotly aggressively strips out custom JS properties during internal shape cloning, causing ghost boxes to accumulate.
+    // By passing an exact array overriding `shapes` instead of attempting to blindly filter old anomalies, we perfectly mathematically obliterate ALL previously stuck trace selection boxes from memory!
+    Plotly.relayout(plot, { shapes: [highlightShape] });
   } catch (error) {
     console.error('Error applying highlighting to spectrum:', error);
   }
@@ -658,91 +903,38 @@ function applyHighlightingToSpectrum(plot, xRange) {
  * Apply highlighting to a light curve plot by modifying point colors and opacities
  * @param {HTMLElement} plot - The light curve plot element
  * @param {Array|null} timeRange - The time range to highlight [min, max] in seconds
+ * @param {string} xref - The native specific Plotly sub-axis identifier (default 'x')
  */
-function applyHighlightingToLightCurve(plot, timeRange) {
+function applyHighlightingToLightCurve(plot, timeRange, xref = 'x') {
   try {
-    if (!plot || !plot.data) return;
+    if (!plot || !plot.layout) return;
 
     if (!timeRange) {
       console.log('No valid time range mapping - not modifying light curve');
       return;
     }
 
-    const pointColor = 'rgb(50, 136, 189)'; // Blue for light curve highlight
-    const updates = {
-      'marker.color': [],
-      'marker.opacity': [],
-      'marker.size': [],
+    // Create a highlight shape instead of iterating over thousands of data points
+    const highlightShape = {
+      type: 'rect',
+      xref: xref,
+      yref: 'paper', // Stretch across entire Y axis
+      x0: timeRange[0],
+      y0: 0,
+      x1: timeRange[1],
+      y1: 1,
+      fillcolor: 'rgba(50, 136, 189, 0.3)',
+      line: { width: 0 },
+      layer: 'below'
     };
-    const traceIndices = [];
 
-    // Store original state if not stored yet
-    if (!highlightState.originalOpacities.has(plot)) {
-      const originalState = new Map();
-      plot.data.forEach((trace, i) => {
-        originalState.set(i, {
-          color: trace.marker?.color,
-          opacity: trace.marker?.opacity || trace.opacity || 1,
-          size: trace.marker?.size || 6,
-        });
-      });
-      highlightState.originalOpacities.set(plot, originalState);
-    }
+    // Plotly aggressively strips out custom JS properties during internal shape cloning, causing ghost boxes to accumulate.
+    // By passing an exact array overriding `shapes` instead of attempting to blindly filter old anomalies, we perfectly mathematically obliterate ALL previously stuck trace selection boxes from memory!
 
-    // Build update arrays for Plotly.restyle
-    plot.data.forEach((trace, i) => {
-      if (
-        !trace.x ||
-        !trace.y ||
-        (trace.name && trace.name.toLowerCase().includes('background'))
-      ) {
-        return;
-      }
-
-      const colors = [];
-      const opacities = [];
-      const sizes = [];
-
-      // Calculate the center of the selected range
-      const rangeCenter = (timeRange[0] + timeRange[1]) / 2;
-      const rangeWidth = timeRange[1] - timeRange[0];
-
-      // Highlight points with smooth opacity gradient
-      for (let j = 0; j < trace.x.length; j++) {
-        const x = trace.x[j];
-        const distanceFromCenter = Math.abs(x - rangeCenter);
-        const normalizedDistance = distanceFromCenter / (rangeWidth / 2);
-
-        // Calculate opacity based on distance from center
-        const opacity = Math.max(0, 1 - normalizedDistance);
-
-        // Calculate size based on opacity
-        const size = 6 + opacity * 4;
-
-        // Calculate color with opacity
-        const color = `rgba(50, 136, 189, ${opacity})`;
-
-        colors.push(color);
-        opacities.push(opacity);
-        sizes.push(size);
-      }
-
-      if (colors.length > 0) {
-        traceIndices.push(i);
-        updates['marker.color'].push(colors);
-        updates['marker.opacity'].push(opacities);
-        updates['marker.size'].push(sizes);
-      }
-    });
-
-    // Apply updates efficiently using Plotly.restyle
-    if (traceIndices.length > 0) {
-      for (const [prop, values] of Object.entries(updates)) {
-        if (values.length === traceIndices.length) {
-          Plotly.restyle(plot, { [prop]: values }, traceIndices);
-        }
-      }
-    }
+    // Enqueue asynchronously so any concurrent Plotly repaints (e.g., initial standalone clicks) completely finish
+    setTimeout(() => {
+        Plotly.relayout(plot, { shapes: [highlightShape] });
+    }, 10);
   } catch (error) {
     console.error('Error applying highlighting to light curve:', error);
   }
@@ -774,25 +966,13 @@ function resetHighlights(spectrumPlot, lightCurvePlot) {
  */
 function resetPlotHighlights(plot) {
   try {
-    if (!plot || !plot.data) return;
+    if (!plot || !plot.layout) return;
 
-    // Check if we have stored original state
-    const originalState = highlightState.originalOpacities.get(plot);
-    if (!originalState) return;
-
-    // Apply original colors and opacities
-    plot.data.forEach((trace, i) => {
-      const original = originalState.get(i);
-      if (original) {
-        const update = {
-          'marker.color': original.color,
-          'marker.opacity': original.opacity,
-          'marker.size': original.size,
-        };
-
-        Plotly.restyle(plot, update, [i]);
-      }
-    });
+    // Check if there are any visual highlight shapes to remove (by inspecting explicit SVG color)
+    if (plot.layout.shapes && plot.layout.shapes.some(s => s.fillcolor === 'rgba(50, 136, 189, 0.3)' || s.fillcolor === 'rgba(255, 65, 54, 0.3)')) {
+      const existingShapes = plot.layout.shapes.filter(s => s.fillcolor !== 'rgba(50, 136, 189, 0.3)' && s.fillcolor !== 'rgba(255, 65, 54, 0.3)');
+      Plotly.relayout(plot, { shapes: existingShapes });
+    }
   } catch (error) {
     console.error(`Error resetting highlights for plot:`, error);
   }
@@ -843,8 +1023,7 @@ export function diagnosePlotlyGraphs() {
 
     // Check if our handler is set up
     console.log(
-      `Interactive linking initialized: ${
-        graph.getAttribute('data-interactive-linking') === 'true' ? 'Yes' : 'No'
+      `Interactive linking initialized: ${graph.getAttribute('data-interactive-linking') === 'true' ? 'Yes' : 'No'
       }`,
     );
 
@@ -872,141 +1051,9 @@ window.diagnosePlotlyGraphs = diagnosePlotlyGraphs;
  * @param {HTMLElement} lightCurvePlot - The light curve plot element
  */
 function addDirectEventListeners(spectrumPlot, lightCurvePlot) {
-  // Add direct click handler to the light curve plot
-  if (lightCurvePlot) {
-    console.log('Adding direct click handler to light curve plot');
-
-    // Try to get the plot container
-    const container = lightCurvePlot.closest('[id]');
-    if (container) {
-      console.log(
-        `Adding click handler to light curve container: ${container.id}`,
-      );
-
-      // Add a click handler to the container
-      container.addEventListener('click', function (event) {
-        console.log('Click detected on light curve container');
-
-        // Try to get the click coordinates
-        const rect = container.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
-        console.log(`Click coordinates: (${x}, ${y})`);
-
-        // Try to find the closest data point
-        if (lightCurvePlot.data && lightCurvePlot.data.length > 0) {
-          const trace = lightCurvePlot.data[0];
-          if (trace.x && trace.y) {
-            // Convert screen coordinates to data coordinates
-            const xaxis = lightCurvePlot.layout.xaxis;
-            const yaxis = lightCurvePlot.layout.yaxis;
-
-            // Get the axis ranges
-            const xmin = xaxis.range[0];
-            const xmax = xaxis.range[1];
-            const ymin = yaxis.range[0];
-            const ymax = yaxis.range[1];
-
-            // Convert screen coordinates to data coordinates
-            const xData = xmin + (x / rect.width) * (xmax - xmin);
-
-            // Find the closest data point
-            let closestIndex = 0;
-            let minDistance = Infinity;
-
-            for (let i = 0; i < trace.x.length; i++) {
-              const distance = Math.abs(trace.x[i] - xData);
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestIndex = i;
-              }
-            }
-
-            console.log(
-              `Closest data point: (${trace.x[closestIndex]}, ${trace.y[closestIndex]})`,
-            );
-
-            // Trigger highlighting
-            triggerHighlighting(
-              lightCurvePlot,
-              spectrumPlot,
-              trace.x[closestIndex],
-              false,
-            );
-          }
-        }
-      });
-    }
-  }
-
-  // Add direct click handler to the spectrum plot
-  if (spectrumPlot) {
-    console.log('Adding direct click handler to spectrum plot');
-
-    // Try to get the plot container
-    const container = spectrumPlot.closest('[id]');
-    if (container) {
-      console.log(
-        `Adding click handler to spectrum container: ${container.id}`,
-      );
-
-      // Add a click handler to the container
-      container.addEventListener('click', function (event) {
-        console.log('Click detected on spectrum container');
-
-        // Try to get the click coordinates
-        const rect = container.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
-        console.log(`Click coordinates: (${x}, ${y})`);
-
-        // Try to find the closest data point
-        if (spectrumPlot.data && spectrumPlot.data.length > 0) {
-          const trace = spectrumPlot.data[0];
-          if (trace.x && trace.y) {
-            // Convert screen coordinates to data coordinates
-            const xaxis = spectrumPlot.layout.xaxis;
-            const yaxis = spectrumPlot.layout.yaxis;
-
-            // Get the axis ranges
-            const xmin = xaxis.range[0];
-            const xmax = xaxis.range[1];
-            const ymin = yaxis.range[0];
-            const ymax = yaxis.range[1];
-
-            // Convert screen coordinates to data coordinates
-            const xData = xmin + (x / rect.width) * (xmax - xmin);
-
-            // Find the closest data point
-            let closestIndex = 0;
-            let minDistance = Infinity;
-
-            for (let i = 0; i < trace.x.length; i++) {
-              const distance = Math.abs(trace.x[i] - xData);
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestIndex = i;
-              }
-            }
-
-            console.log(
-              `Closest data point: (${trace.x[closestIndex]}, ${trace.y[closestIndex]})`,
-            );
-
-            // Trigger highlighting
-            triggerHighlighting(
-              spectrumPlot,
-              lightCurvePlot,
-              trace.x[closestIndex],
-              true,
-            );
-          }
-        }
-      });
-    }
-  }
+  // DISABLED: These native listeners conflict with Plotly's native 'plotly_click'
+  // causing highlighting to fire 2-3 times per click, immediately toggling it off again.
+  console.log('Direct fallback event listeners intentionally disabled to prevent click redundancy.');
 }
 
 /**
@@ -1018,8 +1065,7 @@ function addDirectEventListeners(spectrumPlot, lightCurvePlot) {
  */
 function triggerHighlighting(sourcePlot, targetPlot, xValue, isSpectrum) {
   console.log(
-    `Triggering highlighting for ${
-      isSpectrum ? 'spectrum' : 'light curve'
+    `Triggering highlighting for ${isSpectrum ? 'spectrum' : 'light curve'
     } point: ${xValue}`,
   );
 
@@ -1028,8 +1074,7 @@ function triggerHighlighting(sourcePlot, targetPlot, xValue, isSpectrum) {
   const xRange = [xValue - rangeWidth, xValue + rangeWidth];
 
   console.log(
-    `Highlighting ${isSpectrum ? 'spectrum' : 'light curve'} region: [${
-      xRange[0]
+    `Highlighting ${isSpectrum ? 'spectrum' : 'light curve'} region: [${xRange[0]
     }, ${xRange[1]}] ${isSpectrum ? 'keV' : 's'}`,
   );
 

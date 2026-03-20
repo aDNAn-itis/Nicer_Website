@@ -13,6 +13,7 @@ urlpatterns = [
     path('fetch_gtis', views.fetch_gtis, name='fetch_gtis'),
     path('plot_data', views.plot_data, name='plot_data'),
     path('plot_gti', views.plot_gti, name='plot_gti'),
+    path('plot_single_gti/', views.plot_single_gti, name='plot_single_gti'),
     path('fetch_sources', views.fetch_sources, name='fetch_sources'),
     path('download', views.download_data, name='download_data'),
     path('source_search/', views.source_search_view, name='source_search'),

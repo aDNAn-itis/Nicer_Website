@@ -146,6 +146,60 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
        return JsonResponse({'error': f'Error generating plot: {str(e)}'}, status=500)
 
 
+@require_POST
+def plot_single_gti(request: HttpRequest) -> JsonResponse:
+    try:
+        obs_id: str = request.POST.get('obs_id', '')
+        quality: str = request.POST.get('quality', '')
+        start_time_str: str = request.POST.get('start_time')
+        stop_time_str: str = request.POST.get('stop_time')
+
+        if not all([obs_id, quality, start_time_str, stop_time_str]):
+            return JsonResponse({'error': 'Missing required parameters.'}, status=400)
+
+        start_time = float(start_time_str)
+        stop_time = float(stop_time_str)
+        
+        plot_type = 'light_curve'
+        plot_info = PLOTS.get(plot_type)
+        if not plot_info:
+            return JsonResponse({'error': 'Light curve plot type not configured.'}, status=500)
+
+        min_value = plot_info.get('min_value', 100)
+
+        # Find the relevant file. For a single GTI plot, we usually just need one of the .lc.gz files.
+        # We don't need to distinguish by GTI number in the filename, as we filter by time.
+        rel_dir_path = os.path.join(obs_id, 'jspipe/')
+        file_item = Item.objects.filter(
+            path=rel_dir_path,
+            type=Item.item_type[1][0],
+            name__contains=quality,
+        ).filter(name__contains=plot_info['file_type']).first()
+
+        if not file_item:
+            return JsonResponse({'error': f'No light curve file found for ObsID {obs_id} with quality {quality}.'}, status=404)
+
+        full_path = os.path.join(settings.DATA_DIR, rel_dir_path, file_item.name)
+        
+        # Call the plotting function with the time range
+        plot_div = light_curve_plot(
+            min_value=min_value,
+            obs_id=f"{obs_id} (GTI)",
+            data_paths=[full_path],
+            gti_numbers=[0], # GTI number is not strictly needed as we filter by time
+            gti_labels=[f"Time Range"],
+            start_time=start_time,
+            stop_time=stop_time
+        )
+        
+        return JsonResponse({'plot_div': plot_div})
+
+    except ValueError:
+        return JsonResponse({'error': 'Invalid time format. Start and stop time must be numbers.'}, status=400)
+    except Exception as e:
+        logger.exception(f"[plot_single_gti] Error: {e}")
+        return JsonResponse({'error': f'An unexpected error occurred: {str(e)}'}, status=500)
+
 # ---------------------------------------------------------------------
 # Handles BOTH Combined Plotting (Loop) AND Standard Search (Fallback)
 # ---------------------------------------------------------------------
