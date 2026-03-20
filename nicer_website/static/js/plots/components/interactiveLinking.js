@@ -732,11 +732,13 @@ function setupClickHandler(plot, otherPlot, isSpectrum) {
          // Standalone plot functionality without full cross-correlation linking
          // Pull the specific discontinuous panel axis tracker (e.g., 'x', 'x2')
          const targetXref = point.data ? (point.data.xaxis || 'x') : 'x';
+         
          if (isSpectrum) {
             applyHighlightingToSpectrum(plot, xRange);
-         } else {
-            applyHighlightingToLightCurve(plot, xRange, targetXref);
-         }
+         } 
+         // Deliberately omitted fallback for Light Curve: 
+         // A standalone Light Curve has no logical mathematical cross-correlation mapping for a tiny 2% slice. 
+         // It strictly only evaluates Double Clicks to map full geometric boundaries!
       }
     };
 
@@ -914,14 +916,18 @@ function applyHighlightingToLightCurve(plot, timeRange, xref = 'x') {
       return;
     }
 
+    // Visually pad the exact numerical boundaries by 3% entirely so that the blue box fully 
+    // engulfs the outer physical radius of the SVG scattered dot markers cleanly!
+    const padding = Math.max(0, (timeRange[1] - timeRange[0]) * 0.03); 
+
     // Create a highlight shape instead of iterating over thousands of data points
     const highlightShape = {
       type: 'rect',
-      xref: xref,
+      xref: xref, // Dynamically maps to 'x2', 'x3' panels natively if plot uses Cartesian overlap!
       yref: 'paper', // Stretch across entire Y axis
-      x0: timeRange[0],
+      x0: timeRange[0] - padding,
       y0: 0,
-      x1: timeRange[1],
+      x1: timeRange[1] + padding,
       y1: 1,
       fillcolor: 'rgba(50, 136, 189, 0.3)',
       line: { width: 0 },
@@ -934,7 +940,7 @@ function applyHighlightingToLightCurve(plot, timeRange, xref = 'x') {
     // Enqueue asynchronously so any concurrent Plotly repaints (e.g., initial standalone clicks) completely finish
     setTimeout(() => {
         Plotly.relayout(plot, { shapes: [highlightShape] });
-    }, 10);
+    }, 50); // Small 50ms delay securely detaches the relayout engine from Plotly's heavy double-click processing tree!
   } catch (error) {
     console.error('Error applying highlighting to light curve:', error);
   }
