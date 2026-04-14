@@ -94,12 +94,12 @@ def get_pds_data_and_plot(
     y_uncertainties: List[ndarray] = []
     plot_labels: List[str] = []  # To store custom labels
 
-    # --- 🟢 CHECK FOR COMBINED MODE ---
+    # ---CHECK FOR COMBINED MODE---
     obs_str = str(obs_id)
     is_combined = ',' in obs_str
 
     if is_combined:
-        # === NEW LOGIC FOR COMBINED OBSERVATIONS ===
+        # ---LOGIC FOR COMBINED OBSERVATIONS---
         obs_ids_list = obs_str.split(',')
         # Use min length to match files to labels
         limit = min(len(data_paths), len(gti_numbers))
@@ -131,7 +131,7 @@ def get_pds_data_and_plot(
                 )
 
     else:
-        # === CORRECTED LOGIC FOR SINGLE OBSERVATION ===
+        # ---LOGIC FOR SINGLE OBSERVATION---
         for i, pds_path in enumerate(data_paths):
             gti_number = gti_numbers[i]
             
@@ -158,24 +158,17 @@ def get_pds_data_and_plot(
         return "No valid PDS data found to plot."
 
     # --- Calculate Ranges ---
+
     try:
         margin_factor = 0.1
-        valid_x = [x[x > 0] for x in x_data_list if len(x) > 0]
-        valid_y = [y[y > 0] for y in y_data_list if len(y) > 0]
-        
-        if valid_x and valid_y:
-            x_min = np.log10(min(np.min(d) for d in valid_x))
-            x_max = np.log10(max(np.max(d) for d in valid_x))
-            y_min = np.log10(min(np.min(d) for d in valid_y))
-            y_max = np.log10(max(np.max(d) for d in valid_y))
+        # Filters non-positive data to prevent Log10 errors
+        x_min = np.log10(min(np.min(d, where=d > 0, initial=np.max(d)) for d in x_data_list if len(d) > 0))
+        x_max = np.log10(max(np.max(d) for d in x_data_list if len(d) > 0))
+        y_min = np.log10(min(np.min(d, where=d > 0, initial=np.max(d)) for d in y_data_list if len(d) > 0))
+        y_max = np.log10(max(np.max(d) for d in y_data_list if len(d) > 0))
 
-            x_margin = (x_max - x_min) * margin_factor
-            y_margin = (y_max - y_min) * margin_factor
-
-            xaxis_range = [x_min - x_margin, x_max + x_margin]
-            yaxis_range = [y_min - y_margin, y_max + y_margin]
-        else:
-            xaxis_range, yaxis_range = None, None
+        xaxis_range = [x_min - (x_max - x_min) * margin_factor, x_max + (x_max - x_min) * margin_factor]
+        yaxis_range = [y_min - (y_max - y_min) * margin_factor, y_max + (y_max - y_min) * margin_factor]
     except:
         xaxis_range, yaxis_range = None, None
 

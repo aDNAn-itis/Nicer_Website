@@ -64,13 +64,24 @@ def light_curve_data(
         dets = int(data[2][0])
 
         # Bin data
-        min_bins = min_bin(min_value, counts)
-        
+        # Treat min_value as a direct linear multiplier
+        bin_factor = int(min_value) if min_value > 0 else 1
+        min_bins = np.arange(0, len(counts), bin_factor)
+        if len(min_bins) == 0 or min_bins[-1] != len(counts):
+            min_bins = np.append(min_bins, len(counts))
+        min_bins = np.unique(min_bins)
+
+        # Ensure all arrays are the same length before stacking
+
         valid_len = min(len(counts), len(background), len(data[0]))
         
         (y_bin, bg_bin, x_bin), x_width, uncertainty = binning(
             min_bins,
-            np.stack((counts[:valid_len], background[:valid_len], data[0][:valid_len])),
+            np.stack((
+                counts[:valid_len], 
+                background[:valid_len], 
+                data[0][:valid_len]
+            )),
         )
 
         # Normalise data
@@ -184,7 +195,7 @@ def light_curve_plot(
     x_background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
     y_uncertainties: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
 
-    # --- 🟢 AUTO-DETECT COMBINED MODE ---
+    # --- COMBINED MODE ---
     obs_str = str(obs_id)
     if ',' in obs_str:
         is_combined_obs = True
@@ -228,7 +239,7 @@ def light_curve_plot(
         x_axis_label = r'$\text{Relative Time (days)}$'
     
     else:
-        # === CHRONOLOGICAL MODE ===
+        # --- CHRONOLOGICAL MODE ---
         idxs = np.argsort([min(datum) if len(datum)>0 else 0 for datum in x_data])
         x_data = [x_data[idx] for idx in idxs]
         y_data = [y_data[idx] for idx in idxs]
@@ -246,7 +257,12 @@ def light_curve_plot(
 
         subplot_kwargs = [{'row': 1, 'col': 1}]
         for i, x_datum in enumerate(x_data[1:]):
-            if x_datum[0] - x_data[i][-1] > 10 * max(np.diff(x_datum)):
+            # Use bin width to detect real gaps
+            current_x_errors = x_error[i + 1]
+            max_bin_width = 2 * np.max(current_x_errors) if len(current_x_errors) > 0 else 0
+
+            # If the gap is 10x larger than the bin resolution, split the plot
+            if max_bin_width > 0 and x_datum[0] - x_data[i][-1] > 10 * max_bin_width:
                 subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + 1})
             else:
                 subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col']})

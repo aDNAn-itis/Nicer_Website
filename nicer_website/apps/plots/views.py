@@ -31,11 +31,12 @@ from src.utils.light_curve_preprocessing import light_curve_plot
 from src.utils.power_density_processing import get_pds_data_and_plot
 from src.utils.summed_spectrum_preprocessing import summed_spectrum_plot
 from src.utils.hardness_intensity_preprocessing import get_hid_data_and_plot, process_lc_file
+from src.utils.background_screening import screen_gti_files, get_screening_summary
 
 logger = logging.getLogger(__name__)
 warnings.simplefilter('ignore', category=AstropyWarning)
 
-# --- 🟢 HELPER FUNCTION FOR GLOBAL HID (Single Point) 🟢 ---
+# --- HELPER FUNCTION FOR GLOBAL HID (Single Point) ---
 def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers):
     try:
         all_hardness = []
@@ -77,6 +78,42 @@ def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers):
     except Exception as e:
         logger.error(f"Error generating global HID point: {e}")
         return f"<div style='color:red'>Error: {str(e)}</div>"
+    
+def calculate_default_binning(file_path, plot_type):
+    """
+    Calculate default binning to reduce number of plotted points for faster rendering.
+    Target: ~500-1000 points per plot for optimal performance.
+    """
+    try:
+        from astropy.io import fits
+        if plot_type in ['spectrum', 'summed_spectrum']:
+            with fits.open(file_path) as hdul:
+                if 'SPECTRUM' in hdul:
+                    counts = hdul['SPECTRUM'].data['COUNTS']
+                    total_bins = len(counts)
+                    max_counts = np.max(counts)
+                    target_points = 500
+                    bin_factor = max(1, total_bins // target_points)
+                    min_counts = max(1, int(max_counts * 0.01))
+                    return max(bin_factor, min_counts)
+                    
+        elif plot_type == 'light_curve':
+            with fits.open(file_path) as hdul:
+                if 'RATE' in hdul:
+                    rate = hdul['RATE'].data['RATE']
+                    total_bins = len(rate)
+                    mean_rate = np.mean(rate)
+                    target_bins = 100
+                    bins_to_combine = max(1, total_bins // target_bins)
+                    min_bins_for_100_counts = max(1, int(100 / mean_rate)) if mean_rate > 0 else 1
+                    return max(bins_to_combine, min_bins_for_100_counts)
+                    
+        elif plot_type == 'power_density_spectrum':
+            return 15 # Default significance threshold for PDS
+            
+    except Exception as e:
+        logger.warning(f"Error calculating default binning: {e}")
+    return None
 
 PLOTS: dict[str, dict[str, Any]] = {
    'spectrum': {'exists': False, 'min_value': None, 'file_type': '.jsgrp', 'function': spectrum_plot},
@@ -88,63 +125,100 @@ PLOTS: dict[str, dict[str, Any]] = {
 }
 
 def plot_gti(request: HttpRequest) -> JsonResponse:
-   obs_id: str = request.POST.get('obs_id', '')
-   quality: str = request.POST.get('quality', '')
-   plot_type_str: str = request.POST.get('plot_type', '')
-   gti_query_str: str = request.POST.get('gti-search', '')
-   requested_min_value_str = request.POST.get('min_value')
+    obs_id: str = request.POST.get('obs_id', '')
+    quality: str = request.POST.get('quality', '')
+    plot_type_str: str = request.POST.get('plot_type', '')
+    gti_query_str: str = request.POST.get('gti-search', '')
+    requested_min_value_str = request.POST.get('min_value')
 
-   if not obs_id or not plot_type_str: return JsonResponse({'error': 'Missing params'}, status=400)
-   plot_type: str = plot_type_str.replace('-', '_')
-   if plot_type not in PLOTS: return JsonResponse({'error': f'Invalid plot type: {plot_type_str}'}, status=400)
+    # Parse Frontend Screening Toggles
+    apply_screening = request.POST.get('apply_screening', 'false').lower() == 'true'
+    try:
+        screening_energy_low = float(request.POST.get('screening_energy_low', 2.0))
+        screening_energy_high = float(request.POST.get('screening_energy_high', 5.0))
+        screening_min_bad_channels = int(request.POST.get('screening_min_bad_channels', 2))
+    except (ValueError, TypeError):
+        logger.warning("[plot_gti] Error parsing screening params, using defaults")
+        screening_energy_low, screening_energy_high, screening_min_bad_channels = 2.0, 5.0, 2
 
-   default_min_value = PLOTS[plot_type].get('min_value')
-   try: min_value = int(requested_min_value_str) if requested_min_value_str else default_min_value
-   except ValueError: min_value = default_min_value
+    if not obs_id or not plot_type_str: return JsonResponse({'error': 'Missing params'}, status=400)
+    plot_type: str = plot_type_str.replace('-', '_')
+    if plot_type not in PLOTS: return JsonResponse({'error': f'Invalid plot type: {plot_type_str}'}, status=400)
 
-   single_obs_dir_path_relative = os.path.join(obs_id, 'jspipe/')
-   files_qs = Item.objects.filter(name__contains=quality, path=single_obs_dir_path_relative, type=Item.item_type[1][0]).order_by('name')
-   plot_specific_files_qs = files_qs.filter(name__contains=PLOTS[plot_type]['file_type'])
+    default_min_value = PLOTS[plot_type].get('min_value')
+    try: min_value = int(requested_min_value_str) if requested_min_value_str else default_min_value
+    except ValueError: min_value = default_min_value
 
-   if not plot_specific_files_qs.exists(): return JsonResponse({'error': f'No files found for plot type {plot_type}'}, status=404)
+    single_obs_dir_path_relative = os.path.join(obs_id, 'jspipe/')
+    files_qs = Item.objects.filter(name__contains=quality, path=single_obs_dir_path_relative, type=Item.item_type[1][0]).order_by('name')
+    plot_specific_files_qs = files_qs.filter(name__contains=PLOTS[plot_type]['file_type'])
 
-   gti_list_parsed: list[int] = []
-   if gti_query_str:
-       processed_gti_query_parts = re.sub(r'[^\d,-]', '', gti_query_str).split(',')
-       for gti_val_part in processed_gti_query_parts:
-           if not gti_val_part: continue
-           if '-' in gti_val_part:
-               start, end = map(int, gti_val_part.split('-'))
-               if start > end: start, end = end, start
-               gti_list_parsed.extend(range(start, end + 1))
-           elif gti_val_part.isdigit(): gti_list_parsed.append(int(gti_val_part))
-       gti_list_parsed = sorted(list(set(gti_list_parsed)))
+    if not plot_specific_files_qs.exists(): return JsonResponse({'error': f'No files found for plot type {plot_type}'}, status=404)
 
-   final_file_paths_to_plot: list[str] = []
-   final_gti_numbers_for_plot_func: list[int] = []
-   full_dir_path_for_files = os.path.join(settings.DATA_DIR, single_obs_dir_path_relative)
+    gti_list_parsed: list[int] = []
+    if gti_query_str:
+        processed_gti_query_parts = re.sub(r'[^\d,-]', '', gti_query_str).split(',')
+        for gti_val_part in processed_gti_query_parts:
+            if not gti_val_part: continue
+            if '-' in gti_val_part:
+                start, end = map(int, gti_val_part.split('-'))
+                if start > end: start, end = end, start
+                gti_list_parsed.extend(range(start, end + 1))
+            elif gti_val_part.isdigit(): gti_list_parsed.append(int(gti_val_part))
+        gti_list_parsed = sorted(list(set(gti_list_parsed)))
 
-   if gti_list_parsed:
-       for gti_num in gti_list_parsed:
-           file_match_item = plot_specific_files_qs.filter(name__regex=fr'GTI0*{gti_num}([^\\d]|$)').first()
-           if file_match_item:
-               final_file_paths_to_plot.append(os.path.join(full_dir_path_for_files, file_match_item.name))
-               final_gti_numbers_for_plot_func.append(gti_num)
+    final_file_paths_to_plot: list[str] = []
+    final_gti_numbers_for_plot_func: list[int] = []
+    full_dir_path_for_files = os.path.join(settings.DATA_DIR, single_obs_dir_path_relative)
 
-   if not final_file_paths_to_plot:
-       default_file_item = plot_specific_files_qs.first()
-       if default_file_item:
-           final_file_paths_to_plot.append(os.path.join(full_dir_path_for_files, default_file_item.name))
-           match = re.search(r'GTI(0*)(\\d+)', default_file_item.name)
-           final_gti_numbers_for_plot_func = [int(match.group(2))] if match else [0]
+    if gti_list_parsed:
+        for gti_num in gti_list_parsed:
+            file_match_item = plot_specific_files_qs.filter(name__regex=fr'GTI0*{gti_num}([^\\d]|$)').first()
+            if file_match_item:
+                final_file_paths_to_plot.append(os.path.join(full_dir_path_for_files, file_match_item.name))
+                final_gti_numbers_for_plot_func.append(gti_num)
 
-   try:
-       plot_divs_html = PLOTS[plot_type]['function'](min_value, obs_id, final_file_paths_to_plot, final_gti_numbers_for_plot_func)
-       return JsonResponse({'plotDivs': [plot_divs_html]})
-   except Exception as e:
-       logger.exception(f"[plot_gti] Error: {e}")
-       return JsonResponse({'error': f'Error generating plot: {str(e)}'}, status=500)
+    if not final_file_paths_to_plot:
+        default_file_item = plot_specific_files_qs.first()
+        if default_file_item:
+            final_file_paths_to_plot.append(os.path.join(full_dir_path_for_files, default_file_item.name))
+            match = re.search(r'GTI(0*)(\\d+)', default_file_item.name)
+            final_gti_numbers_for_plot_func = [int(match.group(2))] if match else [0]
 
+    # Apply conditional background screening & summary
+    screening_summary = None
+    bg_dash = 'solid'
+    
+    if apply_screening and plot_type in ['spectrum', 'summed_spectrum']:
+        screened_files, screened_gtis, screening_results = screen_gti_files(
+            final_file_paths_to_plot, final_gti_numbers_for_plot_func,
+            energy_low=screening_energy_low, energy_high=screening_energy_high, min_bad_channels=screening_min_bad_channels
+        )
+        screening_summary = get_screening_summary(screening_results)
+        
+        if screened_files:
+            final_file_paths_to_plot = screened_files
+            final_gti_numbers_for_plot_func = screened_gtis
+        else:
+            logger.warning("[plot_gti] All GTI failed screening, using original files")
+            screening_summary['all_failed'] = True
+            bg_dash = 'dash'
+
+    try:
+        if plot_type in ('spectrum', 'summed_spectrum'):
+            plot_divs_html = PLOTS[plot_type]['function'](min_value, obs_id, final_file_paths_to_plot, final_gti_numbers_for_plot_func, bg_dash=bg_dash)
+        else:
+            plot_divs_html = PLOTS[plot_type]['function'](min_value, obs_id, final_file_paths_to_plot, final_gti_numbers_for_plot_func)
+            
+        response_data = {'plotDivs': [plot_divs_html]}
+        if screening_summary:
+            response_data['screeningSummary'] = screening_summary
+            
+        return JsonResponse(response_data)
+        
+    except Exception as e:
+        logger.exception(f"[plot_gti] Error: {e}")
+        return JsonResponse({'error': f'Error generating plot: {str(e)}'}, status=500)
 
 @require_POST
 def plot_single_gti(request: HttpRequest) -> JsonResponse:
@@ -167,8 +241,6 @@ def plot_single_gti(request: HttpRequest) -> JsonResponse:
 
         min_value = plot_info.get('min_value', 100)
 
-        # Find the relevant file. For a single GTI plot, we usually just need one of the .lc.gz files.
-        # We don't need to distinguish by GTI number in the filename, as we filter by time.
         rel_dir_path = os.path.join(obs_id, 'jspipe/')
         file_item = Item.objects.filter(
             path=rel_dir_path,
@@ -181,12 +253,11 @@ def plot_single_gti(request: HttpRequest) -> JsonResponse:
 
         full_path = os.path.join(settings.DATA_DIR, rel_dir_path, file_item.name)
         
-        # Call the plotting function with the time range
         plot_div = light_curve_plot(
             min_value=min_value,
             obs_id=f"{obs_id} (GTI)",
             data_paths=[full_path],
-            gti_numbers=[0], # GTI number is not strictly needed as we filter by time
+            gti_numbers=[0],
             gti_labels=[f"Time Range"],
             start_time=start_time,
             stop_time=stop_time
@@ -206,21 +277,54 @@ def plot_single_gti(request: HttpRequest) -> JsonResponse:
 def plot_data(request: HttpRequest) -> JsonResponse:
     logger.info(f"[plot_data] Received POST request. Data: {request.POST}")
     
-    # 1. Get raw input
     raw_obs_id_input: str = request.POST.get('obs_id')
+    source: str = request.POST.get('source')
     quality: str = request.POST.get('quality')
+    search_type: str = request.POST.get('search_type')
     plot_types = request.POST.getlist('plot_types')
-    gti_query_str: str = request.POST.get('gti-search', '') # New: Get gti-search string
+    gti_query_str: str = request.POST.get('gti-search', '')
 
-    gti_specifiers = {} # For new format: {obs_id: [gti_num, ...]}
-    gti_list_parsed: list[int] = [] # For old format
+    # --- SOURCE SEARCH RESTORED ---
+    if search_type == 'source' and source:
+        obs_items = Item.objects.filter(
+            source__icontains=source,
+            type=Item.item_type[1][0],
+        ).values('path', 'source').distinct()
+
+        obs_ids = []
+        for item in obs_items:
+            try:
+                path_parts = item['path'].split(os.path.sep)
+                if len(path_parts) > 0 and path_parts[0].isdigit():
+                    obs_ids.append({'obs_id': path_parts[0], 'source': item['source']})
+            except Exception:
+                continue
+
+        seen = set()
+        unique_obs_ids = []
+        for d in obs_ids:
+            if d['obs_id'] not in seen:
+                unique_obs_ids.append(d)
+                seen.add(d['obs_id'])
+        obs_ids = unique_obs_ids
+
+        if len(obs_ids) > 1:
+            return JsonResponse({
+                'multiple_observations': True,
+                'obs_ids': obs_ids,
+                'source': source
+            })
+
+        if obs_ids:
+            raw_obs_id_input = obs_ids[0]['obs_id']
+
+    # --- GTI PARSING RESTORED ---
+    gti_specifiers = {} 
+    gti_list_parsed: list[int] = [] 
 
     if gti_query_str:
-        # Heuristic to check if we're using the new "obsid-gti" format vs. old "1,2,5-7"
-        # Assumes obsids are long numbers (e.g., > 5 digits)
         is_obsid_gti_format = False
         if '-' in gti_query_str:
-            # Check the part before the first hyphen of each comma-separated value
             is_obsid_gti_format = any(len(part.split('-')[0].strip()) > 2 for part in gti_query_str.split(','))
 
         if is_obsid_gti_format:
@@ -233,7 +337,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                     if obs_id_str not in gti_specifiers:
                         gti_specifiers[obs_id_str] = []
                     gti_specifiers[obs_id_str].append(gti_num)
-        else: # Fallback to old format "1,2,5-7"
+        else: 
             processed_gti_query_parts = re.sub(r'[^\d,-]', '', gti_query_str).split(',')
             for gti_val_part in processed_gti_query_parts:
                 if not gti_val_part: continue
@@ -244,8 +348,16 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                 elif gti_val_part.isdigit(): gti_list_parsed.append(int(gti_val_part))
             if gti_list_parsed:
                 gti_list_parsed = sorted(list(set(gti_list_parsed)))
+
+    # --- SCREENING TOGGLES ---
+    apply_screening = request.POST.get('apply_screening', 'false').lower() == 'true'
+    try:
+        screening_energy_low = float(request.POST.get('screening_energy_low', 2.0))
+        screening_energy_high = float(request.POST.get('screening_energy_high', 5.0))
+        screening_min_bad_channels = int(request.POST.get('screening_min_bad_channels', 2))
+    except (ValueError, TypeError):
+        screening_energy_low, screening_energy_high, screening_min_bad_channels = 2.0, 5.0, 2
     
-    # Handle manual plot type parsing
     if not plot_types:
         possible_types = ['spectrum', 'summed-spectrum', 'light-curve', 'power-density-spectrum', 'hardness-intensity-diagram', 'global-hid']
         for pt in possible_types:
@@ -276,9 +388,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
              return JsonResponse({'error': 'Failed to read GTI summary data.'}, status=500)
         return JsonResponse({'info': infos})
 
-
     if plot_types:
-        # Detect Split: "101,102" -> ["101", "102"]
         if ',' in raw_obs_id_input:
             obs_id_list = [x.strip() for x in raw_obs_id_input.split(',')]
         else:
@@ -289,18 +399,18 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             
         plot_divs: list[str] = []
         max_gtis: list[int] = [] 
+        screening_summaries = {}
+        default_binnings = {}
 
         for plot_type in plot_types:
             plot_type_key = plot_type.replace('-', '_')
             if plot_type_key not in PLOTS: continue
             
             plot_info = PLOTS[plot_type_key]
-            
             all_file_paths_combined = []
             all_gti_numbers_combined = []
             current_max_gti = 0
 
-            # Loop through ALL requested ObsIDs
             for single_obs_id in obs_id_list:
                 single_obs_dir = os.path.join(settings.DATA_DIR, single_obs_id, 'jspipe/')
                 files = Item.objects.filter(name__contains=quality, path__startswith=os.path.join(single_obs_id, 'jspipe/'), type=Item.item_type[1][0]).order_by('name')
@@ -308,13 +418,10 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                 
                 if not file_names_qs.exists(): continue
 
-                # Determine which GTIs to use for THIS observation
                 gtis_to_process = []
                 if gti_specifiers:
-                    # New format: Use GTIs specified for this obsid, otherwise empty list.
                     gtis_to_process = gti_specifiers.get(single_obs_id, [])
                 elif gti_list_parsed:
-                    # Old format: Use the same general list of GTIs for all obsids
                     gtis_to_process = gti_list_parsed
 
                 if plot_type_key == 'summed_spectrum' or plot_type_key == 'global_hid':
@@ -322,13 +429,13 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                         all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
                         gti_match = re.search(r'GTI(\d+)', file_item.name)
                         if gti_match: all_gti_numbers_combined.append(int(gti_match.group(1)))
-                elif gtis_to_process: # If specific GTIs are requested for this plot type
+                elif gtis_to_process: 
                     for gti_num in gtis_to_process:
                         file_match_item = file_names_qs.filter(name__regex=fr'GTI0*{gti_num}([^\\d]|$)').first()
                         if file_match_item:
                             all_file_paths_combined.append(os.path.join(single_obs_dir, file_match_item.name))
                             all_gti_numbers_combined.append(gti_num)
-                else: # Default behavior: include all GTIs if no specific ones were requested
+                else: 
                     for file_item in file_names_qs.order_by('name'):
                         all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
                         gti_match = re.search(r'GTI(\d+)', file_item.name)
@@ -342,23 +449,49 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             if not all_file_paths_combined:
                 continue
 
+            calc_min = calculate_default_binning(all_file_paths_combined[0], plot_type_key)
+            actual_min_value = calc_min if calc_min is not None else plot_info['min_value']
+            default_binnings[plot_type_key] = actual_min_value
+
+            bg_dash = 'solid'
+            if apply_screening and plot_type_key in ['spectrum', 'summed_spectrum', 'power_density_spectrum']:
+                passed_files, passed_gtis, results = screen_gti_files(
+                    all_file_paths_combined, all_gti_numbers_combined,
+                    energy_low=screening_energy_low, energy_high=screening_energy_high, min_bad_channels=screening_min_bad_channels
+                )
+                
+                screening_summaries[plot_type_key] = get_screening_summary(results)
+                
+                if passed_files:
+                    all_file_paths_combined = passed_files
+                    all_gti_numbers_combined = passed_gtis
+                else:
+                    bg_dash = 'dash' 
+                    screening_summaries[plot_type_key]['all_failed'] = True
+
             try:
-                plot_div = plot_info['function'](plot_info['min_value'], ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined)
+                if plot_type_key in ['spectrum', 'summed_spectrum']:
+                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash)
+                else:
+                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined)
                 plot_divs.append(plot_div)
             except Exception as e:
                 logger.exception(f"[plot_data] Error plotting {plot_type_key}: {e}")
                 return JsonResponse({'error': str(e)}, status=500)
         
         if not plot_divs: return JsonResponse({'error': 'No plots could be generated.'})
-             
-        return JsonResponse({'plotDivs': plot_divs, 'maxGTI': max_gtis, 'obsID': raw_obs_id_input})
+        
+        return JsonResponse({
+            'plotDivs': plot_divs, 
+            'maxGTI': max_gtis, 
+            'obsID': raw_obs_id_input,
+            'defaultBinnings': default_binnings,
+            'screeningSummaries': screening_summaries
+        })
 
-    # If no plot_types and no detail request, it means User clicked "Search"
     if not raw_obs_id_input: return JsonResponse({'error': 'No observation ID provided.'}, status=400)
     
-    # Safe splitting: Use the first ID if a list was somehow passed (unlikely in simple search)
     obs_id = raw_obs_id_input.split(',')[0].strip()
-
     all_files_qs = Item.objects.filter(path__startswith=os.path.join(obs_id, 'jspipe/'), name__contains=quality, type=Item.item_type[1][0])
     first_file = all_files_qs.order_by('name').first()
     
@@ -374,6 +507,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
         "dec": f"{first_file.dec:.2f}" if first_file.dec is not None else "N/A",
         "start_time": first_file.tstart_tt or "N/A",
     }
+
     return JsonResponse({
         "source_name": first_file.source or obs_id,
         "observations": [observation_data]
@@ -381,28 +515,29 @@ def plot_data(request: HttpRequest) -> JsonResponse:
 
 
 def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
-   root: str = Item._meta.get_field('path').get_default()
-   obs_id: str = request.GET.get('obs_id')
-   source: str = request.GET.get('source')
-   suggested_obs: QuerySet
+    root: str = Item._meta.get_field('path').get_default()
+    obs_id: str = request.GET.get('obs_id')
+    source: str = request.GET.get('source')
+    suggested_obs: QuerySet
 
-   if obs_id:
-       suggested_obs = Item.objects.filter(name__startswith=obs_id, path=root, type=Item.item_type[0][0]).order_by('name')[:count]
-   elif source:
-       suggested_obs = Item.objects.filter(source__icontains=source, type=Item.item_type[1][0]).values('source').distinct().order_by('source')[:count]
-   else:
-       return JsonResponse({'error': 'No observation ID or source name provided'})
+    if obs_id:
+        suggested_obs = Item.objects.filter(name__startswith=obs_id, path=root, type=Item.item_type[0][0]).order_by('name')[:count]
+    elif source:
+        suggested_obs = Item.objects.filter(source__icontains=source, type=Item.item_type[1][0]).values('source').distinct().order_by('source')[:count]
+    else:
+        return JsonResponse({'error': 'No observation ID or source name provided'})
 
-   if not suggested_obs.exists(): return JsonResponse({'error': 'Observational data not found'})
+    if not suggested_obs.exists(): return JsonResponse({'error': 'Observational data not found'})
 
-   if obs_id: return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('name', flat=True))})
-   else: return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('source', flat=True))})
+    if obs_id: return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('name', flat=True))})
+    else: return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('source', flat=True))})
 
 
 def fetch_sources(request: HttpRequest, count: int = 5) -> JsonResponse:
-   source_query = request.GET.get('source')
-   suggested_sources = Item.objects.filter(source__icontains=source_query).values('source').distinct().order_by('source')[:count]
-   return JsonResponse({'source_suggestions': list(suggested_sources)})
+    source_query = request.GET.get('source')
+    suggested_sources = Item.objects.filter(source__icontains=source_query).values('source').distinct().order_by('source')[:count]
+    return JsonResponse({'source_suggestions': list(suggested_sources)})
+
 
 def fetch_gtis(request: HttpRequest) -> JsonResponse:
     obs_id = request.GET.get('obs_id')
@@ -438,82 +573,87 @@ def fetch_gtis(request: HttpRequest) -> JsonResponse:
         logger.exception(f"[fetch_gtis] Error fetching GTIs for ObsID {obs_id}: {e}")
         return JsonResponse({'error': f'Failed to fetch GTIs: {str(e)}'}, status=500)
 
+
 def interactive_plot(request: HttpRequest) -> HttpResponse:
-   return render(request, 'plots/plot.html', {'plot_divs': None})
+    return render(request, 'plots/plot.html', {'plot_divs': None})
 
 
 def create_gti_archive(obs_id, gti_list, base_path):
-   logger.info(f"Creating GTI archive for OBS_ID {obs_id}, GTIs: {gti_list}")
-   jspipe_dir = base_path / obs_id / 'jspipe'
+    logger.info(f"Creating GTI archive for OBS_ID {obs_id}, GTIs: {gti_list}")
+    jspipe_dir = base_path / obs_id / 'jspipe'
 
-   if not jspipe_dir.exists(): return HttpResponse(f'Directory not found: {jspipe_dir}', status=404)
+    if not jspipe_dir.exists(): return HttpResponse(f'Directory not found: {jspipe_dir}', status=404)
 
-   with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-       with zipfile.ZipFile(tmp.name, 'w') as archive:
-           files_added = False
-           if not gti_list:
-               for file in jspipe_dir.glob(f'js_ni{obs_id}*_GTI*'):
-                   archive.write(str(file), file.name)
-                   files_added = True
-           else:
-               for gti_num in gti_list:
-                   for file in jspipe_dir.glob(f'js_ni{obs_id}*_GTI{gti_num}'):
-                       if f'_GTI{gti_num}' in str(file):
-                           archive.write(str(file), file.name)
-                           files_added = True
-           if not files_added: return HttpResponse('No GTI files found', status=404)
-       return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_GTI_{"-".join(gti_list) if gti_list else "all"}.zip')
+    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+        with zipfile.ZipFile(tmp.name, 'w') as archive:
+            files_added = False
+            if not gti_list:
+                for file in jspipe_dir.glob(f'js_ni{obs_id}*_GTI*'):
+                    archive.write(str(file), file.name)
+                    files_added = True
+            else:
+                for gti_num in gti_list:
+                    for file in jspipe_dir.glob(f'js_ni{obs_id}*_GTI{gti_num}'):
+                        if f'_GTI{gti_num}' in str(file):
+                            archive.write(str(file), file.name)
+                            files_added = True
+            if not files_added: return HttpResponse('No GTI files found', status=404)
+        return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_GTI_{"-".join(gti_list) if gti_list else "all"}.zip')
 
 
 def download_data(request: HttpRequest):
-   data_type = request.GET.get('type')
-   obs_id = request.GET.get('obs_id')
-   gti_numbers_str = request.GET.get('gti_numbers')
-   quality = request.GET.get('quality')
+    data_type = request.GET.get('type')
+    obs_id = request.GET.get('obs_id')
+    gti_numbers_str = request.GET.get('gti_numbers')
+    quality = request.GET.get('quality')
 
-   if not obs_id: return HttpResponse('OBS_ID is required', status=400)
-   if not quality: return HttpResponse('Quality is required', status=400)
-   quality = quality.lower()
+    if not obsid: return HttpResponse('OBS_ID is required', status=400)
+    if not quality: return HttpResponse('Quality is required', status=400)
+    quality = quality.lower()
 
-   try:
-       base_path = Path(settings.DATA_DIR)
-       jspipe_dir = base_path / obs_id / 'jspipe'
-       if not jspipe_dir.exists(): return HttpResponse(f'Directory not found: {jspipe_dir}', status=404)
+    try:
+        base_path = Path(settings.DATA_DIR)
+        jspipe_dir = base_path / obs_id / 'jspipe'
+        if not jspipe_dir.exists(): return HttpResponse(f'Directory not found: {jspipe_dir}', status=404)
 
-       if data_type == 'gti':
-           if gti_numbers_str:
-               gti_numbers = gti_numbers_str.split(',')
-               if len(gti_numbers) == 1:
-                   gti_num = gti_numbers[0]
-                   gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI{gti_num}*'))
-                   if not gti_.files: return HttpResponse(f'No files found for GTI{gti_num}', status=404)
-                   if len(gti_files) == 1: return FileResponse(open(str(gti_files[0]), 'rb'), as_attachment=True, filename=gti_files[0].name)
-                   with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-                       with zipfile.ZipFile(tmp.name, 'w') as archive:
-                           for file in gti_files: archive.write(str(file), file.name)
-                       return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_GTI{gti_num}_{quality}.zip')
-               else:
-                   with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-                       with zipfile.ZipFile(tmp.name, 'w') as archive:
-                           files_added = False
-                           for gti_num in gti_numbers:
-                               gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI{gti_num}*'))
-                               if gti_files:
-                                   for file in gti_files: archive.write(str(file), file.name); files_added = True
-                           if not files_added: return HttpResponse('No GTI files found', status=404)
-                       return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_GTI_{"-".join(gti_numbers)}_{quality}.zip')
-           else:
-               gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI*'))
-               if not gti_files: return HttpResponse(f'No GTI files found', status=404)
-               with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
-                   with zipfile.ZipFile(tmp.name, 'w') as archive:
-                       for file in gti_files: archive.write(str(file), file.name)
-                   return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_all_GTI_{quality}.zip')
-       elif data_type == 'obs': return create_obs_archive(obs_id, base_path)
-       else: return HttpResponse('Invalid data type', status=400)
-   except Exception as e:
-       logger.exception("Error in download_data")
-       return HttpResponse(f'Error: {str(e)}', status=500)
+        if data_type == 'gti':
+            if gti_numbers_str:
+                gti_numbers = gti_numbers_str.split(',')
+                if len(gti_numbers) == 1:
+                    gti_num = gti_numbers[0]
+                    gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI{gti_num}*'))
+                    
+                    if not gti_files: return HttpResponse(f'No files found for GTI{gti_num}', status=404)
+                    if len(gti_files) == 1: return FileResponse(open(str(gti_files[0]), 'rb'), as_attachment=True, filename=gti_files[0].name)
+                    
+                    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+                        with zipfile.ZipFile(tmp.name, 'w') as archive:
+                            for file in gti_files: archive.write(str(file), file.name)
+                        return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_GTI{gti_num}_{quality}.zip')
+                else:
+                    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+                        with zipfile.ZipFile(tmp.name, 'w') as archive:
+                            files_added = False
+                            for gti_num in gti_numbers:
+                                gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI{gti_num}*'))
+                                if gti_files:
+                                    for file in gti_files: archive.write(str(file), file.name); files_added = True
+                            if not files_added: return HttpResponse('No GTI files found', status=404)
+                        return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_GTI_{"-".join(gti_numbers)}_{quality}.zip')
+            else:
+                gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI*'))
+                if not gti_files: return HttpResponse(f'No GTI files found', status=404)
+                with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
+                    with zipfile.ZipFile(tmp.name, 'w') as archive:
+                        for file in gti_files: archive.write(str(file), file.name)
+                    return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_all_GTI_{quality}.zip')
+        elif data_type == 'obs': 
+            return create_obs_archive(obs_id, base_path)
+        else: 
+            return HttpResponse('Invalid data type', status=400)
+    except Exception as e:
+        logger.exception("Error in download_data")
+        return HttpResponse(f'Error: {str(e)}', status=500)
 
 
 def create_obs_archive(obs_id, base_path):
@@ -535,7 +675,6 @@ def source_search_view(request):
         source_name = request.POST.get('source', '')
         quality = request.POST.get('quality', '')
         if not source_name: return JsonResponse({'error': 'Source name is required.'}, status=400)
-        logger.info(f"[source_search_view] Searching for source: '{source_name}', quality: '{quality}'")
 
         obs_paths = Item.objects.filter(source__icontains=source_name, type=Item.item_type[1][0]).values('path', 'source').distinct()
         observations = []
@@ -562,6 +701,7 @@ def source_search_view(request):
     except Exception as e:
         logger.exception(f"[source_search_view] Error: {e}")
         return JsonResponse({"error": str(e)}, status=500)
+
 
 def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
     obs_ids_str = request.POST.get('obs_ids', '')

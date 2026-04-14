@@ -119,7 +119,8 @@ def spectrum_plot(
         data_paths: list[str],
         gti_numbers: list[int],
         cut_off: list = None,
-        gti_labels: list[str] | None = None) -> str:
+        gti_labels: list[str] | None = None,
+        bg_dash: str = 'solid') -> str:
     """
     Gets and plots the binned and corrected spectra.
     """
@@ -192,7 +193,7 @@ def spectrum_plot(
         background_list=background,
         x_errors=x_error,
         y_uncertainties=y_uncertainties,
-        plot_kwargs={'mode': 'markers'},
+        plot_kwargs={'mode': 'markers', 'bg_dash': bg_dash},
         layout_kwargs={
             'title': f'Spectrum {obs_id}',
             'xaxis_title': r'$\text{Energy}\ (keV)$',

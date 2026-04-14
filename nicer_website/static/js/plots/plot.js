@@ -28,13 +28,45 @@ function injectDynamicStyles() {
             #gti-list li:hover { background: var(--bg-secondary, #f8fafc); }
             #gti-list li.selected { background-color: #e8f5e9; font-weight: bold; }
             #gti-list li.disabled-message { color: var(--text-secondary); cursor: default; background: transparent; }
+            /* --- Selected GTI Cards --- */
+            .selected-gtis-pills {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 0.75rem;
+            }
             .selected-gti-item {
-                cursor: pointer;
-                text-decoration: underline;
-                margin-right: 5px;
+                display: inline-flex;
+                align-items: center;
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+                font-size: 0.9rem;
+                font-family: inherit;
+                cursor: default;
+                user-select: none;
+                background: #fff;
             }
             .selected-gti-item:hover {
-                color: #d9534f;
+                border-color: #9ca3af;
+            }
+            .gti-card-text {
+                padding: 0.4rem 0.75rem;
+                color: var(--text-primary, #333);
+            }
+            .gti-card-remove {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0.4rem 0.6rem;
+                border-left: 1px solid #d1d5db;
+                color: #ef4444;
+                font-size: 0.85rem;
+                font-weight: bold;
+                cursor: pointer;
+                transition: background 0.15s ease;
+            }
+            .gti-card-remove:hover {
+                background: #fef2f2;
             }
             .gti-circle {
                 display: inline-flex;
@@ -217,19 +249,25 @@ function handleGtiSelectionChange() {
     updateSelectedGtisDisplay();
 }
 
+// Plotly default color palette - used to visually match GTI pills to their plot trace colors
+const PLOTLY_COLORS = [
+    '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+    '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+];
+
 function updateSelectedGtisDisplay() {
     const selectedGtisDisplay = document.getElementById('selected-gtis-display');
     if (!selectedGtisDisplay) return;
 
-    selectedGtisDisplay.innerHTML = ''; // Clear the display first
+    selectedGtisDisplay.innerHTML = '';
 
     if (selectedGtis.length === 0) {
         return;
     }
 
-    const title = document.createElement('strong');
-    title.textContent = 'Selected GTIs for Plotting: ';
-    selectedGtisDisplay.appendChild(title);
+    // Card container
+    const cardContainer = document.createElement('div');
+    cardContainer.className = 'selected-gtis-pills';
 
     const sortedSelectedGtis = [...selectedGtis].sort((a, b) => {
         if (a.obsId < b.obsId) return -1;
@@ -237,16 +275,27 @@ function updateSelectedGtisDisplay() {
         return a.gti - b.gti;
     });
 
-    sortedSelectedGtis.forEach(item => {
-        const gtiSpan = document.createElement('span');
-        gtiSpan.className = 'selected-gti-item';
-        gtiSpan.textContent = `GTI${item.gti}(${item.obsId})`;
-        gtiSpan.dataset.obsid = item.obsId;
-        gtiSpan.dataset.gti = item.gti;
-        gtiSpan.title = 'Click to remove';
-        selectedGtisDisplay.appendChild(gtiSpan);
-        selectedGtisDisplay.appendChild(document.createTextNode(' ')); // for spacing
+    sortedSelectedGtis.forEach((item) => {
+        const card = document.createElement('span');
+        card.className = 'selected-gti-item';
+        card.dataset.obsid = item.obsId;
+        card.dataset.gti = item.gti;
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'gti-card-text';
+        textSpan.textContent = `GTI${item.gti} (${item.obsId})`;
+
+        const removeBtn = document.createElement('span');
+        removeBtn.className = 'gti-card-remove';
+        removeBtn.textContent = '✕';
+        removeBtn.title = 'Click to remove';
+
+        card.appendChild(textSpan);
+        card.appendChild(removeBtn);
+        cardContainer.appendChild(card);
     });
+
+    selectedGtisDisplay.appendChild(cardContainer);
 }
 
 function toggleMultiSelect(obsId) {

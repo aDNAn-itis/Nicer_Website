@@ -68,11 +68,16 @@ def data_plot(
     """
     trace_kwargs: dict[str, Any]
     logger: logging.Logger = logging.getLogger(__name__)
+
+    # Initialize dictionaries
     plot_kwargs = plot_kwargs or {}
     layout_kwargs = layout_kwargs or {}
     fig = fig or go.Figure()
 
-    if not gti_numbers:
+    bg_dash_style = plot_kwargs.pop('bg_dash', 'solid')
+
+    # Check if gti_numbers is None or an empty list/array
+    if gti_numbers is None or len(gti_numbers) == 0: 
         gti_numbers = [0]
 
     # Ensure all data lists have the same length
@@ -152,7 +157,7 @@ def data_plot(
                 mode='lines',
                 name=f'{label} BG',
                 opacity=0.8,
-                line={'color': color},
+                line={'color': color, 'dash': bg_dash_style},
                 legendgroup=number,
             ), **subplot_kwargs or {})
 
