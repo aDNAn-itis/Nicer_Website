@@ -7,8 +7,6 @@ import {
   clearOperationsByPattern,
   completeOperationsByPattern,
 } from './statusBar.js';
-import { setGTICrossLinking, clearGTIHighlighting } from './gtiCrossLinking.js';
-
 /**
  * Generates a GTI selection field for a specific plot
  * for the user to select which GTIs to plot.
