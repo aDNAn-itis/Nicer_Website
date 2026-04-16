@@ -138,6 +138,7 @@ export function fetchGraphPlots(refresh = false, event) {
         url: PLOT_GRAPH_URL,
         data: serializedData,
         success: function (response) {
+            const plotDataArray = response.plotDivs || (Array.isArray(response) ? response : null);
             if (refresh) removePlots();
             
             if (response.error) {
