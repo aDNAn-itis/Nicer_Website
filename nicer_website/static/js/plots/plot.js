@@ -7,6 +7,7 @@ import { fetchGraphPlots } from './components/graph.js?v=201';
 import { downloadData } from './components/download.js?v=201';
 import { fetchOptions } from './components/dropdowns.js?v=201';
 import { StatusBar } from './components/statusBar.js?v=201';
+import { updateTheaterFrame } from './components/lcTheater.js?v=201';
 
 window.fetchGTIPlot = fetchGTIPlot; // 🟢 FIX: Global bridge for ESM modules and dynamic form listeners
 
@@ -14,7 +15,6 @@ let gtiMap = {}; // Cache for GTIs: { obsId: [gti1, gti2, ...], ... }
 let selectedGtis = []; // [{ obsId: "...", gti: N }]
 window.selectedGtis = selectedGtis; // 🟢 Make globally accessible to break import loop
 let allObservationsData = [];
-window.fetchGTIPlot = fetchGTIPlot;
 
 function sanitizeId(obsId) {
     if (!obsId) return '';
@@ -112,7 +112,10 @@ function injectDynamicStyles() {
                 background-color: #da190b;
             }
     `;
-    document.head.appendChild(style);
+    const styleElement = document.createElement('style');
+    styleElement.id = 'plot-js-styles';
+    styleElement.textContent = style.innerHTML;
+    document.head.appendChild(styleElement);
 }
 
 
@@ -408,6 +411,15 @@ function populateResultsLayout(data, searchType) {
   }
 }
 
+function openLCTheater() {
+    if (!window.lcTheaterPlaylist || window.lcTheaterPlaylist.length === 0) {
+        alert("Please click some points on the HID first to build a sequence!");
+        return;
+    }
+    $("#lc-theater-panel, #theater-overlay").fadeIn(200);
+    $("#theater-slider").attr("max", window.lcTheaterPlaylist.length - 1).val(0);
+    updateTheaterFrame(0);
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   StatusBar.getInstance();
@@ -600,6 +612,11 @@ document.addEventListener("DOMContentLoaded", () => {
               selectedList.appendChild(li);
           }
           setActiveObsID(obsid);
+
+          // LC Theater Logic (Silent Tracking)
+          if (!window.lcTheaterPlaylist) window.lcTheaterPlaylist = [];
+          window.lcTheaterPlaylist.push(obsid);
+          StatusBar.getInstance().show(`Added ${obsid} to Theater Sequence.`, 1500);
       }
     });
   }
@@ -628,7 +645,15 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       const li = e.target.closest('li');
-      if (li) setActiveObsID(li.getAttribute("data-obsid"));
+      if (li) {
+          const obsid = li.getAttribute("data-obsid");
+          setActiveObsID(obsid);
+
+          // LC Theater Logic (Silent Tracking)
+          if (!window.lcTheaterPlaylist) window.lcTheaterPlaylist = [];
+          window.lcTheaterPlaylist.push(obsid);
+          StatusBar.getInstance().show(`Added ${obsid} to Theater Sequence.`, 1500);
+      }
     });
 
     selectedObsidsList.addEventListener("dblclick", (e) => {
@@ -671,8 +696,19 @@ document.addEventListener("DOMContentLoaded", () => {
                     if ($(`#${safeContainerId}`).length === 0) {
                         $('#plots').before(`<div id="${safeContainerId}" style="margin-bottom: 2rem; border-bottom: 1px solid #ddd;"></div>`);
                     }
-                    $(`#${safeContainerId}`).html(`<div class="plot-type-section"><h3>GLOBAL HID</h3><div id="combined-hid-plot">${data.plotDiv}</div></div>`);
+                    $(`#${safeContainerId}`).html(`
+                        <div class="plot-type-section">
+                            <h3>GLOBAL HID</h3>
+                            <div id="combined-hid-plot">${data.plotDiv}</div>
+                            <div style="text-align:center; padding:15px; background:#fff; border-top:1px solid #eee; margin-top:-10px; border-bottom-left-radius:0.75rem; border-bottom-right-radius:0.75rem;">
+                                <button id="btn-open-theater" class="btn btn-sm btn-dark" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:5px; width:auto; display:inline-block;">🎥 Track Plots (Theater)</button>
+                            </div>
+                        </div>
+                    `);
                     $('#plots').empty();
+
+                    // Attach listener to the newly injected button
+                    $(`#${safeContainerId}`).find('#btn-open-theater').on('click', openLCTheater);
                     
                     document.getElementById('plot-global-hid').checked = false;
 
@@ -690,7 +726,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             lastClickTime = currentTime;
 
                             const point = evData.points[0];
-                            let obsId = point.text.replace(/<[^>]*>/g, '').trim(); 
+                            let obsIdText = point.text.replace(/<[^>]*>/g, '').trim(); 
+                            const obsIdMatch = obsIdText.match(/ObsID:\s*(\d+)/) || [null, obsIdText];
+                            const obsId = obsIdMatch[1];
 
                             if (timeDiff < 500) {
                                 console.log("Double Click on Point:", obsId);
@@ -698,6 +736,12 @@ document.addEventListener("DOMContentLoaded", () => {
                             } else {
                                 console.log("Single Click on Point:", obsId);
                                 handleGlobalPointClick(obsId); 
+
+                                // LC Theater Logic (Silent Tracking)
+                                if (obsId) {
+                                    if (!window.lcTheaterPlaylist) window.lcTheaterPlaylist = [];
+                                    window.lcTheaterPlaylist.push(obsId);
+                                }
                             }
                         });
                         
@@ -784,5 +828,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (dataType === 'gti' && gtiNum) downloadData(dataType, obsId, null, [gtiNum], quality);
     else downloadData(dataType, obsId, null, null, quality);
   });
+
+  // LC Theater Track Points Button
+  const trackPointsBtn = document.getElementById('track-points-btn');
+  if (trackPointsBtn) {
+    trackPointsBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openLCTheater();
+    });
+  }
 
 });

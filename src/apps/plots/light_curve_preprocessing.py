@@ -44,12 +44,25 @@ def light_curve_data(
     uncertainty: ndarray[tuple[int, int], np.dtype[np.float64]]
 
     # Load Data with your original try/except structure
+    import os
+    import warnings
+
+    if not os.path.exists(data_path) or os.path.getsize(data_path) == 0:
+        print(f"Skipping empty or missing file: {data_path}")
+        return (np.array([]),) * 6
+
     try:
         # Rahul's scientific column selection (0, 2, 3) integrated with your dtype
-        #data = np.loadtxt(data_path, usecols=[0, 2, 3], unpack=True, dtype=float)
-        data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
+        
+        bg_path = data_path.replace('.lc.gz', '.bg-lc.gz')
         try:
-            background = np.loadtxt(data_path.replace('.lc.gz', '.bg-lc.gz'), usecols=2)
+            if os.path.exists(bg_path) and os.path.getsize(bg_path) > 0:
+                background = np.loadtxt(bg_path, usecols=2)
+            else:
+                background = np.zeros(len(data[0]))
         except:
             background = np.zeros(len(data[0]))
 
@@ -63,6 +76,8 @@ def light_curve_data(
                 else:
                     background = np.zeros(len(data[0]))
 
+        if len(data[0]) < 2:
+            raise IndexError("Not enough data points in light curve")
         time_diff = float(data[0][1] - data[0][0])
         counts = data[1] * time_diff
         dets = int(data[2][0])
@@ -102,7 +117,7 @@ def light_curve_data(
 
         return x_bin, y_bin, bg_x_bin, bg_bin, x_error, uncertainty[0]
     except Exception as e:
-        print(f"Error processing LC {data_path}: {e}")
+        print(f"Skipping empty or corrupt file: {data_path}")
         return (np.array([]),) * 6
 
 def align_light_curves(
@@ -185,7 +200,8 @@ def light_curve_plot(
     gti_labels: list[str] | None = None,
     is_combined_obs: bool = False,
     start_time: float = None,
-    stop_time: float = None) -> str:
+    stop_time: float = None,
+    output_type: str = 'div') -> Any:
     """
     Gets and plots the corrected light curve data.
     """
@@ -215,12 +231,17 @@ def light_curve_plot(
 
     # --- 2. Process Data ---
     for data_path in data_paths:
-        x_bin, y_bin, bg_x_bin, bg_bin, x_err, uncertainty = light_curve_data(
-            min_value,
-            data_path,
-            start_time=start_time,
-            stop_time=stop_time
-        )
+        try:
+            x_bin, y_bin, bg_x_bin, bg_bin, x_err, uncertainty = light_curve_data(
+                min_value,
+                data_path,
+                start_time=start_time,
+                stop_time=stop_time
+            )
+        except Exception as e:
+            print(f"Skipping empty or corrupt file: {data_path}")
+            continue
+
         if len(x_bin) > 0:
             x_data.append(x_bin)
             y_data.append(y_bin)
@@ -295,6 +316,7 @@ def light_curve_plot(
         font=dict(size=14),
     )
 
+    result_plot = None
     for i, (
         gti_number,
         gti_label,
@@ -343,7 +365,7 @@ def light_curve_plot(
             )
 
         # Maintaining your data_plot signature
-        plot = data_plot(
+        result_plot = data_plot(
             plot_type='lines+markers',
             gti_numbers=[gti_number],
             colors=[color],
@@ -354,7 +376,7 @@ def light_curve_plot(
             y_uncertainties=[y_uncertainty],
             background_list=[bg_datum],
             x_background_list=[bg_x_datum],
-            plot_kwargs={'mode': 'markers', 'opacity': 0.7 if is_combined_obs else 1.0},
+            plot_kwargs={'mode': 'markers', 'opacity': 0.7 if is_combined_obs else 1.0, 'output_type': output_type},
             layout_kwargs={
                 'title': f'Light Curve {obs_id}',
                 'yaxis_title': r'$\text{Photons}\ (s^{-1} {\rm det}^{-1})$',
@@ -365,4 +387,4 @@ def light_curve_plot(
             subplot_kwargs=subplot_kw,
             fig=fig,
         )
-    return plot
+    return result_plot

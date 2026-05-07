@@ -460,7 +460,8 @@ def summed_spectrum_plot(
     cut_off: Optional[Tuple[float, float]] = None,
     gti_labels: Optional[List[str]] = None,
     bg_dash: str = 'solid',
-) -> str:
+    output_type: str = 'div'
+) -> Any:
     """
     Create a summed spectrum plot across multiple GTIs.
     
@@ -496,7 +497,7 @@ def summed_spectrum_plot(
     Returns
     -------
     str
-        Summed spectrum plot as HTML
+        Summed spectrum plot as HTML or dict
     """
     if cut_off is None:
         cut_off = (0.3, 12)
@@ -584,7 +585,7 @@ def summed_spectrum_plot(
         y_data_list=y_data_list,
         x_errors=x_errors_list,
         y_uncertainties=y_uncertainties_list,
-        plot_kwargs={'mode': 'markers', 'bg_dash': bg_dash},
+        plot_kwargs={'mode': 'markers', 'bg_dash': bg_dash, 'output_type': output_type},
         layout_kwargs={
             'title': title,
             'xaxis_title': r'$\text{Energy}\ (keV)$',
@@ -596,6 +597,9 @@ def summed_spectrum_plot(
         gti_labels=plot_labels
     )
     
+    if output_type == 'dict':
+        return result
+
     # --- RAHUL'S UI INTEGRATION ---
     # Extract a range string for the filename (using the first obs if multiple)
     gti_range_str = f"summed_{obs_id.replace(',', '_')}" 

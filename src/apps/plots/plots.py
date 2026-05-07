@@ -86,7 +86,10 @@ def data_plot(
         fig: go.Figure | None = None) -> str:
     """Plots data with integrated log-scale scientific logic."""
     logger = logging.getLogger(__name__)
-    plot_kwargs, layout_kwargs = plot_kwargs or {}, layout_kwargs or {}
+    plot_kwargs = plot_kwargs.copy() if plot_kwargs else {}
+    layout_kwargs = layout_kwargs or {}
+    out_format = plot_kwargs.pop('output_type', 'div')
+    
     fig = fig or go.Figure()
     bg_dash_style = plot_kwargs.pop('bg_dash', 'solid')
 
@@ -166,4 +169,9 @@ def data_plot(
         if arange: layout_kwargs.setdefault('yaxis', {})['range'] = arange
 
     fig.update_layout(**layout_kwargs)
+    
+    if out_format == 'dict':
+        import json
+        return json.loads(fig.to_json())
+        
     return plot(fig, output_type='div', include_plotlyjs=False, config={'displaylogo': False})

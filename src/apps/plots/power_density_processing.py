@@ -85,7 +85,8 @@ def get_pds_data_and_plot(
     min_value: int,
     obs_id: Any,  # Changed to Any to support string "101,102"
     data_paths: List[str],
-    gti_numbers: List[int]) -> str:
+    gti_numbers: List[int],
+    output_type: str = 'div') -> Any:
     """
     Processes and plots PDS data. Handles both Single and Combined observations.
     """
@@ -178,7 +179,7 @@ def get_pds_data_and_plot(
         x_data_list=x_data_list,
         y_data_list=y_data_list,
         y_uncertainties=y_uncertainties,
-        plot_kwargs={'mode': 'markers'},
+        plot_kwargs={'mode': 'markers', 'output_type': output_type},
         layout_kwargs={
             'title': f'Power Density Spectrum {obs_id}',
             'xaxis_title': 'Frequency (Hz)',

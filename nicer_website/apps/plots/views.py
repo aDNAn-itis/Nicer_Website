@@ -181,6 +181,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     plot_type_raw: str = request.POST.get('plot_type', '')
     gti_query_str: str = request.POST.get('gti-search', '')
     requested_min_value_str = request.POST.get('min_value')
+    output_format = request.POST.get('format', 'div')
 
     # 2. Basic Validation
     if not obs_id_raw or not plot_type_raw:
@@ -304,13 +305,18 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     # 8. Generate Final Plot HTML
     try:
         plot_func = PLOTS[plot_type]['function']
+        # Pass output_type if function supports it
+        kwargs = {}
+        if output_format == 'json':
+            kwargs['output_type'] = 'dict'
+
         if plot_type in ('spectrum', 'summed_spectrum'):
             # Use raw obs_id string for title generation, but the gathered file list for data
-            plot_divs_html = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, bg_dash=bg_dash)
+            plot_divs_result = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, bg_dash=bg_dash, **kwargs)
         else:
-            plot_divs_html = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func)
+            plot_divs_result = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, **kwargs)
             
-        response_data = {'plotDivs': [plot_divs_html]}
+        response_data = {'plotDivs': [plot_divs_result]}
         if screening_summary:
             response_data['screeningSummary'] = screening_summary
             

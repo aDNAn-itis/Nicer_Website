@@ -36,10 +36,17 @@ def read_lc_file(filename: str) -> ndarray:
     if not os.path.exists(normalized_path):
         print(f"Warning: File not found: {normalized_path}")
         return np.array([])
+    
+    if os.path.getsize(normalized_path) == 0:
+        print(f"Warning: File is empty: {normalized_path}")
+        return np.array([])
 
+    import warnings
     try:
         # Columns: [time, band1, band2, band3, band4]
-        data: ndarray = np.loadtxt(normalized_path, usecols=[0, 5, 6, 7, 8])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            data: ndarray = np.loadtxt(normalized_path, usecols=[0, 5, 6, 7, 8])
         return data
     except Exception as e:
         print(f"Error reading {filename}: {e}")

@@ -9,6 +9,18 @@ import { updateAllSelections, initSynchronizedSelection } from './syncSelection.
 import { initInteractiveLinking } from './interactiveLinking.js?v=2001'; 
 import { fetchGTIPlot } from './gtiPlots.js';
 import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+import { updateTheaterFrame } from './lcTheater.js';
+
+// Initialize LC Theater Playlist
+window.lcTheaterPlaylist = window.lcTheaterPlaylist || [];
+
+// Global Delegation for Theater
+$(document).off("click", "#btn-open-theater").on("click", "#btn-open-theater", function() {
+    if (typeof window.openLCTheater === "function") {
+        window.openLCTheater();
+    }
+});
+
 
 /**
  * Injected Styles for the Plot Selection Popup
@@ -180,8 +192,9 @@ export function fetchGraphPlots(refresh = false, event) {
                     }
 
                     // Create the section if it doesn't exist
-                    if (!$(`#${TYPE}-section`).length) {
-                        const $PLOT_SECTION = $('<div>', { id: `${TYPE}-section`, class: 'plot-type-section' });
+                    let $PLOT_SECTION = $(`#${TYPE}-section`);
+                    if (!$PLOT_SECTION.length) {
+                        $PLOT_SECTION = $('<div>', { id: `${TYPE}-section`, class: 'plot-type-section' });
                         
                         // 🟢 YOUR FIX: Dynamic title renaming for Combined views
                         let titleText = TYPE.replace(/_/g, ' ').replace(/-/g, ' ').toUpperCase();
@@ -192,6 +205,7 @@ export function fetchGraphPlots(refresh = false, event) {
                         }
 
                         $PLOT_SECTION.append($('<h3>', { text: titleText }));
+
                         $('#plots').append($PLOT_SECTION);
                     }
                     
@@ -221,7 +235,28 @@ export function fetchGraphPlots(refresh = false, event) {
                                  $PLOT_DIV_WRAPPER.append($GTI_FORM_HTML);
                              }
                         }
-                        $(`#${TYPE}-section`).append($PLOT_DIV_WRAPPER);
+                        $PLOT_SECTION.append($PLOT_DIV_WRAPPER);
+                        
+                        // LC Theater Logic for Global HID - Click registration and Button Injection
+                        if (TYPE === 'global_hid') {
+                            // Inject with delay to ensure Plotly is 100% finished
+                            setTimeout(() => {
+                                if ($("#theater-btn-container").length === 0) {
+                                    $("#global_hid-section").append("<div id='theater-btn-container' style='text-align:center; padding:20px; z-index:9999; position:relative;'><button id='btn-open-theater' class='btn btn-lg btn-danger' style='border: 3px solid black; font-weight:bold;'>🎥 OPEN SEQUENCE MOVIE</button></div>");
+                                }
+                            }, 500);
+
+                            const gd = document.getElementById(PLOT_ID).querySelector('.js-plotly-plot');
+                            if (gd) {
+                                gd.on('plotly_click', function(data) {
+                                    const obsId = data.points[0].text;
+                                    if (!window.lcTheaterPlaylist.includes(obsId)) { 
+                                        window.lcTheaterPlaylist.push(obsId); 
+                                        console.log("Movie Sequence updated:", window.lcTheaterPlaylist); 
+                                    }
+                                });
+                            }
+                        }
                     }
                     updateCombineButtonVisibility(TYPE);
                 });
@@ -247,7 +282,7 @@ export function fetchGraphPlots(refresh = false, event) {
             if (currentObsId && !$(`#remove-${currentObsId.replace(/,/g, '-')}`).length && hasPlotTypes && response.plotDivs) {
                 if ((currentObsId.match(/,/g) || []).length < 3) {
                     const safeId = currentObsId.replace(/,/g, '-');
-                    const REMOVE_BUTTON = $('<button>', { id: `remove-${safeId}`, class: 'remove-observation-btn', text: `Remove Observation ${currentObsId}` });
+                    const REMOVE_BUTTON = $('<button>', { id: `remove-${safeId}`, class: `remove-observation-btn`, text: `Remove Observation ${currentObsId}` });
                     REMOVE_BUTTON.click(function () { removePlots({obsID: currentObsId}, REMOVE_BUTTON); });
                     $('#remove-obs').append(REMOVE_BUTTON);
                 }

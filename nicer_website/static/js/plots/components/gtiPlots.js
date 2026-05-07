@@ -363,7 +363,7 @@ export async function fetchGTIPlot(e) {
   // 🟢 AJAX LOOP (DNA Fix Integrated)
   openPlotTypes.forEach(type => {
     const opId = 'gti-change-' + type + '-' + currentObsID;
-    startOperation(opId, `Updating ${type.replace(/_/g, ' ')} plot...`);
+    startOperation(opId, `Updating ${type.replace(/_/, ' ')} plot...`);
     
     let formData = $form.serialize();
     
@@ -440,6 +440,27 @@ export async function fetchGTIPlot(e) {
       error: function() { errorOperation(opId, 'Error updating plot'); }
     });
   });
+}
+
+/**
+ * Theater-specific LC fetcher
+ * Returns raw Plotly JSON for movie frames
+ */
+export function fetchTheaterLC(obsID) {
+    const token = $("input[name='csrfmiddlewaretoken']").val();
+    const quality = $('#quality-select').val().toLowerCase();
+    
+    return $.ajax({
+        type: 'POST',
+        url: PLOT_GTI_URL,
+        data: {
+            obs_id: obsID,
+            plot_type: 'light_curve',
+            csrfmiddlewaretoken: token,
+            quality: quality,
+            format: 'json' // Request JSON specifically
+        }
+    });
 }
 
 /**
