@@ -1,16 +1,20 @@
 /* plot.js v200 - Clean Slate */
 console.log("plot.js (v200 - Clean Slate) loaded.");
 
-import { displayInfo } from './components/observationInfo.js?v=15'; 
-import { fetchGraphPlots } from './components/graph.js';
-import { downloadData } from './components/download.js';
-import { fetchOptions } from './components/dropdowns.js';
-import { StatusBar } from './components/statusBar.js';
+import { fetchGTIPlot } from './components/gtiPlots.js?v=201';
+import { displayInfo } from './components/observationInfo.js?v=201';
+import { fetchGraphPlots } from './components/graph.js?v=201';
+import { downloadData } from './components/download.js?v=201';
+import { fetchOptions } from './components/dropdowns.js?v=201';
+import { StatusBar } from './components/statusBar.js?v=201';
+
+window.fetchGTIPlot = fetchGTIPlot; // 🟢 FIX: Global bridge for ESM modules and dynamic form listeners
 
 let gtiMap = {}; // Cache for GTIs: { obsId: [gti1, gti2, ...], ... }
 let selectedGtis = []; // [{ obsId: "...", gti: N }]
+window.selectedGtis = selectedGtis; // 🟢 Make globally accessible to break import loop
 let allObservationsData = [];
-
+window.fetchGTIPlot = fetchGTIPlot;
 
 function sanitizeId(obsId) {
     if (!obsId) return '';
@@ -430,7 +434,8 @@ document.addEventListener("DOMContentLoaded", () => {
               console.log('Deselecting obsId:', obsId, 'gti:', gti);
 
               // Remove from selectedGtis array
-              selectedGtis = selectedGtis.filter(item => !(item.obsId === obsId && item.gti === gti));
+              const filteredPills = selectedGtis.filter(item => !(item.obsId === obsId && item.gti === gti));
+              selectedGtis.length = 0; // Clears without losing reference
               
               console.log('selectedGtis after deselection:', JSON.parse(JSON.stringify(selectedGtis)));
 
@@ -605,7 +610,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e.target.classList.contains("remove-btn")) {
         const obsIdToRemove = e.target.parentElement.dataset.obsid;
         delete gtiMap[obsIdToRemove];
-        selectedGtis = selectedGtis.filter(gti => gti.obsId !== obsIdToRemove);
+        const filteredObs = selectedGtis.filter(gti => gti.obsId !== obsIdToRemove);
+        selectedGtis.length = 0;
         updateSelectedGtisDisplay();
         e.target.parentElement.remove();
 
@@ -717,6 +723,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else {
                     const currentObsElement = document.querySelector("#current-obsid-display .obsid-value-red");
                     let activeObsId = currentObsElement ? currentObsElement.textContent.trim() : null;
+                    
                     if (activeObsId && activeObsId !== "---" && activeObsId !== "...") {
                         obsidsToPlot.push(activeObsId);
                         StatusBar.getInstance().show(`Plotting ${activeObsId}...`, -1);
@@ -735,10 +742,16 @@ document.addEventListener("DOMContentLoaded", () => {
             $tempForm.append($('<input>').attr('name', 'quality').val($('#quality-select').val()));
             $tempForm.append($('<input>').attr('name', 'csrfmiddlewaretoken').val($('[name=csrfmiddlewaretoken]').val()));
 
-            if (selectedGtis.length > 0) {
-                const gtiQueryString = selectedGtis.map(item => `${item.obsId}-${item.gti}`).join(',');
-                $tempForm.append($('<input>').attr('name', 'gti-search').val(gtiQueryString));
-            }
+            const finalGtiQuery = selectedGtis
+            .filter(item => obsidsToPlot.includes(item.obsId)) // Only send GTIs for the IDs we are plotting
+            .map(item => `${item.obsId}-${item.gti}`)
+            .join(',');
+
+            if (finalGtiQuery) {
+             $tempForm.append($('<input>').attr('name', 'gti-search').val(finalGtiQuery));
+                     }
+
+
             
             plotForm.querySelectorAll('input[name="plot_types"]:checked').forEach(input => {
                 if(input.value !== 'global-hid') {

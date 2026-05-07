@@ -300,6 +300,12 @@ function setupGTIClickListener(graphElement) {
  */
 function getPlotTypeFromId(plotId) {
   if (!plotId) return null;
+
+  const element = document.getElementById(plotId);
+  if (element && element.getAttribute('data-plot-type')) {
+    return element.getAttribute('data-plot-type');
+  }
+
   // Plot IDs are typically like "spectrum-obsid", "light-curve-obsid",
   // or "combined-spectrum-obsid".
   // We want to extract the "spectrum", "light-curve" part.

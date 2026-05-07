@@ -520,14 +520,28 @@ function findPlots(plots) {
     const containerId = container ? container.id : 'none';
     const title =
       plot.layout && plot.layout.title ? plot.layout.title.text : 'none';
+    const plotType = plot.getAttribute('data-plot-type');
     console.log(
       `Plot ${index + 1}: ID=${plot.id
-      }, Container=${containerId}, Title=${title}`,
+      }, Container=${containerId}, Title=${title}, DataPlotType=${plotType}`,
     );
   });
 
-  // If we only have two plots, assume the first is spectrum and second is light curve
-  if (plots.length === 2) {
+  // PRIORITY 1: Check for 'data-plot-type' attribute on the plot element itself
+  // This is the most robust way when using the new modular graph rendering
+  for (const plot of plots) {
+    const plotType = plot.getAttribute('data-plot-type');
+    if (plotType === 'spectrum') {
+      spectrumPlot = plot;
+      console.log(`Found spectrum plot by data-plot-type attribute: ${plot.id}`);
+    } else if (plotType === 'light-curve') {
+      lightCurvePlot = plot;
+      console.log(`Found light curve plot by data-plot-type attribute: ${plot.id}`);
+    }
+  }
+
+  // If we only have two plots and haven't identified them yet, assume the first is spectrum and second is light curve
+  if (!spectrumPlot && !lightCurvePlot && plots.length === 2) {
     console.log(
       'Using heuristic: assuming first plot is spectrum and second is light curve',
     );
@@ -536,18 +550,21 @@ function findPlots(plots) {
     return { spectrumPlot, lightCurvePlot };
   }
 
-  // Try to identify plots by their container ID or title
+  // PRIORITY 2: Try to identify plots by their container ID or title
   for (const plot of plots) {
+    if (spectrumPlot && lightCurvePlot) break;
+
     // Check container ID
     const container = plot.closest('[id]');
     if (container) {
       const containerId = container.id.toLowerCase();
-      if (containerId.includes('spectrum')) {
+      if (!spectrumPlot && containerId.includes('spectrum')) {
         spectrumPlot = plot;
         console.log(`Found spectrum plot by container: ${containerId}`);
       } else if (
-        containerId.includes('light-curve') ||
-        containerId.includes('lightcurve')
+        !lightCurvePlot &&
+        (containerId.includes('light-curve') ||
+        containerId.includes('lightcurve'))
       ) {
         lightCurvePlot = plot;
         console.log(`Found light curve plot by container: ${containerId}`);
@@ -579,7 +596,7 @@ function findPlots(plots) {
     }
   }
 
-  // If still not identified, try to identify by axis labels
+  // PRIORITY 3: Try to identify by axis labels
   if (!spectrumPlot || !lightCurvePlot) {
     for (const plot of plots) {
       if (plot.layout) {
@@ -603,7 +620,7 @@ function findPlots(plots) {
     }
   }
 
-  // If still not identified, try to identify by data characteristics
+  // PRIORITY 4: Try to identify by data characteristics
   if (!spectrumPlot || !lightCurvePlot) {
     for (const plot of plots) {
       if (plot.data && plot.data.length > 0) {

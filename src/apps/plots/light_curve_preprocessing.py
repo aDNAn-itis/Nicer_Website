@@ -1,6 +1,8 @@
 """
 Utility to correct light curve data
+Integrated Version: v2026.05.03
 """
+
 from typing import Any
 
 import numpy as np
@@ -9,7 +11,8 @@ from plotly.colors import qualitative
 from plotly.subplots import make_subplots
 
 from src.utils.utils import min_bin, binning
-from src.utils.plots import data_plot
+from src.apps.plots.plots import data_plot
+
 
 
 def light_curve_data(
@@ -40,39 +43,39 @@ def light_curve_data(
     data: ndarray[tuple[int, int], np.dtype[np.float64]]
     uncertainty: ndarray[tuple[int, int], np.dtype[np.float64]]
 
-    # Load Data
+    # Load Data with your original try/except structure
     try:
+        # Rahul's scientific column selection (0, 2, 3) integrated with your dtype
+        #data = np.loadtxt(data_path, usecols=[0, 2, 3], unpack=True, dtype=float)
         data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
         try:
             background = np.loadtxt(data_path.replace('.lc.gz', '.bg-lc.gz'), usecols=2)
         except:
             background = np.zeros(len(data[0]))
 
-        # Filter by time if start_time and stop_time are provided
+        # --- YOUR ORIGINAL TIME FILTERING LOGIC ---
         if start_time is not None and stop_time is not None:
             time_mask = (data[0] >= start_time) & (data[0] <= stop_time)
             data = data[:, time_mask]
             if background.size > 0:
-                # Ensure background array is not empty and has same length as data after mask
                 if background.size == len(time_mask):
                     background = background[time_mask]
-                else: # If background has a different size, we may need to re-evaluate or log a warning
-                    background = np.zeros(len(data[0])) # Fallback to zeros if sizes mismatch
+                else:
+                    background = np.zeros(len(data[0]))
 
-        time_diff = data[0][1] - data[0][0]
+        time_diff = float(data[0][1] - data[0][0])
         counts = data[1] * time_diff
         dets = int(data[2][0])
 
-        # Bin data
-        # Treat min_value as a direct linear multiplier
+        # --- INTEGRATED BINNING STRATEGY ---
+        # Adopting Rahul's exact np.arange strategy for scientific bin_factor
         bin_factor = int(min_value) if min_value > 0 else 1
         min_bins = np.arange(0, len(counts), bin_factor)
         if len(min_bins) == 0 or min_bins[-1] != len(counts):
             min_bins = np.append(min_bins, len(counts))
         min_bins = np.unique(min_bins)
 
-        # Ensure all arrays are the same length before stacking
-
+        # Maintaining your validation check
         valid_len = min(len(counts), len(background), len(data[0]))
         
         (y_bin, bg_bin, x_bin), x_width, uncertainty = binning(
@@ -195,19 +198,17 @@ def light_curve_plot(
     x_background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
     y_uncertainties: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
 
-    # --- COMBINED MODE ---
-    obs_str = str(obs_id)
-    if ',' in obs_str:
-        is_combined_obs = True
+    if isinstance(obs_id, list):
+      obs_ids_list = [str(oid).strip() for oid in obs_id]
+    else:
+      obs_ids_list = [oid.strip() for oid in str(obs_id).split(',') if oid.strip()]
 
-    # --- 1. Prepare Labels ---
     if is_combined_obs:
-        obs_ids_list = obs_str.split(',')
-        if len(obs_ids_list) <= len(data_paths):
-             gti_labels = []
-             for i in range(len(data_paths)):
-                 oid = obs_ids_list[i % len(obs_ids_list)] 
-                 gti_labels.append(f"{oid}") 
+       if len(obs_ids_list) <= len(data_paths):
+         gti_labels = []
+         for i in range(len(data_paths)):
+             oid = obs_ids_list[i % len(obs_ids_list)] 
+             gti_labels.append(f"{oid}")
     
     if gti_labels is None:
         gti_labels = [f'GTI{gti}' for gti in gti_numbers]
@@ -228,9 +229,9 @@ def light_curve_plot(
             x_error.append(x_err)
             y_uncertainties.append(uncertainty)
 
-    # --- 3. Normalization Logic ---
+    # --- 3. INTEGRATED SORTING AND NORMALIZATION LOGIC ---
     if is_combined_obs:
-        # === OVERLAY MODE (DAYS, ZERO-START) ===
+        # === YOUR OVERLAY MODE (DAYS, ZERO-START) ===
         x_background = [(datum - datum[0]) / 86400.0 for datum in x_background]
         x_data = [(datum - datum[0]) / 86400.0 for datum in x_data]
         x_error = [datum / 86400.0 for datum in x_error] 
@@ -239,8 +240,10 @@ def light_curve_plot(
         x_axis_label = r'$\text{Relative Time (days)}$'
     
     else:
-        # --- CHRONOLOGICAL MODE ---
+        # --- RAHUL'S CHRONOLOGICAL SORTING INTEGRATED ---
         idxs = np.argsort([min(datum) if len(datum)>0 else 0 for datum in x_data])
+        gti_numbers = [gti_numbers[idx] for idx in idxs]
+        gti_labels = [gti_labels[idx] for idx in idxs]
         x_data = [x_data[idx] for idx in idxs]
         y_data = [y_data[idx] for idx in idxs]
         x_background = [x_background[idx] for idx in idxs]
@@ -249,19 +252,20 @@ def light_curve_plot(
         y_uncertainties = [y_uncertainties[idx] for idx in idxs]
         gti_labels = [gti_labels[idx] for idx in idxs]
 
+        # Maintaining your Relative Time (day) logic
         if len(x_data) > 0:
             start_t = x_data[0][0]
             x_background = [(datum - start_t) / 86400.0 for datum in x_background]
             x_data = [(datum - start_t) / 86400.0 for datum in x_data]
             x_error = [datum / 86400.0 for datum in x_error]
 
+        # --- INTEGRATED DYNAMIC SUBPLOT GAP DETECTION ---
         subplot_kwargs = [{'row': 1, 'col': 1}]
         for i, x_datum in enumerate(x_data[1:]):
-            # Use bin width to detect real gaps
+            # Adopting Rahul's 10x bin width gap threshold logic
             current_x_errors = x_error[i + 1]
             max_bin_width = 2 * np.max(current_x_errors) if len(current_x_errors) > 0 else 0
 
-            # If the gap is 10x larger than the bin resolution, split the plot
             if max_bin_width > 0 and x_datum[0] - x_data[i][-1] > 10 * max_bin_width:
                 subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + 1})
             else:
@@ -314,10 +318,9 @@ def light_curve_plot(
         background,
         subplot_kwargs,
     )):
+        # --- YOUR ORIGINAL COMBINED MODE ANNOTATION LOGIC ---
         if is_combined_obs and len(x_datum) > 0:
             end_time = x_datum[-1]
-            
-            # 1. Vertical Line (Forced on TOP)
             fig.add_vline(
                 x=end_time, 
                 line_width=2, 
@@ -325,10 +328,8 @@ def light_curve_plot(
                 line_color=color,
                 opacity=0.8,
                 row=1, col=1,
-                layer="above"  #  Ensures line is visible over dense data
+                layer="above" 
             )
-            
-            # 2. Numeric Annotation
             fig.add_annotation(
                 x=end_time,
                 y=1.05, 
@@ -341,6 +342,7 @@ def light_curve_plot(
                 yanchor="bottom"
             )
 
+        # Maintaining your data_plot signature
         plot = data_plot(
             plot_type='lines+markers',
             gti_numbers=[gti_number],

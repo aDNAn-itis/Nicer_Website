@@ -138,7 +138,6 @@ export function fetchGraphPlots(refresh = false, event) {
         url: PLOT_GRAPH_URL,
         data: serializedData,
         success: function (response) {
-            const plotDataArray = response.plotDivs || (Array.isArray(response) ? response : null);
             if (refresh) removePlots();
             
             if (response.error) {
@@ -203,9 +202,12 @@ export function fetchGraphPlots(refresh = false, event) {
                         // 🟢 RAHUL FIX: Manual re-binding of GTI Selection UI inside the loop
                         if (TYPE !== 'summed_spectrum' && TYPE !== 'global_hid' && response.maxGTI) {
                              const maxVal = response.maxGTI[i];
+                             const defaultBinning = response.defaultBinnings ? response.defaultBinnings[TYPE] : 1;
+                             const gtiQuery = response.gtiQuery || '';
+
                              if (maxVal !== undefined && maxVal > 0) {
                                  // We use your component but ensure handlers are attached
-                                 const $GTI_FORM_HTML = $(GTISelection(maxVal, response.obsID || obsIdInput, TYPE));
+                                 const $GTI_FORM_HTML = $(GTISelection(maxVal, response.obsID || obsIdInput, TYPE, defaultBinning, gtiQuery));
                                  
                                  // Force re-attach the submit handler to this fresh HTML
                                  $GTI_FORM_HTML.off('submit').on('submit', function(e) {

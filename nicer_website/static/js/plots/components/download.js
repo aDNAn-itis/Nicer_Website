@@ -1,4 +1,4 @@
-import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=201';
 
 export async function downloadData(
   dataType,

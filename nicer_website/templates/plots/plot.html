@@ -5,8 +5,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
 
-<script src="{% static 'js/plots/plot.js' %}?v=2007" type="module"></script>
-
+<script type="module" src="{% static 'js/plots/plot.js' %}?v={% now 'U' %}"></script>
 <script
   id="MathJax-script"
   src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
@@ -20,6 +19,7 @@
   const PLOT_COMBINED_URL = "{% url 'plots:plot_combined' %}"; 
   const SOURCE_SEARCH_URL = "{% url 'plots:source_search' %}"; 
   const FETCH_GTIS_URL = "{% url 'plots:fetch_gtis' %}"; 
+  
 
   let quality = '{{ quality }}';
 

@@ -1,12 +1,11 @@
 """
 URLs for the plots app to call functions in views
+Integrated Version: v2026.05.03
 """
 from django.urls import path
-
 from . import views
 
-
-app_name = 'plots'  # pylint: disable=invalid-name
+app_name = 'plots'
 urlpatterns = [
     path('interactive_plot/', views.interactive_plot, name='plots'),
     path('fetch_observations', views.fetch_observations, name='fetch_observations'),
@@ -18,4 +17,5 @@ urlpatterns = [
     path('download', views.download_data, name='download_data'),
     path('source_search/', views.source_search_view, name='source_search'),
     path('plot_combined', views.plot_combined_global_hid, name='plot_combined'),
+    
 ]

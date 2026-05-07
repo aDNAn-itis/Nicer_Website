@@ -12,10 +12,11 @@ import pandas as pd
 from numpy import ndarray
 from astropy.io import fits
 
-from src.utils.plots import data_plot
-from src.utils.spectrum_preprocessing import channel_kev
 
-from src.utils.spectrum_preprocessing import spectrum_data  
+
+ 
+from src.apps.plots.plots import data_plot
+from src.apps.plots.spectrum_preprocessing import channel_kev
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -576,8 +577,9 @@ def summed_spectrum_plot(
     # Create plot with multiple traces
     title = f'Summed Spectrum for {obs_id}' if ',' in obs_id else f'Summed Spectrum for {obs_id}'
 
+# ... keep all your obs_id grouping and data_plot logic ...
     result = data_plot(
-        gti_numbers=list(range(len(x_data_list))),  # Dummy numbers for traces
+        gti_numbers=list(range(len(x_data_list))),
         x_data_list=x_data_list,
         y_data_list=y_data_list,
         x_errors=x_errors_list,
@@ -590,13 +592,37 @@ def summed_spectrum_plot(
             'xaxis_type': 'log',
             'yaxis_type': 'log',
             'showlegend': True,
-            'plot_bgcolor': 'white',
-            'paper_bgcolor': 'white',
         },
         gti_labels=plot_labels
     )
     
-    return result
+    # --- RAHUL'S UI INTEGRATION ---
+    # Extract a range string for the filename (using the first obs if multiple)
+    gti_range_str = f"summed_{obs_id.replace(',', '_')}" 
+
+    download_button = f"""
+    <div style="position: relative;">
+        {result}
+        <div style="position: absolute; bottom: 30px; right: 10px; z-index: 1000;">
+            <button onclick="downloadExportedFiles('{gti_range_str}', '{obs_id}')" 
+                    style="background-color: #4CAF50; color: black; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); opacity: 0.9; transition: opacity 0.2s;"
+                    onmouseover="this.style.opacity=1" 
+                    onmouseout="this.style.opacity=0.9">
+                Download FITS
+            </button>
+        </div>
+    </div>
+    <script>
+    // 🟢 FIX: Prevent ReferenceError if counts is accessed by other linked components
+    var counts = counts || [];
+    
+    function downloadExportedFiles(gtiRange, obsId) {{
+        const downloadUrl = `/download_exported_spectra/${{obsId}}_${{gtiRange}}/`;
+        window.open(downloadUrl, '_blank');
+    }}
+    </script>
+    """
+    return download_button
 
 
 def create_exportable_summed_spectrum(
@@ -861,25 +887,28 @@ def create_exportable_summed_spectrum(
 def create_spectrum_fits_file(filename, counts, master_header, exposure_time, 
                              exposure_52fpm, start_time, stop_time, gti_numbers, 
                              obs_id, parent_grouping, parent_quality):
-    """Create a properly formatted spectrum FITS file."""
+    """
+    Create a properly formatted spectrum FITS file for XSPEC.
+    INTEGRATED VERSION: Preserves custom flags/metadata + Rahul's OGIP compatibility.
+    """
     logger.info(f"Creating spectrum FITS file: {filename}")
     
-    # Create channel array (0-1500) - XSPEC expects 0-based indexing
+    # 1. Create channel array (0-1500) - XSPEC expects 0-based indexing for PI channels
     channels = np.arange(0, 1501, dtype=np.int16)
     
-    # Create data table
+    # 2. Create data table columns
     col1 = fits.Column(name='CHANNEL', format='I', array=channels)
     col2 = fits.Column(name='COUNTS', format='J', array=counts.astype(np.int32))
     
-    # Use grouping and quality flags from parent spectrum
+    # YOUR FUNCTIONALITY: Preserve groupings and quality from parent fits
     col3 = fits.Column(name='GROUPING', format='I', array=parent_grouping)
     col4 = fits.Column(name='QUALITY', format='I', array=parent_quality)
     
-    # Create table
+    # 3. Create the BinTableHDU
     cols = fits.ColDefs([col1, col2, col3, col4])
     tbhdu = fits.BinTableHDU.from_columns(cols)
     
-    # Update header with summed information
+    # 4. Header updates: Basic & Timing information
     tbhdu.header['EXTNAME'] = 'SPECTRUM'
     tbhdu.header['TELESCOP'] = master_header.get('TELESCOP', 'NICER')
     tbhdu.header['INSTRUME'] = master_header.get('INSTRUME', 'XTI')
@@ -891,37 +920,36 @@ def create_spectrum_fits_file(filename, counts, master_header, exposure_time,
     tbhdu.header['DATE-OBS'] = master_header.get('DATE-OBS', '')
     tbhdu.header['TIME-OBS'] = master_header.get('TIME-OBS', '')
     
-    # Add OGIP compliance keywords
+    # 5. RAHUL'S INTEGRATION: OGIP compliance keywords
+    # These are required for fitting software to recognize the file type
     tbhdu.header['HDUCLASS'] = 'OGIP'
     tbhdu.header['HDUCLAS1'] = 'SPECTRUM'
     tbhdu.header['HDUCLAS2'] = 'TOTAL'
     tbhdu.header['HDUCLAS3'] = 'COUNT'
     tbhdu.header['HDUVERS'] = '1.2.0'
     
-    # Column-specific keywords
+    # 6. Detector and channel keywords
     tbhdu.header['TUNIT2'] = 'count'
     tbhdu.header['TLMIN1'] = 0
     tbhdu.header['TLMAX1'] = 1500
-    
-    # Detector and channel keywords
     tbhdu.header['DETCHANS'] = 1501
     tbhdu.header['CHANTYPE'] = 'PI'
     
-    # Error and scaling keywords
+    # 7. Error and scaling keywords
     tbhdu.header['POISSERR'] = True
     tbhdu.header['STAT_ERR'] = 0
     tbhdu.header['SYS_ERR'] = 0
     tbhdu.header['BACKSCAL'] = 1.0
     tbhdu.header['AREASCAL'] = 1.0
     
-    # Add observation metadata
+    # 8. Observation metadata
     if obs_id:
         tbhdu.header['OBS_ID'] = obs_id
     tbhdu.header['OBJECT'] = master_header.get('OBJECT', '')
     tbhdu.header['RA_OBJ'] = master_header.get('RA_OBJ', 0.0)
     tbhdu.header['DEC_OBJ'] = master_header.get('DEC_OBJ', 0.0)
     
-    # Add summing metadata  
+    # 9. YOUR FUNCTIONALITY: Extensive Summing Metadata  
     tbhdu.header['SUMMED'] = True
     tbhdu.header['N_GTIS'] = len(gti_numbers)
     tbhdu.header['GTI_LIST'] = ','.join(map(str, gti_numbers))
@@ -929,21 +957,23 @@ def create_spectrum_fits_file(filename, counts, master_header, exposure_time,
     tbhdu.header['CREATOR'] = 'NICER Website Summed Spectrum Tool'
     tbhdu.header['HISTORY'] = f'Summed spectrum from {len(gti_numbers)} GTIs: {gti_numbers}'
     
-    # Response file reference
+    # 10. RAHUL'S INTEGRATION: Automated file references
     respfile = master_header.get('RESPFILE', '')
     if respfile:
         tbhdu.header['RESPFILE'] = respfile
         tbhdu.header['ANCRFILE'] = master_header.get('ANCRFILE', '')
-        # Add BACKFILE reference with just the filename (no path)
-        bg_filename = f"{os.path.splitext(os.path.basename(filename))[0].replace('_summed_spectrum', '_summed')}_background.bg"
+        
+        # KEY FIX: Generate BACKFILE name so XSPEC loads background automatically
+        # Replaces path strings with just the filename for portability
+        base_name = os.path.splitext(os.path.basename(filename))[0]
+        bg_filename = f"{base_name.replace('_summed_spectrum', '_summed')}_background.bg"
         tbhdu.header['BACKFILE'] = bg_filename
     
-    # Create primary HDU and write file
+    # 11. Create primary HDU and write file
     primary_hdu = fits.PrimaryHDU()
     hdul = fits.HDUList([primary_hdu, tbhdu])
     hdul.writeto(filename, overwrite=True)
     logger.info(f"Created spectrum FITS file: {filename}")
-
 
 def create_background_fits_file(filename, bg_counts, master_header, exposure_time,
                                start_time, stop_time, gti_numbers, obs_id):
@@ -1026,38 +1056,26 @@ def create_exportable_summed_spectrum_files(
     This function generates properly formatted FITS files in the standard 1501-channel format
     that can be imported into XSPEC, ISIS, and other spectral analysis software.
     
-    Parameters
-    ----------
-    min_value : int
-        Minimum value for each bin (not used but kept for compatibility)
-    obs_id : int
-        Observation ID
-    data_paths : List[str]
-        File paths to the spectra (.jsgrp files)
-    gti_numbers : List[int]
-        List of GTI numbers
-    output_dir : str
-        Directory to save the output files
-        
-    Returns
-    -------
-    str
-        Status message with information about created files
+    INTEGRATED VERSION: Preserves detailed logging + Rahul's path/naming standardization.
     """
     logger.info(f"Creating exportable files for observation {obs_id}")
     logger.info(f"Input: {len(data_paths)} data paths, {len(gti_numbers)} GTI numbers")
     
-    # Validate inputs
+    # 1. YOUR VALIDATION: Ensure lists are not empty
     if not data_paths:
+        logger.error("No data paths provided for summed spectrum")
         return "Error: No data paths provided for summed spectrum"
     
     if not gti_numbers:
+        logger.error("No GTI numbers provided for summed spectrum")
         return "Error: No GTI numbers provided for summed spectrum"
     
+    # 2. RAHUL'S VALIDATION: Ensure strict alignment between paths and GTIs
     if len(data_paths) != len(gti_numbers):
+        logger.error(f"Mismatch: {len(data_paths)} data paths vs {len(gti_numbers)} GTI numbers")
         return "Error: Number of data paths must match number of GTI numbers"
     
-    # Check for existing files
+    # 3. YOUR FILE CHECK: Filter only for files that actually exist on the system
     valid_paths = []
     valid_gtis = []
     
@@ -1068,19 +1086,28 @@ def create_exportable_summed_spectrum_files(
         else:
             logger.warning(f"Missing file for GTI {gti}: {path}")
     
+    # 4. RAHUL'S SAFETY CHECK: Stop if no data survived the existence check
     if not valid_paths:
-        return "Error: No valid spectrum files found"
+        error_msg = "Error: No valid spectrum files found on disk."
+        logger.error(error_msg)
+        return error_msg
     
     try:
-        # Create output path
+        # 5. INTEGRATED NAMING: Create the GTI range string
         if len(valid_gtis) > 1:
+            # Handles ranges like GTI1-15
             gti_range = f"GTI{min(valid_gtis)}-{max(valid_gtis)}"
         else:
+            # Handles single GTI cases
             gti_range = f"GTI{valid_gtis[0]}"
         
+        # 6. RAHUL'S PATHING: Standardized base name for the exported file set
         output_base = os.path.join(output_dir, f"obs_{obs_id}_{gti_range}")
         
-        # Create the exportable files
+        logger.info(f"Processing {len(valid_paths)} valid files. Output base: {output_base}")
+        
+        # 7. FINAL CALL: Triggers the 1501-channel FITS creation logic
+        # obs_id is cast to string to ensure header compatibility
         result_message = create_exportable_summed_spectrum(
             valid_paths,
             valid_gtis,
@@ -1091,6 +1118,7 @@ def create_exportable_summed_spectrum_files(
         return result_message
         
     except Exception as e:
+        # 8. YOUR ERROR HANDLING: Detailed stack trace in logs for debugging
         error_msg = f"Error creating exportable files: {str(e)}"
         logger.error(error_msg, exc_info=True)
         return error_msg

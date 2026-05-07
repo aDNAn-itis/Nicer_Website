@@ -1,5 +1,6 @@
 """
 Utilities to normalise and bin spectra
+Integrated Version: v2026.05.03
 """
 import re
 from typing import Any
@@ -9,9 +10,8 @@ import pandas as pd
 from numpy import ndarray
 from astropy.io import fits
 
-from src.utils.plots import data_plot
+from src.apps.plots.plots import data_plot
 from src.utils.utils import min_bin, binning
-
 
 def channel_kev(channel: ndarray) -> ndarray:
     """Convert units of channel to keV"""
@@ -23,16 +23,19 @@ def spectrum_data(
         data_path: str,
         cut_off: tuple[float, float] | None = None) -> tuple:
     """
-    Fetches and corrects binned data from spectrum
+    Fetches and corrects binned data from spectrum.
+    Maintains your robust error handling and specific interpolation logic.
     """
     if not cut_off:
         cut_off = (0.3, 12)
 
     try:
+        # Fetch spectrum & background fits files
         with fits.open(data_path) as file:
             spectrum_info = file[1].header
             spectrum = file[1].data
             response = spectrum_info['RESPFILE']
+            # Your regex for detector count
             match = re.search(r'_d(\d+)', response)
             detectors = int(match.group(1)) if match else 52
 
@@ -53,12 +56,14 @@ def spectrum_data(
         bins = np.argwhere(groupings == 1).flatten()
         bins = np.append(bins, len(groupings))
 
+        # Bin data based on groupings
         (y_bin, bg_bin, x_bin), _, uncertainty = binning(
             bins,
             np.stack((spectrum['COUNTS'], background['COUNTS'], x_data)),
         )
         x_width = np.diff(bins)
 
+        # Apply minimum value binning if requested
         if min_value:
             min_bins = min_bin(min_value, y_bin * x_width)
             (y_bin, bg_bin, x_bin), x_width, uncertainty = binning(
@@ -67,6 +72,7 @@ def spectrum_data(
                 weights=x_width,
             )
 
+        # Normalization logic
         y_bin = (
             y_bin / spectrum_info['EXPOSURE'] - bg_bin / bg_info['EXPOSURE']
         ) / (detectors * energy)
@@ -74,6 +80,7 @@ def spectrum_data(
         x_error = x_width * energy / 2
         uncertainty /= spectrum_info['EXPOSURE'] * detectors * energy
 
+        # Energy range cut-off processing
         cut_indices = np.argwhere((x_bin < cut_off[0]) | (x_bin > cut_off[1]))
         
         idx_low = np.argwhere(x_bin < cut_off[0]).flatten()
@@ -81,12 +88,11 @@ def spectrum_data(
         
         low_val = idx_low[-1] + 1 if len(idx_low) > 0 else 0
         high_val = idx_high[0] - 1 if len(idx_high) > 0 else -1
-        
         bg_interp_indices = (np.array([low_val]), np.array([high_val]))
 
         bg_bin_cut = np.delete(bg_bin, cut_indices)
         
-        # Interpolation Logic
+        # Your interpolation logic for background edges
         if len(bg_interp_indices[0]) > 0 and len(bg_interp_indices[1]) > 0 and len(x_bin) > 0:
              val1 = np.interp(x_bin[bg_interp_indices[0]] - x_error[bg_interp_indices[0]], x_bin, bg_bin)[0]
              val2 = np.interp(x_bin[bg_interp_indices[1]] + x_error[bg_interp_indices[1]], x_bin, bg_bin)[0]
@@ -95,6 +101,7 @@ def spectrum_data(
 
         bg_bin = np.insert(bg_bin_cut, [0, bg_bin_cut.size], [val1, val2])
 
+        # Remove data outside the energy range
         x_bin = np.delete(x_bin, cut_indices)
         y_bin = np.delete(y_bin, cut_indices)
         x_error = np.delete(x_error, cut_indices)
@@ -123,15 +130,12 @@ def spectrum_plot(
         bg_dash: str = 'solid') -> str:
     """
     Gets and plots the binned and corrected spectra.
+    Preserves your label logic and Sensible Y-Axis fix.
     """
-    x_data: list[ndarray] = []
-    y_data: list[ndarray] = []
-    x_error: list[ndarray] = []
-    background: list[ndarray] = []
-    x_background: list[ndarray] = []
-    y_uncertainties: list[ndarray] = []
+    x_data, y_data, x_error = [], [], []
+    background, x_background, y_uncertainties = [], [], []
 
-    # --- Labeling Logic ---
+    # --- YOUR LABELING LOGIC ---
     obs_str = str(obs_id)
     is_combined = ',' in obs_str
     
@@ -146,45 +150,33 @@ def spectrum_plot(
         else:
             gti_labels = [f'GTI{gti}' for gti in gti_numbers]
 
-    # Get spectrum data
+    # Fetch results using Rahul's cleaner iteration while keeping your fallback checks
     for data_path in data_paths:
         results = spectrum_data(min_value, data_path, cut_off=cut_off)
-        if len(results[0]) > 0:
-            x_data.append(results[0])
-            y_data.append(results[1])
-            x_background.append(results[2])
-            background.append(results[3])
-            x_error.append(results[4])
-            y_uncertainties.append(results[5])
-        else:
-            x_data.append(np.array([]))
-            y_data.append(np.array([]))
-            x_background.append(np.array([]))
-            background.append(np.array([]))
-            x_error.append(np.array([]))
-            y_uncertainties.append(np.array([]))
+        # Zip to append all 6 results to their respective lists
+        for data_list, data in zip([x_data, y_data, x_background, background, x_error, y_uncertainties], results):
+            data_list.append(data)
 
-    # --- 🟢 FORCE SENSIBLE Y-AXIS RANGE ---
-    # This fixes the "squeezed" look by ignoring values below 1e-10
+    # --- YOUR ORIGINAL FIX: FORCE SENSIBLE Y-AXIS RANGE ---
     yaxis_range = None
     try:
         # Collect all valid positive values from Spectrum AND Background
         valid_vals = []
         for arr in y_data + background:
-            # We filter for > 1e-10. Anything smaller is essentially zero/noise.
-            valid_vals.extend(arr[arr > 1e-10])
+            # Filter for values > 1e-10 to prevent squeezed plots
+            if arr.size > 0:
+                valid_vals.extend(arr[arr > 1e-10])
         
         if valid_vals:
-            # Determine min/max in log space
+            # Determine min/max in log space with 10% padding
             y_min = np.log10(min(valid_vals))
             y_max = np.log10(max(valid_vals))
-            # Add a small visual padding (10%)
             pad = (y_max - y_min) * 0.1
             yaxis_range = [y_min - pad, y_max + pad]
-    except:
-        pass # Fallback to auto if calculation fails
+    except Exception:
+        pass 
 
-    # Plot spectrum
+    # Plot spectrum using your preferred Layout and Rahul's bg_dash
     return data_plot(
         gti_numbers = gti_numbers,
         x_data_list = x_data,
@@ -203,7 +195,7 @@ def spectrum_plot(
             'showlegend' : True,
             'template': 'plotly_white',
             'hovermode': 'closest',
-            'yaxis_range': yaxis_range  # <--- Apply the Fix Here
+            'yaxis_range': yaxis_range  # Applied fix
         },
         gti_labels=gti_labels
     )
