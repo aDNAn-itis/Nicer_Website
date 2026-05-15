@@ -238,65 +238,45 @@ export function initInteractiveLinking() {
 }
 
 function handleGtiDoubleClick(data, plot) {
-  console.log("handleGtiDoubleClick native redirect triggered with data:", data);
+  console.log("Drill-down triggered...");
   const point = data.points?.[0];
-  if (!point) {
-    console.log("Double click did not explicitly occur on a plotted trace. Ignoring.");
-    return;
-  }
+  if (!point) return;
 
-  // Extract the trace name
+  // 1. Identification: Handle the new "Obs [ID] | GTI [Num]" format
   const curveNumber = point.curveNumber;
   const traceName = (plot.data && curveNumber !== undefined && plot.data[curveNumber])
     ? plot.data[curveNumber].name
     : (point.data ? point.data.name : '');
 
-  // 🟢 NEW: Check if the trace name itself is an ObsID (10 digits)
-  // This happens in the new "Automatic LC Overlay" mode
-  let clickedObsIdFromTrace = null;
-  if (traceName && traceName.match(/^\d{10}$/)) {
-      clickedObsIdFromTrace = traceName;
-      console.log(`Detected double-click on ObsID-named trace: ${clickedObsIdFromTrace}`);
-  }
+  // 🟢 FIX 1: Extract 10-digit ID anywhere in the string (remove ^ and $ anchors)
+  const obsIdMatch = traceName.match(/(\d{10})/);
+  const obsId = obsIdMatch ? obsIdMatch[1] : (plot.layout.title?.text?.match(/\d{10}/)?.[0]);
 
-  // Fallback to extraction from title if not found in trace name
-  let obsId = clickedObsIdFromTrace;
   if (!obsId) {
-      const obsIdMatch = plot.layout.title?.text?.match(/\d{10}/);
-      if (!obsIdMatch) {
-        console.error("Could not extract Observation ID from plot title or trace name.");
-        return;
-      }
-      obsId = obsIdMatch[0];
+    console.error("Could not extract Observation ID from trace or title.");
+    return;
   }
 
-  // Extract the GTI number if available
+  // 🟢 FIX 2: Extract GTI number
   let gtiNum = null;
-  if (traceName) {
-    const match = traceName.match(/GTI\s*(\d+)/i);
-    if (match) {
-      gtiNum = parseInt(match[1], 10);
-    }
-  }
+  const gtiMatch = traceName.match(/GTI\s*(\d+)/i);
+  if (gtiMatch) gtiNum = parseInt(gtiMatch[1], 10);
 
-  // If we clicked an ObsID trace in an overlay, we want to drill down into ALL its GTIs
-  const isDrillDownIntoObs = clickedObsIdFromTrace !== null;
-
-  // Always attempt to dynamically calculate the contiguous geometric bounds of the clicked trace
-  const trace = (plot.data && curveNumber !== undefined && plot.data[curveNumber])
-    ? plot.data[curveNumber]
-    : (plot.data ? plot.data.find(t => t.x && t.x.length > 0 && !(t.name || '').toLowerCase().includes('background')) : null);
-
-  let gtiStartX = null;
-  let gtiStopX = null;
+  // 2. Geometric isolation
+  const trace = (plot.data && curveNumber !== undefined && plot.data[curveNumber]) ? plot.data[curveNumber] : null;
 
   if (trace && trace.x) {
+    // 🟢 FIX 3: Detect if axis is in "Days" and adjust the 15-second gap threshold
+    const isDays = (plot.layout.xaxis?.title?.text || '').toLowerCase().includes('day');
+    const GAP_LIMIT = isDays ? (15 / 86400.0) : 15; // 15s converted to days
+
     let currentGtiIndex = 0;
     let startIdx = 0;
+    let gtiStopX = null;
     const clickedTime = point.x;
 
     for (let i = 0; i < trace.x.length; i++) {
-      if (i > 0 && Math.abs(trace.x[i] - trace.x[i - 1]) > 15) {
+      if (i > 0 && Math.abs(trace.x[i] - trace.x[i - 1]) > GAP_LIMIT) {
         if (trace.x[i - 1] >= clickedTime) {
           gtiStopX = trace.x[i - 1];
           break;
@@ -305,138 +285,52 @@ function handleGtiDoubleClick(data, plot) {
         startIdx = i;
       }
     }
+    const gtiStartX = trace.x[startIdx];
+    if (gtiStopX === null) gtiStopX = trace.x[trace.x.length - 1];
 
-    if (gtiStopX === null) {
-      gtiStopX = trace.x[trace.x.length - 1];
-    }
-    gtiStartX = trace.x[startIdx];
+    if (gtiNum === null || isNaN(gtiNum)) gtiNum = currentGtiIndex;
 
-    if (gtiNum === null || isNaN(gtiNum)) {
-      gtiNum = currentGtiIndex;
-    }
-
-    const targetXref = trace.xaxis || 'x';
-    applyHighlightingToLightCurve(plot, [gtiStartX, gtiStopX], targetXref);
-
+    applyHighlightingToLightCurve(plot, [gtiStartX, gtiStopX], trace.xaxis || 'x');
   }
 
-  let traceColor = null;
-  if (point.fullData) {
-    traceColor = point.fullData.marker?.color || point.fullData.line?.color;
-  }
-  if (Array.isArray(traceColor)) traceColor = traceColor[0];
-
-  console.log(`Prepared to drill down for ObsID: ${obsId}, GTI: ${isDrillDownIntoObs ? 'ALL' : gtiNum}. Color: ${traceColor}`);
-
-  // ====================================================
-  // FRONTEND ACCELERATOR: INSTANT GRAPH RE-INJECTION
-  // ====================================================
-  // If it's a standard GTI click, we can still use the accelerator
-  if (!isDrillDownIntoObs) {
-      const isolatedTraces = (plot.data || []).filter(t => {
-          const matchGti = (t.name || '').match(/GTI\s*(\d+)/i);
-          const parsed = matchGti ? parseInt(matchGti[1], 10) : null;
-          return parsed === gtiNum;
-      }).map((t, idx) => {
-          const newTrace = JSON.parse(JSON.stringify(t)); 
-          newTrace.xaxis = 'x'; 
-          newTrace.yaxis = 'y';
-          if (newTrace.marker) newTrace.marker.color = traceColor;
-          if (newTrace.line) newTrace.line.color = traceColor;
-          return newTrace;
-      });
-
-      if (isolatedTraces.length > 0) {
-          console.log(`Frontend Accelerator: Isolated ${isolatedTraces.length} traces for GTI ${gtiNum}.`);
-          let $detailedPlotsContainer = $('#detailed-gti-plots');
-          if ($detailedPlotsContainer.length === 0) {
-            $detailedPlotsContainer = $('<div id="detailed-gti-plots" style="margin-top: 2rem;"></div>');
-          } else {
-            $detailedPlotsContainer.empty().detach();
-          }
-          
-          const newPlotId = `standalone-gti-plot-${gtiNum}-${Date.now()}`;
-          $detailedPlotsContainer.append('<h2>Selected GTI Plot</h2>');
-          $detailedPlotsContainer.append(`<div id="${newPlotId}" class="plotly-graph-div js-plotly-plot" style="width:100%; height:400px;"></div>`);
-          
-          const $parentSection = $(plot).closest('.plot-type-section');
-          if ($parentSection.length > 0) { $parentSection.after($detailedPlotsContainer); } 
-          else { $('#plots').append($detailedPlotsContainer); }
-
-          const clonedLayout = JSON.parse(JSON.stringify(plot.layout || {}));
-          clonedLayout.title = { text: `Light Curve ${obsId} - GTI ${gtiNum}` };
-          clonedLayout.shapes = []; 
-
-          if (clonedLayout.xaxis) {
-              delete clonedLayout.xaxis.domain;
-              delete clonedLayout.xaxis.range;
-              clonedLayout.xaxis.autorange = true;
-          }
-          Object.keys(clonedLayout).forEach(key => { if (key.match(/^xaxis\d+$/)) delete clonedLayout[key]; });
-
-          Plotly.newPlot(newPlotId, isolatedTraces, clonedLayout);
-          return; 
-      }
-  }
-
-  // ====================================================
-  // BACKEND FALLBACK (Also handles ObsID Drill-down)
-  // ====================================================
-  const formData = new FormData();
-  formData.append('obs_id', obsId);
-  formData.append('quality', $('#quality-select').val() || 'goddard');
-  formData.append('search_type', isDrillDownIntoObs ? 'obs_id' : 'obs_id'); // Both use obs_id search path
-  
-  if (!isDrillDownIntoObs) {
-      formData.append('gti-search', `${obsId}-${gtiNum}`);
-  }
-  
-  formData.append('light_curve', 'on');
-  formData.append('plot_types', 'light_curve');
-  formData.append('csrfmiddlewaretoken', $('input[name="csrfmiddlewaretoken"]').val());
-
-  $.ajax({
-    type: 'POST',
-    url: PLOT_GRAPH_URL,
-    data: formData,
-    processData: false,
-    contentType: false,
-    success: function (response) {
-      if (response.error) {
-        alert('Error generating plot: ' + response.error);
-        return;
-      }
-
-      let $detailedPlotsContainer = $('#detailed-gti-plots');
-      if ($detailedPlotsContainer.length === 0) {
-        $detailedPlotsContainer = $('<div id="detailed-gti-plots" style="margin-top: 2rem;"></div>');
-      } else {
-        $detailedPlotsContainer.empty().detach();
-      }
-      
-      $detailedPlotsContainer.append(`<h2>${isDrillDownIntoObs ? 'Observation Details' : 'Selected GTI Plot'}</h2>`);
-      const $parentSection = $(plot).closest('.plot-type-section');
-      if ($parentSection.length > 0) { $parentSection.after($detailedPlotsContainer); } 
-      else { $('#plots').append($detailedPlotsContainer); }
-
-      $detailedPlotsContainer.append(response.plotDivs[0]);
-
-      if (!isDrillDownIntoObs) {
-          const newPlotNode = $detailedPlotsContainer.find('.js-plotly-plot')[0];
-          if (newPlotNode && traceColor) {
-            setTimeout(() => {
-              if (newPlotNode.data) {
-                Plotly.restyle(newPlotNode, { 'marker.color': traceColor, 'line.color': traceColor });
-              }
-            }, 100);
-          }
-      }
-
-      if (typeof MathJax !== 'undefined' && MathJax.typeset) {
-        MathJax.typeset([$detailedPlotsContainer[0]]);
-      }
-    }
+  // 3. Frontend Accelerator (Memory Drill-down)
+  // 🟢 FIX 4: Filter by BOTH GTI Number and ObsID so we don't mix observations
+  const isolatedTraces = (plot.data || []).filter(t => {
+      const tName = t.name || "";
+      const matchGti = tName.match(/GTI\s*(\d+)/i);
+      const parsedGti = matchGti ? parseInt(matchGti[1], 10) : null;
+      return (parsedGti === gtiNum) && tName.includes(obsId);
+  }).map(t => {
+      const newTrace = JSON.parse(JSON.stringify(t)); 
+      newTrace.xaxis = 'x'; 
+      newTrace.yaxis = 'y';
+      return newTrace;
   });
+
+  if (isolatedTraces.length > 0) {
+      let $container = $('#detailed-gti-plots');
+      if ($container.length === 0) $container = $('<div id="detailed-gti-plots" style="margin-top: 2rem;"></div>');
+      $container.empty().detach();
+      
+      const newPlotId = `standalone-gti-plot-${gtiNum}-${Date.now()}`;
+      $container.append(`<h2>Selected GTI: ${obsId} (GTI ${gtiNum})</h2>`);
+      $container.append(`<div id="${newPlotId}" class="plotly-graph-div js-plotly-plot" style="width:100%; height:400px;"></div>`);
+      
+      const $parent = $(plot).closest('.plot-type-section');
+      if ($parent.length > 0) $parent.after($container);
+      else $('#plots').append($container);
+
+      const clonedLayout = JSON.parse(JSON.stringify(plot.layout || {}));
+      clonedLayout.title = { text: `Light Curve ${obsId} - GTI ${gtiNum}` };
+      clonedLayout.shapes = []; 
+      if (clonedLayout.xaxis) {
+          delete clonedLayout.xaxis.domain;
+          clonedLayout.xaxis.autorange = true;
+      }
+      Object.keys(clonedLayout).forEach(k => { if (k.match(/^xaxis\d+$/)) delete clonedLayout[k]; });
+
+      Plotly.newPlot(newPlotId, isolatedTraces, clonedLayout);
+  }
 }
 
 /**

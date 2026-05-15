@@ -202,188 +202,110 @@ def light_curve_plot(
     start_time: float = None,
     stop_time: float = None,
     output_type: str = 'div') -> Any:
-    """
-    Gets and plots the corrected light curve data.
-    """
-    plot: str = ''
-    subplot_kwargs: list[dict[str, Any]] = []
-    x_data: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
-    y_data: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
-    x_error: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
-    background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
-    x_background: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
-    y_uncertainties: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
-
-    if isinstance(obs_id, list):
-        obs_ids_list = [str(oid).strip() for oid in obs_id]
-    else:
-        obs_ids_list = [oid.strip() for oid in str(obs_id).split(',') if oid.strip()]
-
-    if is_combined_obs:
-        if len(obs_ids_list) <= len(data_paths):
-            gti_labels = []
-            for i in range(len(data_paths)):
-                oid = obs_ids_list[i % len(obs_ids_list)] 
-                gti_labels.append(f"{oid}")
     
-    if gti_labels is None:
-        gti_labels = [f'GTI{gti}' for gti in gti_numbers]
+    import re
+    import numpy as np
+    from plotly.offline import plot
+    import plotly.graph_objs as go
+    from plotly.colors import qualitative
 
-    # --- 2. Process Data ---
-    for data_path in data_paths:
+    # 1. Initialize variables
+    x_axis_label = r"$\rm Relative\ Time\ (day)$"
+    x_data, y_data, x_error, background, x_background, y_uncertainties = [], [], [], [], [], []
+    final_gti_nums, final_labels = [], []
+
+    # 2. Data Loading Loop - Path extraction ensures correct ID mapping
+    for i, data_path in enumerate(data_paths):
         try:
             x_bin, y_bin, bg_x_bin, bg_bin, x_err, uncertainty = light_curve_data(
-                min_value,
-                data_path,
-                start_time=start_time,
-                stop_time=stop_time
+                min_value, data_path, start_time=start_time, stop_time=stop_time
             )
-        except Exception as e:
-            print(f"Skipping empty or corrupt file: {data_path}")
-            continue
+            if len(x_bin) > 0:
+                path_match = re.search(r'/(\d{10})/', data_path)
+                actual_oid = path_match.group(1) if path_match else str(obs_id)
+                
+                x_data.append(x_bin); y_data.append(y_bin)
+                x_background.append(bg_x_bin); background.append(bg_bin)
+                x_error.append(x_err); y_uncertainties.append(uncertainty)
+                final_gti_nums.append(gti_numbers[i])
+                final_labels.append(actual_oid)
+        except: continue
 
-        if len(x_bin) > 0:
-            x_data.append(x_bin)
-            y_data.append(y_bin)
-            x_background.append(bg_x_bin)
-            background.append(bg_bin)
-            x_error.append(x_err)
-            y_uncertainties.append(uncertainty)
+    if not x_data:
+        empty_fig = go.Figure().add_annotation(text="No valid data", showarrow=False)
+        return plot(empty_fig, output_type='div', include_plotlyjs=False)
 
-    # --- 3. INTEGRATED SORTING AND NORMALIZATION LOGIC ---
-    if is_combined_obs:
-        # === YOUR OVERLAY MODE (DAYS, ZERO-START) ===
-        x_background = [(datum - datum[0]) / 86400.0 for datum in x_background]
-        x_data = [(datum - datum[0]) / 86400.0 for datum in x_data]
-        x_error = [datum / 86400.0 for datum in x_error] 
+    # 3. Synchronized Normalization
+    obs_group_starts = {}
+    for datum, oid in zip(x_data, final_labels):
+        obs_group_starts[oid] = min(obs_group_starts.get(oid, float('inf')), np.min(datum))
+
+    for i in range(len(x_data)):
+        ref_t = obs_group_starts[final_labels[i]]
+        x_data[i] = (x_data[i] - ref_t) / 86400.0
+        x_background[i] = (x_background[i] - ref_t) / 86400.0
+    x_error = [datum / 86400.0 for datum in x_error]
+
+    # 4. Global Sorting & Box Detection
+    idxs = np.argsort([min(d) for d in x_data])
+    x_data = [x_data[j] for j in idxs]
+    y_data = [y_data[j] for j in idxs]
+    x_background = [x_background[j] for j in idxs]
+    background = [background[j] for j in idxs]
+    x_error = [x_error[j] for j in idxs]
+    y_uncertainties = [y_uncertainties[j] for j in idxs]
+    final_labels = [final_labels[j] for j in idxs]
+    final_gti_nums = [final_gti_nums[j] for j in idxs]
+
+    subplot_kwargs = [{'row': 1, 'col': 1}]
+    for i in range(1, len(x_data)):
+        gap = np.min(x_data[i]) - np.max(x_data[i-1])
+        subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + (1 if gap > 0.05 else 0)})
+
+    # 5. Color Mapping Logic
+    unique_oids = sorted(list(obs_group_starts.keys()))
+    is_multi_obs = len(unique_oids) > 1
+    
+    # ObsID map for Multi-Obs Comparison
+    color_palette = [qualitative.Plotly[0], "#EF553B", qualitative.Plotly[2], qualitative.Plotly[4]]
+    color_map = {oid: color_palette[k % len(color_palette)] for k, oid in enumerate(unique_oids)}
+
+    fig = make_subplots(rows=1, cols=subplot_kwargs[-1]['col'], shared_yaxes=True, horizontal_spacing=0.01)
+    
+    # 6. Plotting Loop
+    seen_oids = set()
+    for i in range(len(x_data)):
+        oid = final_labels[i]
+        gti_n = final_gti_nums[i]
         
-        subplot_kwargs = [{'row': 1, 'col': 1}] * len(x_data)
-        x_axis_label = r'$\text{Relative Time (days)}$'
-    
-    else:
-        # --- RAHUL'S CHRONOLOGICAL SORTING INTEGRATED ---
-        idxs = np.argsort([min(datum) if len(datum)>0 else 0 for datum in x_data])
-        gti_numbers = [gti_numbers[idx] for idx in idxs]
-        gti_labels = [gti_labels[idx] for idx in idxs]
-        x_data = [x_data[idx] for idx in idxs]
-        y_data = [y_data[idx] for idx in idxs]
-        x_background = [x_background[idx] for idx in idxs]
-        background = [background[idx] for idx in idxs]
-        x_error = [x_error[idx] for idx in idxs]
-        y_uncertainties = [y_uncertainties[idx] for idx in idxs]
-
-        # Maintaining your Relative Time (day) logic
-        if len(x_data) > 0:
-            start_t = x_data[0][0]
-            x_background = [(datum - start_t) / 86400.0 for datum in x_background]
-            x_data = [(datum - start_t) / 86400.0 for datum in x_data]
-            x_error = [datum / 86400.0 for datum in x_error]
-
-        # --- INTEGRATED DYNAMIC SUBPLOT GAP DETECTION ---
-        subplot_kwargs = [{'row': 1, 'col': 1}]
-        for i, x_datum in enumerate(x_data[1:]):
-            # Adopting Rahul's 10x bin width gap threshold logic
-            current_x_errors = x_error[i + 1]
-            max_bin_width = 2 * np.max(current_x_errors) if len(current_x_errors) > 0 else 0
-
-            if max_bin_width > 0 and x_datum[0] - x_data[i][-1] > 10 * max_bin_width:
-                subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + 1})
-            else:
-                subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col']})
+        # 🟢 FEATURE 1: Color Logic
+        # If multi-obs, use ObsID color. If single search, use index color (rainbow).
+        color = color_map[oid] if is_multi_obs else qualitative.Plotly[i % len(qualitative.Plotly)]
         
-        x_axis_label = r'$\rm Relative\ Time\ (day)$'
-
-    # --- 4. Plot Generation ---
-    cols_count = subplot_kwargs[-1]['col'] if subplot_kwargs else 1
-    
-    fig = make_subplots(
-        rows=1,
-        cols=cols_count,
-        shared_yaxes=True,
-        horizontal_spacing=0.01,
-    )
-    
-    fig.add_annotation(
-        text=x_axis_label,
-        xref='paper',
-        yref='paper',
-        x=0.5,
-        y=-0.15,
-        showarrow=False,
-        xanchor='center',
-        yanchor='top',
-        font=dict(size=14),
-    )
-
-    result_plot = None
-    for i, (
-        gti_number,
-        gti_label,
-        color,
-        x_datum,
-        y_datum,
-        x_err,
-        y_uncertainty,
-        bg_x_datum,
-        bg_datum,
-        subplot_kw,
-    ) in enumerate(zip(
-        gti_numbers,
-        gti_labels,
-        qualitative.Plotly * (len(gti_numbers) // len(qualitative.Plotly) + 1),
-        x_data,
-        y_data,
-        x_error,
-        y_uncertainties,
-        x_background,
-        background,
-        subplot_kwargs,
-    )):
-        # --- YOUR ORIGINAL COMBINED MODE ANNOTATION LOGIC ---
-        if is_combined_obs and len(x_datum) > 0:
-            end_time = x_datum[-1]
-            fig.add_vline(
-                x=end_time, 
-                line_width=2, 
-                line_dash="dash", 
-                line_color=color,
-                opacity=0.8,
-                row=1, col=1,
-                layer="above" 
-            )
-            fig.add_annotation(
-                x=end_time,
-                y=1.05, 
-                yref="paper", 
-                text=f"{end_time:.4f} d",
-                showarrow=False,
-                font=dict(size=10, color=color),
-                textangle=-90,
-                xanchor="center",
-                yanchor="bottom"
-            )
-
-        # Maintaining your data_plot signature
-        result_plot = data_plot(
-            plot_type='lines+markers',
-            gti_numbers=[gti_number],
-            colors=[color],
-            gti_labels=[gti_label],
-            x_errors=[x_err],
-            x_data_list=[x_datum],
-            y_data_list=[y_datum],
-            y_uncertainties=[y_uncertainty],
-            background_list=[bg_datum],
-            x_background_list=[bg_x_datum],
-            plot_kwargs={'mode': 'markers', 'opacity': 0.7 if is_combined_obs else 1.0, 'output_type': output_type},
-            layout_kwargs={
-                'title': f'Light Curve {obs_id}',
-                'yaxis_title': r'$\text{Photons}\ (s^{-1} {\rm det}^{-1})$',
-                'showlegend': True if is_combined_obs else (i == len(gti_numbers) - 1),
-                'template': 'plotly_white',
-                'hovermode': 'closest'
+        # 🟢 FEATURE 2: Double-Click Compatibility
+        # Naming format: "ObsID GTI Number" so JS regex matches it
+        trace_name = f"{oid} GTI {gti_n}"
+        
+        data_plot(
+            plot_type='lines+markers', gti_numbers=[gti_n], colors=[color], gti_labels=[trace_name],
+            x_errors=[x_error[i]], x_data_list=[x_data[i]], y_data_list=[y_data[i]],
+            y_uncertainties=[y_uncertainties[i]], background_list=[background[i]], x_background_list=[x_background[i]],
+            plot_kwargs={
+                'mode': 'markers', 
+                'legendgroup': oid if is_multi_obs else trace_name, 
+                'legendgrouptitle_text': f"ObsID: {oid}" if is_multi_obs and oid not in seen_oids else None,
+                'name': trace_name, 
+                'showlegend': True,
+                'output_type': output_type
             },
-            subplot_kwargs=subplot_kw,
-            fig=fig,
+            layout_kwargs={'template': 'plotly_white', 'hovermode': 'closest'},
+            subplot_kwargs=subplot_kwargs[i], fig=fig,
         )
-    return result_plot
+        seen_oids.add(oid)
+        fig.data[-1].showlegend = False # Hide BG trace
+
+    fig.update_layout(title="Light Curve Comparison", legend=dict(groupclick="toggleitem"))
+    fig.add_annotation(text=x_axis_label, xref='paper', yref='paper', x=0.5, y=-0.15, showarrow=False)
+
+    if output_type == 'div': return plot(fig, output_type='div', include_plotlyjs=False)
+    return fig
