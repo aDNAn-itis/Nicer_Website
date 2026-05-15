@@ -686,6 +686,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const formData = new FormData();
             formData.append('obs_ids', obsidsToPlot.join(',')); 
             formData.append('quality', document.getElementById('quality-select').value);
+            formData.append('search_type', $("#search-type").val());
             formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
             fetch(PLOT_COMBINED_URL, { method: 'POST', body: formData })
@@ -784,6 +785,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const combinedString = obsidsToPlot.join(',');
             $tempForm.append($('<input>').attr('name', 'obs_id').val(combinedString));
             $tempForm.append($('<input>').attr('name', 'quality').val($('#quality-select').val()));
+            $tempForm.append($('<input>').attr('name', 'search_type').val($('#search-type').val()));
             $tempForm.append($('<input>').attr('name', 'csrfmiddlewaretoken').val($('[name=csrfmiddlewaretoken]').val()));
 
             const finalGtiQuery = selectedGtis

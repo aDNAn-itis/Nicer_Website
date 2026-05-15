@@ -52,7 +52,7 @@ def light_curve_data(
         return (np.array([]),) * 6
 
     try:
-        # Rahul's scientific column selection (0, 2, 3) integrated with your dtype
+        # Rahul's scientific column selection (1, 2, 3) integrated with your dtype
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
@@ -215,16 +215,16 @@ def light_curve_plot(
     y_uncertainties: list[ndarray[tuple[int], np.dtype[np.float64]]] = []
 
     if isinstance(obs_id, list):
-      obs_ids_list = [str(oid).strip() for oid in obs_id]
+        obs_ids_list = [str(oid).strip() for oid in obs_id]
     else:
-      obs_ids_list = [oid.strip() for oid in str(obs_id).split(',') if oid.strip()]
+        obs_ids_list = [oid.strip() for oid in str(obs_id).split(',') if oid.strip()]
 
     if is_combined_obs:
-       if len(obs_ids_list) <= len(data_paths):
-         gti_labels = []
-         for i in range(len(data_paths)):
-             oid = obs_ids_list[i % len(obs_ids_list)] 
-             gti_labels.append(f"{oid}")
+        if len(obs_ids_list) <= len(data_paths):
+            gti_labels = []
+            for i in range(len(data_paths)):
+                oid = obs_ids_list[i % len(obs_ids_list)] 
+                gti_labels.append(f"{oid}")
     
     if gti_labels is None:
         gti_labels = [f'GTI{gti}' for gti in gti_numbers]
@@ -271,7 +271,6 @@ def light_curve_plot(
         background = [background[idx] for idx in idxs]
         x_error = [x_error[idx] for idx in idxs]
         y_uncertainties = [y_uncertainties[idx] for idx in idxs]
-        gti_labels = [gti_labels[idx] for idx in idxs]
 
         # Maintaining your Relative Time (day) logic
         if len(x_data) > 0:

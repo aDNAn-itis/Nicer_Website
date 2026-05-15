@@ -182,6 +182,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     gti_query_str: str = request.POST.get('gti-search', '')
     requested_min_value_str = request.POST.get('min_value')
     output_format = request.POST.get('format', 'div')
+    search_type = request.POST.get('search_type', 'obs_id')
 
     # 2. Basic Validation
     if not obs_id_raw or not plot_type_raw:
@@ -217,7 +218,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     # 5. Locate Files across ALL provided Observation IDs
     final_file_paths_to_plot = []
     final_gti_numbers_for_plot_func = []
-    
+
     # Parse requested GTIs (e.g., "0,1,2-5" or "12345-0,67890-1")
     gti_list_parsed: list[int] = []
     gti_specifiers = {}
@@ -253,6 +254,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
     # 6. File Discovery Loop (The fix for the Path Construction Error)
     # We look into each observation's 'jspipe/' directory separately
+    final_gti_labels_for_plot_func = []
     for oid in obs_id_list:
         rel_path = os.path.join(oid, 'jspipe/')
         full_dir_path = os.path.join(settings.DATA_DIR, rel_path)
@@ -277,12 +279,14 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
                 if file_match:
                     final_file_paths_to_plot.append(os.path.join(full_dir_path, file_match.name))
                     final_gti_numbers_for_plot_func.append(gti_num)
+                    final_gti_labels_for_plot_func.append(oid)
         else:
             # 🟢 Initial Load Behavior: If no specific GTI requested, include ALL files for this ObsID
             for item in plot_files_qs:
                 final_file_paths_to_plot.append(os.path.join(full_dir_path, item.name))
                 match = re.search(r'GTI(0*)(\d+)', item.name)
                 final_gti_numbers_for_plot_func.append(int(match.group(2)) if match else 0)
+                final_gti_labels_for_plot_func.append(oid)
 
     if not final_file_paths_to_plot:
         return JsonResponse({'error': f'No data files found for {obs_id_raw}'}, status=404)
@@ -298,6 +302,8 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         screening_summary = get_screening_summary(screening_results)
         if screened_files:
             final_file_paths_to_plot, final_gti_numbers_for_plot_func = screened_files, screened_gtis
+            # Note: final_gti_labels_for_plot_func might need filtering too if screening is applied to LC, 
+            # but currently screening is only for spectrum.
         else:
             screening_summary['all_failed'] = True
             bg_dash = 'dash'
@@ -313,6 +319,8 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         if plot_type in ('spectrum', 'summed_spectrum'):
             # Use raw obs_id string for title generation, but the gathered file list for data
             plot_divs_result = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, bg_dash=bg_dash, **kwargs)
+        elif plot_type == 'light_curve':
+            plot_divs_result = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, gti_labels=final_gti_labels_for_plot_func, **kwargs)
         else:
             plot_divs_result = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, **kwargs)
             
@@ -368,7 +376,7 @@ def plot_single_gti(request: HttpRequest) -> JsonResponse:
             obs_id=f"{obs_id} (GTI)",
             data_paths=[full_path],
             gti_numbers=[0],
-            gti_labels=[f"Time Range"],
+            gti_labels=[obs_id],
             start_time=start_time,
             stop_time=stop_time
         )

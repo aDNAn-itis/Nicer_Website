@@ -371,6 +371,11 @@ export async function fetchGTIPlot(e) {
     const cleanTypeForReq = type.replace(/-/g, '_');
     formData = formData.replace(/plot_type=[^&]*/, "plot_type=" + cleanTypeForReq);
 
+    // Ensure search_type is included
+    if (!formData.includes('search_type')) {
+        formData += `&search_type=${encodeURIComponent($('#search-type').val())}`;
+    }
+
     // 🟢 DNA FIX: Force fallback to trigger if search is empty or missing
     if (!formData.includes("gti-search") || formData.includes("gti-search=&")) {
         // If it's empty in the form, use our recovered gtiSearch
