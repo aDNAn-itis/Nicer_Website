@@ -80,7 +80,7 @@ class PlotRequest:
         )
 
 # --- YOUR HELPER FUNCTION FOR GLOBAL HID (Single Point) ---
-def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers):
+def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output_type='div'):
     try:
         all_hardness = []
         all_intensity = []
@@ -124,7 +124,11 @@ def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers):
             yaxis=dict(title='Average Intensity (counts/s)', type='log'),
             hovermode='closest', width=600, height=500, template='plotly_white'
         )
-        return plot(go.Figure(data=[trace], layout=layout), output_type='div', include_plotlyjs=False)
+        fig = go.Figure(data=[trace], layout=layout)
+        if output_type == 'dict':
+            import json
+            return json.loads(fig.to_json())
+        return plot(fig, output_type='div', include_plotlyjs=False)
     except Exception as e:
         logger.error(f"Error generating global HID point: {e}")
         return f"<div style='color:red'>Error: {str(e)}</div>"

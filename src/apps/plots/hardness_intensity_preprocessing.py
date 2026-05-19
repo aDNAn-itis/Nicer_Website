@@ -73,7 +73,7 @@ def process_lc_file(filename: str) -> Tuple[ndarray, ndarray, ndarray, ndarray]:
 
     return time, soft_band, hard_band, intensity
 
-def get_convex_hull(x, y):
+def calculate_convex_hull(x, y):
     """Calculates the boundary polygon (Convex Hull) for a set of points."""
     if x is None or y is None:
         return None, None
@@ -104,8 +104,9 @@ def get_hid_data_and_plot(
     obs_id: Any,
     data_paths: List[str],
     gti_numbers: List[int],
-    gti_labels: list[str] | None = None
-) -> str:
+    gti_labels: list[str] | None = None,
+    output_type: str = 'div'
+) -> Any:
     """
     Main entry point for HID plotting.
     - Automatically detects if it's a Single Observation or Combined.
@@ -115,14 +116,14 @@ def get_hid_data_and_plot(
     
     # Combined logic: Multiple obs IDs or multiple GTIs selected
     if ',' in obs_str or len(gti_numbers) > 1:
-        return _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels)
+        return _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels, output_type=output_type)
     else:
-        return _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels)
+        return _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels, output_type=output_type)
 
 # ==============================================================================
 # STYLE 1: TIME PLOT (For Single Observation)
 # ==============================================================================
-def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels) -> str:
+def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels, output_type='div') -> Any:
     """Internal function for Single-Obs Time Gradient Plot."""
     all_time: List[float] = []
     all_soft_counts: List[float] = []
@@ -206,7 +207,7 @@ def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_la
         x_data_list=[all_hardness],
         y_data_list=[all_intensity],
         color_data=norm_time.tolist(),
-        plot_kwargs={'mode': 'markers'},
+        plot_kwargs={'mode': 'markers', 'output_type': output_type},
         layout_kwargs={
             'title': f'Hardness-Intensity Diagram {obs_id}',
             'xaxis_title': r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$',
@@ -223,7 +224,7 @@ def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_la
 # ==============================================================================
 # STYLE 2: REGION PLOT (For Combined Observations)
 # ==============================================================================
-def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels) -> str:
+def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels, output_type='div') -> Any:
     """Internal function for Combined-Obs Polygon Plot."""
     obs_ids_list = str(obs_id).split(',')
     valid_datasets = []
@@ -252,7 +253,7 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
         if min_value and min_value > 0:
             sort = np.argsort(t_vals)
             min_bins = min_bin(min_value, (s_counts + h_counts)[sort])
-                 # CORRECTED UNPACKING: b_sz (bin sizes) must come before the unused uncertainty (_)
+            # CORRECTED UNPACKING: b_sz (bin sizes) must come before the unused uncertainty (_)
             (bs, bh, _), b_sz, _ = binning(min_bins, np.stack([s_counts[sort], h_counts[sort], t_vals[sort]]))
             h_final, i_final = bh / bs, (bs + bh) / (b_sz * dt)
         else:
@@ -273,7 +274,7 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
         all_i_agg.extend(ds['i'])
 
         # Boundary Trace (Polygon/Convex Hull)
-        hull_x, hull_y = get_convex_hull(ds['h'], ds['i'])
+        hull_x, hull_y = calculate_convex_hull(ds['h'], ds['i'])
         if hull_x is not None:
             fig.add_trace(go.Scatter(
                 x=hull_x, y=hull_y, mode='lines', fill='toself', 
@@ -299,6 +300,7 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
 
     return data_plot(
         x_data_list=[], y_data_list=[], fig=fig,
+        plot_kwargs={'output_type': output_type},
         layout_kwargs={
             'title': 'Combined Hardness-Intensity Diagram',
             'xaxis_title': r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', 

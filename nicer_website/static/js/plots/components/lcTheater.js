@@ -21,19 +21,25 @@ export function updateTheaterFrame(index) {
     const obsId = window.lcTheaterPlaylist[index];
     if (!obsId) return;
 
+    const $plotArea = $("#theater-plot-area");
+    const layoutUpdate = {
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff",
+        "xaxis.autorange": true,
+        "yaxis.autorange": true,
+        margin: { t: 40, b: 40, l: 60, r: 20 }
+    };
+
     // Check cache first for high-speed playback
     if (theaterCache.has(obsId)) {
         const plotData = theaterCache.get(obsId);
-        const layoutUpdate = {
-            paper_bgcolor: "#ffffff",
-            plot_bgcolor: "#ffffff",
-            "xaxis.autorange": true,
-            "yaxis.autorange": true
-        };
         Plotly.react("theater-plot-area", plotData.data, plotData.layout || layoutUpdate, {displayModeBar: false});
         $("#theater-obs-id").text("Sequence " + (parseInt(index)+1) + ": " + obsId);
         return;
     }
+
+    // Show loading state in theater
+    $plotArea.addClass('loading');
 
     $.ajax({ 
         type: "POST", 
@@ -45,17 +51,21 @@ export function updateTheaterFrame(index) {
             "csrfmiddlewaretoken": $("input[name=\"csrfmiddlewaretoken\"]").val() 
         },
         success: function(response) {
+            $plotArea.removeClass('loading');
+            if (!response.plotDivs || response.plotDivs.length === 0) {
+                console.error("No plot data returned for", obsId);
+                return;
+            }
             const plotData = response.plotDivs[0];
             theaterCache.set(obsId, plotData);
-            const layoutUpdate = {
-                paper_bgcolor: "#ffffff",
-                plot_bgcolor: "#ffffff",
-                "xaxis.autorange": true,
-                "yaxis.autorange": true
-            };
+            
             // Use Plotly.react for flicker-free data swapping
             Plotly.react("theater-plot-area", plotData.data, plotData.layout || layoutUpdate, {displayModeBar: false});
             $("#theater-obs-id").text("Sequence " + (parseInt(index)+1) + ": " + obsId);
+        },
+        error: function(err) {
+            $plotArea.removeClass('loading');
+            console.error("Failed to fetch theater frame:", err);
         }
     });
 }
@@ -80,19 +90,25 @@ async function generateGIF() {
     const gd = document.getElementById('theater-plot-area');
 
     try {
+        // Prepare layout for GIF
+        const gifLayout = {
+            width: 800,
+            height: 400,
+            paper_bgcolor: "#ffffff",
+            plot_bgcolor: "#ffffff"
+        };
+
         for (let i = 0; i < window.lcTheaterPlaylist.length; i++) {
             $btn.text(`⌛ Frame ${i+1}/${window.lcTheaterPlaylist.length}`);
             
-            // Update frame (ensure it's rendered)
-            await new Promise((resolve) => {
-                const obsId = window.lcTheaterPlaylist[i];
-                if (theaterCache.has(obsId)) {
-                    const plotData = theaterCache.get(obsId);
-                    Plotly.react("theater-plot-area", plotData.data, plotData.layout || {}, {displayModeBar: false});
-                    // Give a small delay for Plotly to finish rendering
-                    setTimeout(resolve, 300);
-                } else {
-                    // Fetch if not in cache (should be rare if they used the slider)
+            const obsId = window.lcTheaterPlaylist[i];
+            let plotData;
+
+            if (theaterCache.has(obsId)) {
+                plotData = theaterCache.get(obsId);
+            } else {
+                // Fetch if not in cache (async)
+                plotData = await new Promise((resolve, reject) => {
                     $.ajax({
                         type: 'POST',
                         url: PLOT_GTI_URL,
@@ -102,22 +118,29 @@ async function generateGIF() {
                             'format': 'json',
                             'csrfmiddlewaretoken': $("input[name='csrfmiddlewaretoken']").val()
                         },
-                        success: function(data) {
-                            const plotData = data.plotDivs[0];
-                            theaterCache.set(obsId, plotData);
-                            Plotly.react("theater-plot-area", plotData.data, plotData.layout || {}, {displayModeBar: false});
-                            setTimeout(resolve, 500);
-                        }
+                        success: (data) => {
+                            if (data.plotDivs && data.plotDivs.length > 0) {
+                                theaterCache.set(obsId, data.plotDivs[0]);
+                                resolve(data.plotDivs[0]);
+                            } else reject("No data");
+                        },
+                        error: reject
                     });
-                }
-            });
+                });
+            }
+
+            // Render to theater area
+            await Plotly.react(gd, plotData.data, {...(plotData.layout || {}), ...gifLayout}, {displayModeBar: false});
+            
+            // Ensure WebGL/SVG is fully flushed
+            await new Promise(r => setTimeout(r, 200));
 
             // Capture image
             const imgData = await Plotly.toImage(gd, { format: 'png', width: 800, height: 400 });
             images.push(imgData);
         }
 
-        $btn.text("🎬 Encoding...");
+        $btn.text("🎬 Encoding GIF...");
 
         gifshot.createGIF({
             images: images,
@@ -133,6 +156,7 @@ async function generateGIF() {
                 link.download = `nicer_sequence_${Date.now()}.gif`;
                 link.click();
                 $btn.prop('disabled', false).text(originalText);
+                if (window.StatusBar) window.StatusBar.getInstance().show("GIF downloaded successfully!", 3000);
             } else {
                 console.error("GIF Error:", obj.error);
                 alert("Error generating GIF: " + obj.error);

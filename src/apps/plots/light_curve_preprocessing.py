@@ -307,5 +307,9 @@ def light_curve_plot(
     fig.update_layout(title="Light Curve Comparison", legend=dict(groupclick="toggleitem"))
     fig.add_annotation(text=x_axis_label, xref='paper', yref='paper', x=0.5, y=-0.15, showarrow=False)
 
-    if output_type == 'div': return plot(fig, output_type='div', include_plotlyjs=False)
+    if output_type == 'div': 
+        return plot(fig, output_type='div', include_plotlyjs=False)
+    elif output_type == 'dict':
+        import json
+        return json.loads(fig.to_json())
     return fig

@@ -161,6 +161,7 @@ def data_plot(
             fig.add_trace(go.Scatter(
                 x=x_bg, y=bg, mode='lines', name=f'{label} BG', opacity=0.8,
                 line={'color': color, 'dash': bg_dash_style}, legendgroup=number,
+                showlegend=False
             ), **subplot_kwargs or {})
 
     # Adaptive log range

@@ -349,6 +349,26 @@ function setActiveObsID(obsId) {
     }
 }
 
+function addToTheaterPlaylist(obsid) {
+    if (!obsid) return;
+    if (!window.lcTheaterPlaylist) window.lcTheaterPlaylist = [];
+    
+    // Add to playlist (unique entries for cleaner sequence)
+    if (!window.lcTheaterPlaylist.includes(obsid)) {
+        window.lcTheaterPlaylist.push(obsid);
+        if (window.StatusBar) window.StatusBar.getInstance().show(`Added ${obsid} to Theater Sequence.`, 1500);
+    } else {
+        if (window.StatusBar) window.StatusBar.getInstance().show(`${obsid} already in Sequence.`, 1000);
+    }
+
+    // If theater is open, sync the slider and view
+    if ($("#lc-theater-panel").is(":visible")) {
+        const newIndex = window.lcTheaterPlaylist.indexOf(obsid);
+        $("#theater-slider").attr("max", window.lcTheaterPlaylist.length - 1).val(newIndex);
+        if (window.updateTheaterFrame) window.updateTheaterFrame(newIndex);
+    }
+}
+
 function handleGlobalPointClick(obsId) {
     console.log("Global point clicked:", obsId);
     const globalCheck = document.getElementById('plot-global-hid');
@@ -359,6 +379,10 @@ function handleGlobalPointClick(obsId) {
         document.getElementById('selected-obsids-list').appendChild(li);
     }
     setActiveObsID(obsId);
+    
+    // Auto-track in Theater
+    addToTheaterPlaylist(obsId);
+    
     StatusBar.getInstance().show(`Selected ObsID ${obsId}.`, 2000);
 }
 
@@ -448,6 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
               // Remove from selectedGtis array
               const filteredPills = selectedGtis.filter(item => !(item.obsId === obsId && item.gti === gti));
               selectedGtis.length = 0; // Clears without losing reference
+              selectedGtis.push(...filteredPills);
               
               console.log('selectedGtis after deselection:', JSON.parse(JSON.stringify(selectedGtis)));
 
@@ -614,9 +639,7 @@ document.addEventListener("DOMContentLoaded", () => {
           setActiveObsID(obsid);
 
           // LC Theater Logic (Silent Tracking)
-          if (!window.lcTheaterPlaylist) window.lcTheaterPlaylist = [];
-          window.lcTheaterPlaylist.push(obsid);
-          StatusBar.getInstance().show(`Added ${obsid} to Theater Sequence.`, 1500);
+          addToTheaterPlaylist(obsid);
       }
     });
   }
@@ -629,6 +652,7 @@ document.addEventListener("DOMContentLoaded", () => {
         delete gtiMap[obsIdToRemove];
         const filteredObs = selectedGtis.filter(gti => gti.obsId !== obsIdToRemove);
         selectedGtis.length = 0;
+        selectedGtis.push(...filteredObs);
         updateSelectedGtisDisplay();
         e.target.parentElement.remove();
 
@@ -650,9 +674,7 @@ document.addEventListener("DOMContentLoaded", () => {
           setActiveObsID(obsid);
 
           // LC Theater Logic (Silent Tracking)
-          if (!window.lcTheaterPlaylist) window.lcTheaterPlaylist = [];
-          window.lcTheaterPlaylist.push(obsid);
-          StatusBar.getInstance().show(`Added ${obsid} to Theater Sequence.`, 1500);
+          addToTheaterPlaylist(obsid);
       }
     });
 
@@ -737,12 +759,6 @@ document.addEventListener("DOMContentLoaded", () => {
                             } else {
                                 console.log("Single Click on Point:", obsId);
                                 handleGlobalPointClick(obsId); 
-
-                                // LC Theater Logic (Silent Tracking)
-                                if (obsId) {
-                                    if (!window.lcTheaterPlaylist) window.lcTheaterPlaylist = [];
-                                    window.lcTheaterPlaylist.push(obsId);
-                                }
                             }
                         });
                         
