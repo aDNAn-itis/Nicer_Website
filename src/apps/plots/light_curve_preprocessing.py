@@ -270,21 +270,32 @@ def light_curve_plot(
     color_palette = [qualitative.Plotly[0], "#EF553B", qualitative.Plotly[2], qualitative.Plotly[4]]
     color_map = {oid: color_palette[k % len(color_palette)] for k, oid in enumerate(unique_oids)}
 
+    # GTI map for Single-Obs (so segments of the same GTI share a color)
+    unique_gtis_ordered = []
+    for gti_n in final_gti_nums:
+        if gti_n not in unique_gtis_ordered:
+            unique_gtis_ordered.append(gti_n)
+    gti_color_map = {gti_n: qualitative.Plotly[k % len(qualitative.Plotly)] for k, gti_n in enumerate(unique_gtis_ordered)}
+
     fig = make_subplots(rows=1, cols=subplot_kwargs[-1]['col'], shared_yaxes=True, horizontal_spacing=0.01)
     
     # 6. Plotting Loop
     seen_oids = set()
+    seen_labels = set()
     for i in range(len(x_data)):
         oid = final_labels[i]
         gti_n = final_gti_nums[i]
         
         # 🟢 FEATURE 1: Color Logic
-        # If multi-obs, use ObsID color. If single search, use index color (rainbow).
-        color = color_map[oid] if is_multi_obs else qualitative.Plotly[i % len(qualitative.Plotly)]
+        # If multi-obs, use ObsID color. If single search, use GTI-specific color.
+        color = color_map[oid] if is_multi_obs else gti_color_map[gti_n]
         
         # 🟢 FEATURE 2: Double-Click Compatibility
         # Naming format: "ObsID GTI Number" so JS regex matches it
         trace_name = f"{oid} GTI {gti_n}"
+        
+        show_in_legend = trace_name not in seen_labels
+        seen_labels.add(trace_name)
         
         data_plot(
             plot_type='lines+markers', gti_numbers=[gti_n], colors=[color], gti_labels=[trace_name],
@@ -295,7 +306,7 @@ def light_curve_plot(
                 'legendgroup': oid if is_multi_obs else trace_name, 
                 'legendgrouptitle_text': f"ObsID: {oid}" if is_multi_obs and oid not in seen_oids else None,
                 'name': trace_name, 
-                'showlegend': True,
+                'showlegend': show_in_legend,
                 'output_type': output_type
             },
             layout_kwargs={'template': 'plotly_white', 'hovermode': 'closest'},

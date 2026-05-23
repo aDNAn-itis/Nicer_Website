@@ -238,99 +238,270 @@ export function initInteractiveLinking() {
 }
 
 function handleGtiDoubleClick(data, plot) {
-  console.log("Drill-down triggered...");
+  console.log("handleGtiDoubleClick native redirect triggered with data:", data);
   const point = data.points?.[0];
-  if (!point) return;
+  if (!point) {
+    console.log("Double click did not explicitly occur on a plotted trace. Ignoring.");
+    return;
+  }
 
-  // 1. Identification: Handle the new "Obs [ID] | GTI [Num]" format
+  // The ObsID is in the title of the plot, e.g., "Light Curve 1234567890"
+  const obsIdMatch = plot.layout.title?.text?.match(/\d{10}/);
+  if (!obsIdMatch) {
+    console.error("Could not extract Observation ID from plot title.");
+    return;
+  }
+  const obsId = obsIdMatch[0];
+
+  // Extract the exact GTI number directly from the trace legend string ("GTI0", "GTI 0", etc)
   const curveNumber = point.curveNumber;
   const traceName = (plot.data && curveNumber !== undefined && plot.data[curveNumber])
     ? plot.data[curveNumber].name
     : (point.data ? point.data.name : '');
 
-  // 🟢 FIX 1: Extract 10-digit ID anywhere in the string (remove ^ and $ anchors)
-  const obsIdMatch = traceName.match(/(\d{10})/);
-  const obsId = obsIdMatch ? obsIdMatch[1] : (plot.layout.title?.text?.match(/\d{10}/)?.[0]);
-
-  if (!obsId) {
-    console.error("Could not extract Observation ID from trace or title.");
-    return;
+  let gtiNum = null;
+  if (traceName) {
+    const match = traceName.match(/GTI\s*(\d+)/i);
+    if (match) {
+      gtiNum = parseInt(match[1], 10);
+    }
   }
 
-  // 🟢 FIX 2: Extract GTI number
-  let gtiNum = null;
-  const gtiMatch = traceName.match(/GTI\s*(\d+)/i);
-  if (gtiMatch) gtiNum = parseInt(gtiMatch[1], 10);
+  // If we still can't find the GTI number, try matching ALL names in plot.data to see if only one GTI exists
+  let gtiStartX = null;
+  let gtiStopX = null;
 
-  // 2. Geometric isolation
-  const trace = (plot.data && curveNumber !== undefined && plot.data[curveNumber]) ? plot.data[curveNumber] : null;
+  if (gtiNum === null || isNaN(gtiNum)) {
+    console.log(`Could not intuitively extract GTI number from traced name. Name: '${traceName}'`);
+  }
+
+  // Always attempt to dynamically calculate the contiguous geometric bounds of the clicked trace
+  // This guarantees the blue highlight box perfectly encapsulates the specific GTI and prevents merged-trace bleeding
+  const trace = (plot.data && curveNumber !== undefined && plot.data[curveNumber])
+    ? plot.data[curveNumber]
+    : (plot.data ? plot.data.find(t => t.x && t.x.length > 0 && !(t.name || '').toLowerCase().includes('background')) : null);
 
   if (trace && trace.x) {
-    // 🟢 FIX 3: Detect if axis is in "Days" and adjust the 15-second gap threshold
-    const isDays = (plot.layout.xaxis?.title?.text || '').toLowerCase().includes('day');
-    const GAP_LIMIT = isDays ? (15 / 86400.0) : 15; // 15s converted to days
-
     let currentGtiIndex = 0;
     let startIdx = 0;
-    let gtiStopX = null;
     const clickedTime = point.x;
 
     for (let i = 0; i < trace.x.length; i++) {
-      if (i > 0 && Math.abs(trace.x[i] - trace.x[i - 1]) > GAP_LIMIT) {
+      // A time separation > 15 seconds marks reaching the next distinct GTI block orbit
+      if (i > 0 && Math.abs(trace.x[i] - trace.x[i - 1]) > 15) {
         if (trace.x[i - 1] >= clickedTime) {
+          // The previous chunk contained the click timeline!
           gtiStopX = trace.x[i - 1];
           break;
         }
         currentGtiIndex++;
-        startIdx = i;
+        startIdx = i; // Next chunk starts right here
       }
     }
-    const gtiStartX = trace.x[startIdx];
-    if (gtiStopX === null) gtiStopX = trace.x[trace.x.length - 1];
 
-    if (gtiNum === null || isNaN(gtiNum)) gtiNum = currentGtiIndex;
+    if (gtiStopX === null) {
+      // If we never crossed into a next chunk, it was the final chunk
+      gtiStopX = trace.x[trace.x.length - 1];
+    }
+    gtiStartX = trace.x[startIdx];
 
-    applyHighlightingToLightCurve(plot, [gtiStartX, gtiStopX], trace.xaxis || 'x');
+    // If we didn't have a GTI number earlier, adopt our structurally deduced one
+    if (gtiNum === null || isNaN(gtiNum)) {
+      gtiNum = currentGtiIndex;
+      console.log(`Chronologically counted data gaps. Deduced GTI index from plot structure: ${gtiNum}`);
+    }
+
+    console.log(`GTI Boundaries isolated: [${gtiStartX}, ${gtiStopX}]`);
+
+    // Extract the strict native Plotly axis sub-identifier (e.g., 'x2', 'x3') for this specific GTI chunk
+    // Discontinuous light curves map separated chunks to completely different physical HTML layout axes!
+    const targetXref = trace.xaxis || 'x';
+
+    // Draw the magnificent blue rectangle EXACTLY over exclusively this GTI structure and axis pane!
+    applyHighlightingToLightCurve(plot, [gtiStartX, gtiStopX], targetXref);
+
+  } else {
+    if (gtiNum === null || isNaN(gtiNum)) {
+      alert(`Could not extract GTI label and no raw timeline numeric data is available for calculation.`);
+      return;
+    }
   }
 
-  // 3. Frontend Accelerator (Memory Drill-down)
-  // 🟢 FIX 4: Filter by BOTH GTI Number and ObsID so we don't mix observations
+  let traceColor = null;
+  if (point.fullData) {
+    traceColor = point.fullData.marker?.color || point.fullData.line?.color;
+  }
+  if (Array.isArray(traceColor)) traceColor = traceColor[0];
+
+  console.log(`Prepared to dynamically fetch natively-rendered identical plot for ObsID: ${obsId}, GTI: ${gtiNum}. Custom Color: ${traceColor}`);
+
+  // (Removed redundant opacity reverters as they silently cancel active asynchronous Plotly object repaints and strand visual shapes)
+
+  // ====================================================
+  // FRONTEND ACCELERATOR: INSTANT GRAPH RE-INJECTION
+  // ====================================================
+  // The Python Django backend routinely takes 10 to 20 seconds to construct massive Plotly HTML payloads mechanically.
+  // Since the user natively imported the full GTI trace arrays to render the main plot, we can instantaneously 
+  // deep-clone the specific array from memory, nullify its multi-axis projection coordinates, and render it under 50ms!
   const isolatedTraces = (plot.data || []).filter(t => {
-      const tName = t.name || "";
-      const matchGti = tName.match(/GTI\s*(\d+)/i);
-      const parsedGti = matchGti ? parseInt(matchGti[1], 10) : null;
-      return (parsedGti === gtiNum) && tName.includes(obsId);
-  }).map(t => {
+      const matchGti = (t.name || '').match(/GTI\s*(\d+)/i);
+      const parsed = matchGti ? parseInt(matchGti[1], 10) : null;
+      return parsed === gtiNum;
+  }).map((t, idx) => {
       const newTrace = JSON.parse(JSON.stringify(t)); 
-      newTrace.xaxis = 'x'; 
+      newTrace.xaxis = 'x'; // Mathematically destroy previous discontinuous Cartesian routing
       newTrace.yaxis = 'y';
+      // Force consistent vivid trace coloring instead of fallback gray matching
+      if (newTrace.marker) newTrace.marker.color = traceColor;
+      if (newTrace.line) newTrace.line.color = traceColor;
       return newTrace;
   });
 
   if (isolatedTraces.length > 0) {
-      let $container = $('#detailed-gti-plots');
-      if ($container.length === 0) $container = $('<div id="detailed-gti-plots" style="margin-top: 2rem;"></div>');
-      $container.empty().detach();
+      console.log(`Frontend Accelerator: Found ${isolatedTraces.length} memory traces for GTI ${gtiNum}. Automatically Bypassing 20-second backend latency!`);
+
+      let $detailedPlotsContainer = $('#detailed-gti-plots');
+      if ($detailedPlotsContainer.length === 0) {
+        $detailedPlotsContainer = $('<div id="detailed-gti-plots" style="margin-top: 2rem;"></div>');
+      } else {
+        $detailedPlotsContainer.empty().detach();
+      }
       
       const newPlotId = `standalone-gti-plot-${gtiNum}-${Date.now()}`;
-      $container.append(`<h2>Selected GTI: ${obsId} (GTI ${gtiNum})</h2>`);
-      $container.append(`<div id="${newPlotId}" class="plotly-graph-div js-plotly-plot" style="width:100%; height:400px;"></div>`);
+      $detailedPlotsContainer.append('<h2>Selected GTI Plot</h2>');
+      $detailedPlotsContainer.append(`<div id="${newPlotId}" class="plotly-graph-div js-plotly-plot" style="width:100%; height:400px;"></div>`);
       
-      const $parent = $(plot).closest('.plot-type-section');
-      if ($parent.length > 0) $parent.after($container);
-      else $('#plots').append($container);
+      // Inject strictly below the native plot wrapper logic
+      const $parentSection = $(plot).closest('.plot-type-section');
+      if ($parentSection.length > 0) {
+         $parentSection.after($detailedPlotsContainer);
+      } else {
+         $('#plots').append($detailedPlotsContainer);
+      }
 
       const clonedLayout = JSON.parse(JSON.stringify(plot.layout || {}));
       clonedLayout.title = { text: `Light Curve ${obsId} - GTI ${gtiNum}` };
-      clonedLayout.shapes = []; 
+      clonedLayout.shapes = []; // Clear the restrictive blue highlighter shapes
+
+      // Destroy all multiple discontinuous grid boundaries natively so the plot organically explodes to fill 100% width
       if (clonedLayout.xaxis) {
           delete clonedLayout.xaxis.domain;
+          delete clonedLayout.xaxis.range;
           clonedLayout.xaxis.autorange = true;
       }
-      Object.keys(clonedLayout).forEach(k => { if (k.match(/^xaxis\d+$/)) delete clonedLayout[k]; });
+      Object.keys(clonedLayout).forEach(key => {
+         if (key.match(/^xaxis\d+$/)) delete clonedLayout[key]; 
+      });
 
-      Plotly.newPlot(newPlotId, isolatedTraces, clonedLayout);
+      // Synchronously deploy UI logic mapping
+      Plotly.newPlot(newPlotId, isolatedTraces, clonedLayout).then(() => {
+          console.log(`Instantaneous Frontend Re-rendering completed flawlessly!`);
+      }).catch(err => {
+          console.error("Frontend Accelerator Error:", err);
+      });
+
+      return; // Fully circumvent the 20-second Ajax fallback and return control to the user immediately!
   }
+
+  // ====================================================
+  // BACKEND FALLBACK (for anonymous structural GTIs)
+  // ====================================================
+  console.warn("Frontend Accelerator bypassed. Proceeding with 20-second classical backend AJAX generation fallback...");
+
+  // Fallback box rendering if the gap-analysis algorithm skipped (e.g. data was empty)
+  if (typeof gtiStartX === 'undefined' && plot && plot.data && curveNumber !== undefined && plot.data[curveNumber]) {
+    const fallbackTrace = plot.data[curveNumber];
+    const xData = fallbackTrace.x || [];
+    if (xData.length > 0) {
+      let minX = xData[0], maxX = xData[0];
+      for (let i = 1; i < xData.length; i++) {
+        if (xData[i] < minX) minX = xData[i];
+        if (xData[i] > maxX) maxX = xData[i];
+      }
+      const targetXref = fallbackTrace.xaxis || 'x';
+      applyHighlightingToLightCurve(plot, [minX, maxX], targetXref);
+    }
+  }
+
+  // Formulate the EXACT SAME payload that the sidebar sends to the backend 
+  const formData = new FormData();
+  formData.append('obs_id', obsId);
+  formData.append('quality', $('#quality-select').val() || 'goddard');
+  formData.append('search_type', 'obs_id');
+  formData.append('gti-search', `${obsId}-${gtiNum}`);
+  formData.append('light_curve', 'on');
+  formData.append('plot_types', 'light_curve');
+  formData.append('csrfmiddlewaretoken', $('input[name="csrfmiddlewaretoken"]').val());
+  console.log("FormData exactly cloned for native graph request:", Object.fromEntries(formData.entries()));
+
+  // Submit to the primary PLOT_GRAPH_URL to get the identical layout
+  $.ajax({
+    type: 'POST',
+    url: PLOT_GRAPH_URL,
+    data: formData,
+    processData: false,
+    contentType: false,
+    success: function (response) {
+      if (response.error) {
+        alert('Error generating single GTI plot: ' + response.error);
+        return;
+      }
+
+      // Plot_data endpoint returns an array of plotDiv html strings
+      if (!response.plotDivs || response.plotDivs.length === 0) {
+        console.error("No plotted HTML structure was returned from the natively driven server route");
+        alert("Backend processing returned no plot structures.");
+        return;
+      }
+
+      let $detailedPlotsContainer = $('#detailed-gti-plots');
+      if ($detailedPlotsContainer.length === 0) {
+        $detailedPlotsContainer = $('<div id="detailed-gti-plots" style="margin-top: 2rem;"></div>');
+      } else {
+        // Clear previous selected GTI plots when a new one is clicked and detach to dynamically relocate it
+        $detailedPlotsContainer.empty();
+        $detailedPlotsContainer.detach();
+      }
+      
+      $detailedPlotsContainer.append('<h2>Selected GTI Plot</h2>');
+      
+      // Navigate up exactly to the structural wrapper of the clicked graph so we can insert the new plot purely right below it
+      const $parentSection = $(plot).closest('.plot-type-section');
+      if ($parentSection.length > 0) {
+         $parentSection.after($detailedPlotsContainer);
+      } else {
+         $('#plots').append($detailedPlotsContainer);
+      }
+
+      // Appending cleanly, just like how graph.js behaves natively
+      const plotHtml = response.plotDivs[0];
+      $detailedPlotsContainer.append(plotHtml);
+
+      // Cherry on top: Recolor the new standalone plot to match the specific GTI color from the main plot!
+      const newPlotNode = $detailedPlotsContainer.find('.js-plotly-plot')[0];
+      if (newPlotNode && traceColor) {
+        setTimeout(() => {
+          if (newPlotNode.data) {
+            Plotly.restyle(newPlotNode, {
+              'marker.color': traceColor,
+              'line.color': traceColor
+            });
+            console.log(`Restyled detailed plot to match original GTI trace color: ${traceColor}`);
+          }
+        }, 100); // Tiny delay ensures the injected <script> Plotly.newPlot() has finished executing
+      }
+
+      // Optionally re-run MathJax
+      if (typeof MathJax !== 'undefined' && MathJax.typeset) {
+        MathJax.typeset([$detailedPlotsContainer[0]]);
+      }
+      console.log("Detailed GTI natively styled plot beautifully cloned and rendered below. Done.");
+    },
+    error: function (jqXHR, textStatus, errorThrown) {
+      console.error("AJAX error internally fetching backend clone:", textStatus, errorThrown);
+      alert('Failed to clone backend GTI parameters.');
+    }
+  });
 }
 
 /**
