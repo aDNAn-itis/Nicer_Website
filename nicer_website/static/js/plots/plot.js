@@ -463,10 +463,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectedGtisDisplay = document.getElementById('selected-gtis-display');
   if (selectedGtisDisplay) {
       selectedGtisDisplay.addEventListener('click', (e) => {
-          if (e.target.classList.contains('selected-gti-item')) {
+          const card = e.target.closest('.selected-gti-item');
+          if (card) {
               console.log('selected-gti-item clicked. current selectedGtis:', JSON.parse(JSON.stringify(selectedGtis)));
-              const obsId = e.target.dataset.obsid;
-              const gti = parseInt(e.target.dataset.gti, 10);
+              const obsId = card.dataset.obsid;
+              const gti = parseInt(card.dataset.gti, 10);
               console.log('Deselecting obsId:', obsId, 'gti:', gti);
 
               // Remove from selectedGtis array

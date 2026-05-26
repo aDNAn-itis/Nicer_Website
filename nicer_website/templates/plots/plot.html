@@ -509,15 +509,14 @@
     <div id="theater-plot-area" style="width:100%; height:400px; background:#fff; border-radius:4px;"></div>
     <div style="margin-top:20px; padding:0 10px;">
         <input type="range" id="theater-slider" min="0" value="0" step="1" oninput="updateTheaterFrame(this.value)" style="width:100%; height:8px; cursor:pointer; accent-color:#333;">
-        <div style="display:flex; justify-content:space-between; font-size:12px; color:#666; margin-top:10px; font-family:monospace;">
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <span>Sequence Index</span>
-                <button id="theater-clear-btn" class="btn btn-sm" style="background: #fee2e2; color: #991b1b; border: 1px solid #f87171; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;">Clear Sequence</button>
+        <div style="margin-top:15px; font-family:monospace; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size:12px; color:#666;">Sequence Index</span>
+                <span id="theater-obs-id" style="font-weight:bold; color:#000; font-size:14px;">Waiting for Selection...</span>
             </div>
-            <div style="display: flex; gap: 15px; align-items: center;">
-                <button id="theater-gif-btn" class="btn btn-sm" style="background: #e0f2fe; color: #075985; border: 1px solid #38bdf8; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;">💾 Generate GIF</button>
-                <span id="theater-obs-id" style="font-weight:bold; color:#000;">Waiting for Selection...</span>
-            </div>
+            <button id="theater-gif-btn" class="btn-search" style="width: 100%; height: 38px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span></span> Generate GIF
+            </button>
         </div>
     </div>
 </div>

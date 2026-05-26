@@ -99,7 +99,7 @@ async function generateGIF() {
         };
 
         for (let i = 0; i < window.lcTheaterPlaylist.length; i++) {
-            $btn.text(`⌛ Frame ${i+1}/${window.lcTheaterPlaylist.length}`);
+            $btn.text(`Frame ${i+1}/${window.lcTheaterPlaylist.length}`);
             
             const obsId = window.lcTheaterPlaylist[i];
             let plotData;
@@ -140,7 +140,7 @@ async function generateGIF() {
             images.push(imgData);
         }
 
-        $btn.text("🎬 Encoding GIF...");
+        $btn.text("Creating GIF"); 
 
         gifshot.createGIF({
             images: images,
@@ -171,17 +171,6 @@ async function generateGIF() {
     }
 }
 
-function clearSequence() {
-    if (confirm("Clear entire theater sequence?")) {
-        window.lcTheaterPlaylist = [];
-        theaterCache.clear();
-        $('#theater-plot-area').empty();
-        $('#theater-obs-id').text("Playlist Cleared.");
-        $("#theater-slider").attr("max", 0).val(0);
-        if (window.StatusBar) window.StatusBar.getInstance().show("Theater Sequence Cleared.", 2000);
-    }
-}
-
 // Initialize the listeners
 $(document).ready(function() {
     $(document).off('input', '#theater-slider').on('input', '#theater-slider', function() {
@@ -190,9 +179,5 @@ $(document).ready(function() {
 
     $(document).off('click', '#theater-gif-btn').on('click', '#theater-gif-btn', function() {
         generateGIF();
-    });
-
-    $(document).off('click', '#theater-clear-btn').on('click', '#theater-clear-btn', function() {
-        clearSequence();
     });
 });
