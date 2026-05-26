@@ -503,6 +503,8 @@ export function combineAndPlotGTIs(event) {
         $combinedContainer.find('.js-plotly-plot').remove();
         $combinedContainer.append(data.plotDivs[0]);
         completeOperation(operationId, 'GTIs combined');
+        // 🟢 FIX: Re-bind double click functionality for newly injected Combined plot!
+        setTimeout(() => { initInteractiveLinking(); }, 100);
       }
     },
     error: function () { errorOperation(operationId, 'Error combining GTIs'); },

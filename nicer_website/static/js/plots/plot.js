@@ -725,7 +725,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <h3>GLOBAL HID</h3>
                             <div id="combined-hid-plot">${data.plotDiv}</div>
                             <div style="text-align:center; padding:15px; background:#fff; border-top:1px solid #eee; margin-top:-10px; border-bottom-left-radius:0.75rem; border-bottom-right-radius:0.75rem;">
-                                <button id="btn-open-theater" class="btn btn-sm btn-dark" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:5px; width:auto; display:inline-block;">🎥 Track Plots (Theater)</button>
+                                <button id="btn-open-theater" class="btn btn-sm btn-dark" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:5px; width:auto; display:inline-block;"> Track lc Plots </button>
                             </div>
                         </div>
                     `);
