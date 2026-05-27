@@ -47,94 +47,6 @@ export function flagScreenedGTIs(obsID, failedGTIs) {
 }
 
 /**
- * RAHUL'S UTILITY: Expand GTI ranges for individual coloring logic
- */
-function expandGTIRange(gtiInputList) {
-  const expanded = new Set();
-  gtiInputList.forEach((item) => {
-    if (item.includes('-')) {
-      const parts = item.split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parseInt(parts[1], 10);
-      if (!isNaN(start) && !isNaN(end) && start <= end) {
-        for (let i = start; i <= end; i++) {
-          expanded.add(i.toString());
-        }
-      }
-    } else {
-      expanded.add(item.trim());
-    }
-  });
-  return Array.from(expanded);
-}
-
-/**
- * RAHUL'S ENGINE: Multi-GTI HID Plotting with individual coloring
- */
-async function handleMultiGTIHIDPlot(obsID, gtiList, $form, plotType) {
-  const operationId = 'gti-change-' + plotType + '-' + obsID;
-  startOperation(operationId, `Updating HID with ${gtiList.length} colored GTIs...`);
-
-  const requests = gtiList.map((gti) => {
-    const formData = new FormData($form[0]);
-    if (!formData.has('csrfmiddlewaretoken')) formData.append('csrfmiddlewaretoken', $("input[name='csrfmiddlewaretoken']").val());
-    if (!formData.has('quality')) formData.append('quality', $('#quality-select').val().toLowerCase());
-
-    formData.set('gti-search', gti);
-    formData.set('plot_type', plotType);
-    return $.ajax({
-      type: 'POST', url: PLOT_GTI_URL, data: formData, processData: false, contentType: false,
-    }).then((res) => ({ gti, res })).catch((err) => ({ gti, err }));
-  });
-
-  try {
-    const results = await Promise.all(requests);
-    const validResults = results.filter((r) => !r.err && r.res.plotDivs && r.res.plotDivs.length > 0);
-    if (validResults.length === 0) throw new Error('No valid plots received');
-
-    const combinedData = [];
-    let baseLayout = null;
-    const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
-
-    for (let i = 0; i < validResults.length; i++) {
-      const { gti, res } = validResults[i];
-      const $temp = $('<div>').html(res.plotDivs[0]);
-      const plotEl = $temp.find('.js-plotly-plot')[0];
-
-      if (plotEl && plotEl.data) {
-        if (!baseLayout) {
-          baseLayout = plotEl.layout;
-          baseLayout.showlegend = true;
-        }
-        plotEl.data.forEach((trace) => {
-          trace.name = `GTI ${gti}`;
-          trace.legendgroup = `GTI ${gti}`;
-          const baseColor = colors[i % colors.length];
-          trace.marker = trace.marker || {};
-          trace.marker.color = baseColor;
-          trace.marker.showscale = false;
-          combinedData.push(trace);
-        });
-      }
-    }
-
-    // 🟢 FIX: Find container using attribute to avoid Plotly UUID removal
-    const cleanObs = obsID.replace(/,/g, '-');
-    const cleanType = plotType.replace(/_/g, '-');
-    const $target = $(`[data-plot-type="${plotType}"][data-obs-id="${obsID}"], #${cleanType}-${cleanObs}`).first();
-    
-    const $plotDiv = $target.find('.js-plotly-plot').length ? $target.find('.js-plotly-plot') : $target;
-    Plotly.react($plotDiv[0], combinedData, baseLayout);
-    
-    initGTICrossLinking();
-    completeOperation(operationId, `Updated HID with ${validResults.length} colored GTIs`);
-    setTimeout(() => { initSynchronizedSelection(); updateAllSelections(); }, 500);
-  } catch (e) {
-    errorOperation(operationId, 'Error combining HID GTIs');
-  }
-}
-
-/**
  * RAHUL'S TOAST HELPER: Displays the screening notification
  */
 function showScreeningToast(obsID, summary) {
@@ -327,113 +239,112 @@ export async function fetchGTIPlot(e) {
   const currentGtis = gtiSearch || "";
   const selectedGTIsArray = currentGtis ? currentGtis.split(',').map(g => g.trim()).filter(g => g !== '') : [];
 
-  // Multi-GTI HID Trigger
-  const expandedGTIs = expandGTIRange(selectedGTIsArray);
-  const isHID = triggeringPlotType.includes('hardness-intensity') || triggeringPlotType === 'time';
-  if (isHID && expandedGTIs.length > 1) {
-    handleMultiGTIHIDPlot(currentObsID, expandedGTIs, $form, triggeringPlotType);
-    return;
-  }
-
   // 🟢 DYNAMIC SECTION DETECTION (UUID PROOF)
   let openPlotTypes = [];
   const isCrossLinkEnabled = $("#cross-link-check").is(":checked");
 
   if (!isCrossLinkEnabled) {
-      openPlotTypes = [triggeringPlotType];
+    openPlotTypes = [triggeringPlotType];
   } else {
-      $('.plot-type-section').each(function () {
-          const sectionId = $(this).attr('id');
-          if (sectionId) {
-            const sectionPlotType = sectionId.replace('-section', '');
-            const cleanObsForSearch = currentObsID.replace(/,/g, '-');
-            // Look for container by ID or by Data-Attributes
-            const $search = $(`#${sectionPlotType}-${cleanObsForSearch}, [data-plot-type="${sectionPlotType.replace(/-/g, '_')}"][data-obs-id="${currentObsID}"]`);
-            if ($search.length > 0) openPlotTypes.push(sectionPlotType.replace(/-/g, '_'));
-          }
-      });
+    $('.plot-type-section').each(function () {
+        const sectionId = $(this).attr('id');
+        if (sectionId) {
+          const sectionPlotType = sectionId.replace('-section', '');
+          const cleanObsForSearch = currentObsID.replace(/,/g, '-');
+          // Look for container by ID or by Data-Attributes
+          const $search = $(`#${sectionPlotType}-${cleanObsForSearch}, [data-plot-type="${sectionPlotType.replace(/-/g, '_')}"][data-obs-id="${currentObsID}"], #${sectionPlotType.replace(/_/g, '-')}-${cleanObsForSearch}`);
+          if ($search.length > 0) openPlotTypes.push(sectionPlotType.replace(/-/g, '_'));
+        }
+    });
   }
 
   // Fallback if nothing found
   if (openPlotTypes.length === 0) {
-    showGTIPlotSelectionPopup(currentObsID, selectedGTIsArray);
-    return;
+  showGTIPlotSelectionPopup(currentObsID, selectedGTIsArray);
+  return;
   }
 
   // 🟢 AJAX LOOP (DNA Fix Integrated)
   openPlotTypes.forEach(type => {
-    const opId = 'gti-change-' + type + '-' + currentObsID;
-    startOperation(opId, `Updating ${type.replace(/_/, ' ')} plot...`);
-    
-    let formData = $form.serialize();
-    
-    // 🟢 DNA FIX: Force request to ask for correct plot type per loop iteration
-    const cleanTypeForReq = type.replace(/-/g, '_');
-    formData = formData.replace(/plot_type=[^&]*/, "plot_type=" + cleanTypeForReq);
+  const opId = 'gti-change-' + type + '-' + currentObsID;
+  startOperation(opId, `Updating ${type.replace(/_/, ' ')} plot...`);
 
-    // Ensure search_type is included
-    if (!formData.includes('search_type')) {
-        formData += `&search_type=${encodeURIComponent($('#search-type').val())}`;
-    }
+  let formData = $form.serialize();
 
-    // 🟢 DNA FIX: Force fallback to trigger if search is empty or missing
-    if (!formData.includes("gti-search") || formData.includes("gti-search=&")) {
-        // If it's empty in the form, use our recovered gtiSearch
-        if (formData.includes("gti-search=&")) {
-            formData = formData.replace("gti-search=", "gti-search=" + encodeURIComponent(currentGtis));
+  // 🟢 DNA FIX: Force request to ask for correct plot type per loop iteration
+  const cleanTypeForReq = type.replace(/-/g, '_');
+  formData = formData.replace(/plot_type=[^&]*/, "plot_type=" + cleanTypeForReq);
+
+  // Ensure search_type is included
+  if (!formData.includes('search_type')) {
+      formData += `&search_type=${encodeURIComponent($('#search-type').val())}`;
+  }
+
+  // 🟢 DNA FIX: Force fallback to trigger if search is empty or missing
+  if (!formData.includes("gti-search") || formData.includes("gti-search=&")) {
+      // If it's empty in the form, use our recovered gtiSearch
+      if (formData.includes("gti-search=&")) {
+          formData = formData.replace("gti-search=", "gti-search=" + encodeURIComponent(currentGtis));
+      } else {
+          formData += "&gti-search=" + encodeURIComponent(currentGtis);
+      }
+  }
+
+  const token = $("input[name='csrfmiddlewaretoken']").val();
+  const quality = $('#quality-select').val().toLowerCase();
+
+  // Combined Slider Context
+  if (triggeringPlotType.startsWith('combined_')) {
+      const sectionId = `#${triggeringPlotType.replace(/_/g, '-')}-section`;
+      const sectionObsIDs = new Set();
+      $(sectionId).children('div').each(function() {
+          const idPart = this.id.replace(`${triggeringPlotType.replace(/_/g, '-')}-`, '');
+          if (idPart) {
+              idPart.split('-').forEach(oid => { if (oid && oid.match(/^\d+$/)) sectionObsIDs.add(oid); });
+          }
+      });
+      if (sectionObsIDs.size > 0) {
+          const allObsIdsStr = Array.from(sectionObsIDs).join(',');
+          formData = formData.replace(/obs_id=[^&]*/, `obs_id=${encodeURIComponent(allObsIdsStr)}`);
+      }
+  }
+
+  if (!formData.includes('csrfmiddlewaretoken')) formData += `&csrfmiddlewaretoken=${token}`;
+  if (!formData.includes('quality')) formData += `&quality=${quality}`;
+
+  $.ajax({
+    type: 'POST', url: PLOT_GTI_URL, data: formData,
+    success: function (data) {
+      if (data.screeningSummary) showScreeningToast(currentObsID, data.screeningSummary);
+
+      // 🟢 UUID SHIELD: Robust lookup for container by attribute or ID (hyphen/underscore flexible)
+      const cleanObsForTarget = currentObsID.replace(/,/g, '-');
+      const cleanTypeForTarget = type.replace(/_/g, '-');
+      const altTypeForTarget = type.replace(/-/g, '_');
+
+      const $container = $(`
+          [data-plot-type="${type}"][data-obs-id="${currentObsID}"], 
+          [data-plot-type="${altTypeForTarget}"][data-obs-id="${currentObsID}"],
+          #${cleanTypeForTarget}-${cleanObsForTarget},
+          #${altTypeForTarget}-${cleanObsForTarget},
+          #combined-${cleanTypeForTarget}-${cleanObsForTarget}
+      `).first();
+
+      if ($container.length > 0 && data.plotDivs?.length > 0) {
+        const $plotlyPlot = $container.find('.js-plotly-plot');
+        if ($plotlyPlot.length > 0) {
+          // Surgical replace of JUST the plot
+          $plotlyPlot.replaceWith(data.plotDivs[0]);
         } else {
-            formData += "&gti-search=" + encodeURIComponent(currentGtis);
-        }
-    }
-
-    const token = $("input[name='csrfmiddlewaretoken']").val();
-    const quality = $('#quality-select').val().toLowerCase();
-
-    // Combined Slider Context
-    if (triggeringPlotType.startsWith('combined_')) {
-        const sectionId = `#${triggeringPlotType.replace(/_/g, '-')}-section`;
-        const sectionObsIDs = new Set();
-        $(sectionId).children('div').each(function() {
-            const idPart = this.id.replace(`${triggeringPlotType.replace(/_/g, '-')}-`, '');
-            if (idPart) {
-                idPart.split('-').forEach(oid => { if (oid && oid.match(/^\d+$/)) sectionObsIDs.add(oid); });
-            }
-        });
-        if (sectionObsIDs.size > 0) {
-            const allObsIdsStr = Array.from(sectionObsIDs).join(',');
-            formData = formData.replace(/obs_id=[^&]*/, `obs_id=${encodeURIComponent(allObsIdsStr)}`);
-        }
-    }
-
-    if (!formData.includes('csrfmiddlewaretoken')) formData += `&csrfmiddlewaretoken=${token}`;
-    if (!formData.includes('quality')) formData += `&quality=${quality}`;
-
-    $.ajax({
-      type: 'POST', url: PLOT_GTI_URL, data: formData,
-      success: function (data) {
-        if (data.screeningSummary) showScreeningToast(currentObsID, data.screeningSummary);
-        
-        // 🟢 UUID SHIELD: Find container by attribute even if Plotly changed ID
-        const cleanObsForTarget = currentObsID.replace(/,/g, '-');
-        const cleanTypeForTarget = type.replace(/_/g, '-');
-        const $container = $(`[data-plot-type="${type}"][data-obs-id="${currentObsID}"], #${cleanTypeForTarget}-${cleanObsForTarget}`).first();
-
-        if ($container.length > 0 && data.plotDivs?.length > 0) {
-          const $plotlyPlot = $container.find('.js-plotly-plot');
-          if ($plotlyPlot.length > 0) {
-            // Surgical replace of JUST the plot
-            $plotlyPlot.replaceWith(data.plotDivs[0]);
-          } else {
-            const $formToSave = $container.find("form").detach();
-            $container.html(data.plotDivs[0]).append($formToSave);
-          }
-          
-          // 🟢 Echo synchronization
-          if (data.gtiQuery) {
-            $container.find('input[name="gti-search"]').val(data.gtiQuery);
-          }
+          const $formToSave = $container.find("form").detach();
+          $container.html(data.plotDivs[0]).append($formToSave);
         }
 
+        // 🟢 Echo synchronization
+        if (data.gtiQuery) {
+          $container.find('input[name="gti-search"]').val(data.gtiQuery);
+        }
+      }
         initGTICrossLinking();
         completeOperation(opId, 'Plot updated');
         if (typeof MathJax !== 'undefined') MathJax.typeset();

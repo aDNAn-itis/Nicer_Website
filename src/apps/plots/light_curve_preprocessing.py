@@ -315,7 +315,7 @@ def light_curve_plot(
         seen_oids.add(oid)
         fig.data[-1].showlegend = False # Hide BG trace
 
-    fig.update_layout(title="Light Curve Comparison", legend=dict(groupclick="toggleitem"))
+    fig.update_layout(title=f"Light Curve {obs_id}", legend=dict(groupclick="toggleitem"))
     fig.add_annotation(text=x_axis_label, xref='paper', yref='paper', x=0.5, y=-0.15, showarrow=False)
 
     if output_type == 'div': 

@@ -192,9 +192,13 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
     }
     if (!targetType) return;
 
-    let $targetContainer = $(`#${targetType}-${obsID}`);
+    // 🟢 FIX: Sanitize obsID for selector (Replace commas with hyphens)
+    const cleanObsId = obsID.replace(/,/g, '-');
+    const altTargetType = targetType.replace(/-/g, '_');
+
+    let $targetContainer = $(`#${targetType}-${cleanObsId}, #${altTargetType}-${cleanObsId}`);
     if ($targetContainer.length === 0 && targetType === 'hardness-intensity-diagram') {
-      $targetContainer = $(`#time-${obsID}`);
+      $targetContainer = $(`#time-${cleanObsId}, #combined-hardness-intensity-diagram-${cleanObsId}`);
     }
 
     if ($targetContainer.length) {

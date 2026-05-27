@@ -139,10 +139,13 @@ def calculate_default_binning(file_path, plot_type):
     Target: ~500-1000 points per plot for optimal performance.
     """
     try:
+        if not file_path or not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+            return None
+
         from astropy.io import fits
         if plot_type in ['spectrum', 'summed_spectrum']:
             with fits.open(file_path) as hdul:
-                if 'SPECTRUM' in hdul:
+                if len(hdul) > 1 and 'SPECTRUM' in hdul:
                     counts = hdul['SPECTRUM'].data['COUNTS']
                     total_bins = len(counts)
                     max_counts = np.max(counts)
@@ -152,8 +155,12 @@ def calculate_default_binning(file_path, plot_type):
                     return max(bin_factor, min_counts)
                     
         elif plot_type == 'light_curve':
+            # LC files are often gzipped ASCII, not always FITS
+            if file_path.endswith('.lc.gz'):
+                return 80 # Default for LC
+                
             with fits.open(file_path) as hdul:
-                if 'RATE' in hdul:
+                if len(hdul) > 1 and 'RATE' in hdul:
                     rate = hdul['RATE'].data['RATE']
                     total_bins = len(rate)
                     mean_rate = np.mean(rate)
@@ -165,8 +172,9 @@ def calculate_default_binning(file_path, plot_type):
         elif plot_type == 'power_density_spectrum':
             return 15 # Default significance threshold for PDS
             
-    except Exception as e:
-        logger.warning(f"Error calculating default binning: {e}")
+    except Exception:
+        # Silently fail, fallback to PLOTS default
+        pass
     return None
 
 PLOTS: dict[str, dict[str, Any]] = {
@@ -194,7 +202,10 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
     # 3. Clean and Normalize Plot Type (Fixes the UnboundLocalError)
     # Strip prefixes and handle hyphens/underscores consistently
-    plot_type = plot_type_raw.replace('combined_', '').replace('-', '_')
+    # Improved normalization to handle "combined-" prefixes and "-comparison" suffixes
+    plot_type = plot_type_raw.replace('combined_', '').replace('combined-', '')
+    plot_type = plot_type.replace('_comparison', '').replace('-comparison', '')
+    plot_type = plot_type.replace('-', '_')
     
     if plot_type not in PLOTS:
         return JsonResponse({'error': f'Invalid plot type: {plot_type_raw}'}, status=400)

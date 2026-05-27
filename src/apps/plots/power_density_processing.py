@@ -220,7 +220,6 @@ def process_and_append(pds_data, rsp_data, min_value, gti_number, label, x_list,
                 freq_center = binned_freq_linear
                 power_density = binned_power
                 error_density = binned_error
-                print(f"PDS Binning {label}: {len(pseudo_counts)} -> {len(freq_center)} bins")
 
         x_list.append(freq_center)
         y_list.append(power_density)

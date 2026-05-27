@@ -206,12 +206,24 @@ export function fetchGraphPlots(refresh = false, event) {
 
                         $PLOT_SECTION.append($('<h3>', { text: titleText }));
 
+                        const $combineForm = $('<form>', { class: 'combine-gtis', style: 'display: none; margin-bottom: 15px;' });
+                        $combineForm.append($('<input>', { type: 'hidden', name: 'plot_type', value: TYPE }));
+                        $combineForm.append($('<button>', { type: 'submit', class: 'btn-search', text: 'Combine GTIs' }));
+                        $PLOT_SECTION.append($combineForm);
+
                         $('#plots').append($PLOT_SECTION);
                     }
                     
                     // Render the plot div
                     if ($(`#${PLOT_ID}`).length === 0) {
                         const $PLOT_DIV_WRAPPER = $(plotDiv).attr('id', PLOT_ID);
+                        
+                        // 🟢 FIX: Added 'plot-container' class so GTI updates can find the search field
+                        $PLOT_DIV_WRAPPER.addClass('plot-container');
+                        
+                        // 🟢 ADDED: Attributes for reliable targeting by GTI update scripts
+                        $PLOT_DIV_WRAPPER.attr('data-plot-type', TYPE.replace(/-/g, '_'));
+                        $PLOT_DIV_WRAPPER.attr('data-obs-id', response.obsID || obsIdInput);
                         
                         // 🟢 RAHUL FIX: Manual re-binding of GTI Selection UI inside the loop
                         if (TYPE !== 'summed_spectrum' && TYPE !== 'global_hid' && response.maxGTI) {

@@ -131,16 +131,8 @@ def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_la
     all_intensity_counts: List[float] = []
     time_bin_width = None
 
-    # Rahul's Robust Path Mapping
-    path_by_gti: dict[int, str] = {}
-    for p in data_paths:
-        match = re.search(r'GTI(\d+)', p)
-        if match:
-            path_by_gti[int(match.group(1))] = p
-
-    for gti_num in gti_numbers:
-        lc_path = path_by_gti.get(gti_num)
-        if not lc_path: continue
+    for lc_path, gti_num in zip(data_paths, gti_numbers):
+        if not os.path.exists(lc_path): continue
 
         time, soft, hard, intensity = process_lc_file(lc_path)
         if len(time) == 0: continue
@@ -175,13 +167,20 @@ def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_la
     if min_value and min_value > 0:
         sort_indices = np.argsort(all_time)
         data_stack = np.stack([all_soft_counts[sort_indices], all_hard_counts[sort_indices], all_time[sort_indices]])
-        min_bins = min_bin(min_value, all_intensity_counts[sort_indices])
-        # CORRECTED UNPACKING: bin_sizes is the second element
+        
+        # Use bin factor (Time Binning) to match the Light Curve logic and UI expectation
+        bin_factor = int(min_value)
+        min_bins = np.arange(0, len(all_intensity_counts), bin_factor)
+        if len(min_bins) == 0 or min_bins[-1] != len(all_intensity_counts):
+            min_bins = np.append(min_bins, len(all_intensity_counts))
+        min_bins = np.unique(min_bins)
+        
+        # Corrected Unpacking: bin_sizes is the second element (bin_widths)
         (b_soft, b_hard, b_time), bin_sizes, _ = binning(min_bins, data_stack)
         
-        # Rahul's Physical Rate Correction: sum(counts) / (N_bins * dt)
+        # FIX: Remove bin_sizes from divisor since binning() already returns rate-per-bin
         all_hardness = b_hard / b_soft
-        all_intensity = (b_soft + b_hard) / (bin_sizes * time_bin_width)
+        all_intensity = (b_soft + b_hard) / time_bin_width
         all_time = b_time
     else:
         all_hardness = all_hard_counts / all_soft_counts
@@ -226,18 +225,23 @@ def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_la
 # ==============================================================================
 def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_labels, output_type='div') -> Any:
     """Internal function for Combined-Obs Polygon Plot."""
-    obs_ids_list = str(obs_id).split(',')
+    obs_ids_list = [oid.strip() for oid in str(obs_id).split(',')]
     valid_datasets = []
     time_bin_width = None
 
-    # Robust Path Mapping
-    path_by_gti = {int(re.search(r'GTI(\d+)', p).group(1)): p for p in data_paths if re.search(r'GTI(\d+)', p)}
-
-    for i, gti_num in enumerate(gti_numbers):
-        lc_path = path_by_gti.get(gti_num)
-        if not lc_path: continue
+    for i, (lc_path, gti_num) in enumerate(zip(data_paths, gti_numbers)):
+        if not os.path.exists(lc_path): continue
         
-        label = gti_labels[i] if gti_labels else f"{obs_ids_list[i % len(obs_ids_list)]} (GTI {gti_num})"
+        if gti_labels and i < len(gti_labels):
+            label = gti_labels[i]
+        else:
+            found_oid = obs_ids_list[0]
+            for oid in obs_ids_list:
+                if oid in lc_path:
+                    found_oid = oid
+                    break
+            label = f"{found_oid} (GTI {gti_num})"
+
         time, soft, hard, intensity = process_lc_file(lc_path)
         if len(time) == 0: continue
 
@@ -302,7 +306,7 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
         x_data_list=[], y_data_list=[], fig=fig,
         plot_kwargs={'output_type': output_type},
         layout_kwargs={
-            'title': 'Combined Hardness-Intensity Diagram',
+            'title': f'Combined Hardness-Intensity Diagram {obs_id}',
             'xaxis_title': r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', 
             'yaxis_title': r'$\text{Intensity}\ (counts/s)$',
             'xaxis_type': 'log', 'yaxis_type': 'log', 
