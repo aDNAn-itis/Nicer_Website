@@ -2,6 +2,7 @@
 Utilities to correct PDS
 """
 import os
+import re
 from typing import List, Tuple, Any
 
 import numpy as np
@@ -86,6 +87,7 @@ def get_pds_data_and_plot(
     obs_id: Any,  # Changed to Any to support string "101,102"
     data_paths: List[str],
     gti_numbers: List[int],
+    gti_labels: List[str] = None,
     output_type: str = 'div') -> Any:
     """
     Processes and plots PDS data. Handles both Single and Combined observations.
@@ -97,20 +99,29 @@ def get_pds_data_and_plot(
 
     # ---CHECK FOR COMBINED MODE---
     obs_str = str(obs_id)
-    is_combined = ',' in obs_str
+    is_combined = ',' in obs_str or (gti_labels and len(set(gti_labels)) > 1)
 
     if is_combined:
         # ---LOGIC FOR COMBINED OBSERVATIONS---
-        obs_ids_list = obs_str.split(',')
-        # Use min length to match files to labels
+        obs_ids_list = [oid.strip() for oid in obs_str.split(',')]
         limit = min(len(data_paths), len(gti_numbers))
         
         for i in range(limit):
             pds_path = data_paths[i]
             gti_number = gti_numbers[i]
             
-            # Smart Labeling: ObsID (GTI X)
-            current_obs = obs_ids_list[i % len(obs_ids_list)]
+            # Use provided labels if available, otherwise try Smart Labeling
+            if gti_labels and i < len(gti_labels):
+                current_obs = gti_labels[i]
+            else:
+                # Smart Labeling: Extract actual ObsID from the path
+                # Improved: try to find any 10-digit number in path if list matching fails
+                current_obs = next((oid for oid in obs_ids_list if oid in pds_path), None)
+                if not current_obs:
+                    import re
+                    match = re.search(r'/(\d{10})/', pds_path)
+                    current_obs = match.group(1) if match else obs_str
+            
             label = f"{current_obs} (GTI {gti_number})"
             
             # Derive RSP path directly from PDS path
@@ -148,7 +159,12 @@ def get_pds_data_and_plot(
             rsp_data_list, _ = read_fits_file(rsp_path, [gti_number])
 
             if pds_data_list and rsp_data_list:
-                label = f"GTI {gti_number}"
+                # Use provided label or fallback to GTI number
+                if gti_labels and i < len(gti_labels):
+                    label = gti_labels[i]
+                else:
+                    label = f"GTI {gti_number}"
+                
                 process_and_append(
                     pds_data_list[0], rsp_data_list[0], 
                     min_value, gti_number, label,
@@ -156,30 +172,36 @@ def get_pds_data_and_plot(
                 )
 
     if not x_data_list:
+        empty_fig = go.Figure().add_annotation(text="No valid PDS data found to plot.", showarrow=False)
+        if output_type == 'dict':
+            import json
+            return json.loads(empty_fig.to_json())
         return "No valid PDS data found to plot."
 
     # --- Calculate Ranges ---
 
     try:
         margin_factor = 0.1
-        # Filters non-positive data to prevent Log10 errors
-        x_min = np.log10(min(np.min(d, where=d > 0, initial=np.max(d)) for d in x_data_list if len(d) > 0))
-        x_max = np.log10(max(np.max(d) for d in x_data_list if len(d) > 0))
-        y_min = np.log10(min(np.min(d, where=d > 0, initial=np.max(d)) for d in y_data_list if len(d) > 0))
-        y_max = np.log10(max(np.max(d) for d in y_data_list if len(d) > 0))
-
-        xaxis_range = [x_min - (x_max - x_min) * margin_factor, x_max + (x_max - x_min) * margin_factor]
-        yaxis_range = [y_min - (y_max - y_min) * margin_factor, y_max + (y_max - y_min) * margin_factor]
+        all_x = np.concatenate(x_data_list)
+        all_y = np.concatenate(y_data_list)
+        
+        # Log-safe bounds
+        lx_min, lx_max = np.log10(np.min(all_x[all_x > 0])), np.log10(np.max(all_x))
+        ly_min, ly_max = np.log10(np.min(all_y[all_y > 0])), np.log10(np.max(all_y))
+        
+        xaxis_range = [lx_min - margin_factor*(lx_max-lx_min), lx_max + margin_factor*(lx_max-lx_min)]
+        yaxis_range = [ly_min - margin_factor*(ly_max-ly_min), ly_max + margin_factor*(ly_max-ly_min)]
     except:
-        xaxis_range, yaxis_range = None, None
+        xaxis_range = yaxis_range = None
 
     return data_plot(
-        gti_numbers=gti_numbers[:len(x_data_list)],
-        gti_labels=plot_labels,  # Use our custom labels
+        plot_type='lines+markers',
+        gti_numbers=gti_numbers,
+        gti_labels=plot_labels,
         x_data_list=x_data_list,
         y_data_list=y_data_list,
         y_uncertainties=y_uncertainties,
-        plot_kwargs={'mode': 'markers', 'output_type': output_type},
+        plot_kwargs={'output_type': output_type},
         layout_kwargs={
             'title': f'Power Density Spectrum {obs_id}',
             'xaxis_title': 'Frequency (Hz)',

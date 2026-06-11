@@ -233,6 +233,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     # 5. Locate Files across ALL provided Observation IDs
     final_file_paths_to_plot = []
     final_gti_numbers_for_plot_func = []
+    final_gti_labels_for_plot_func = []
 
     # Parse requested GTIs (e.g., "0,1,2-5" or "12345-0,67890-1")
     gti_list_parsed: list[int] = []
@@ -269,7 +270,6 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
     # 6. File Discovery Loop (The fix for the Path Construction Error)
     # We look into each observation's 'jspipe/' directory separately
-    final_gti_labels_for_plot_func = []
     for oid in obs_id_list:
         rel_path = os.path.join(oid, 'jspipe/')
         full_dir_path = os.path.join(settings.DATA_DIR, rel_path)
@@ -316,9 +316,16 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         )
         screening_summary = get_screening_summary(screening_results)
         if screened_files:
+            # Need to filter labels as well to match screened files
+            new_labels = []
+            for sf in screened_files:
+                # Find matching index in original list
+                for idx, orig_f in enumerate(final_file_paths_to_plot):
+                    if sf == orig_f:
+                        new_labels.append(final_gti_labels_for_plot_func[idx])
+                        break
             final_file_paths_to_plot, final_gti_numbers_for_plot_func = screened_files, screened_gtis
-            # Note: final_gti_labels_for_plot_func might need filtering too if screening is applied to LC, 
-            # but currently screening is only for spectrum.
+            final_gti_labels_for_plot_func = new_labels
         else:
             screening_summary['all_failed'] = True
             bg_dash = 'dash'
@@ -330,12 +337,13 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
         kwargs = {}
         if output_format == 'json':
             kwargs['output_type'] = 'dict'
+        
+        # Always pass gti_labels to support combined/multi-obs plotting
+        kwargs['gti_labels'] = final_gti_labels_for_plot_func
 
         if plot_type in ('spectrum', 'summed_spectrum'):
             # Use raw obs_id string for title generation, but the gathered file list for data
             plot_divs_result = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, bg_dash=bg_dash, **kwargs)
-        elif plot_type == 'light_curve':
-            plot_divs_result = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, gti_labels=final_gti_labels_for_plot_func, **kwargs)
         else:
             plot_divs_result = plot_func(min_value, obs_id_raw, final_file_paths_to_plot, final_gti_numbers_for_plot_func, **kwargs)
             
@@ -535,6 +543,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             plot_info = PLOTS[plot_type_key]
             all_file_paths_combined = []
             all_gti_numbers_combined = []
+            all_gti_labels_combined = []
             current_max_gti = 0
 
             for single_obs_id in obs_id_list:
@@ -554,6 +563,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                 if plot_type_key == 'summed_spectrum' or plot_type_key == 'global_hid':
                     for file_item in file_names_qs.order_by('name'):
                        all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
+                       all_gti_labels_combined.append(single_obs_id)
                        gti_match = re.search(r'GTI(\d+)', file_item.name)
                        if gti_match: 
                           all_gti_numbers_combined.append(int(gti_match.group(1)))
@@ -564,9 +574,11 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                         if file_match_item:
                             all_file_paths_combined.append(os.path.join(single_obs_dir, file_match_item.name))
                             all_gti_numbers_combined.append(gti_num)
+                            all_gti_labels_combined.append(single_obs_id)
                 else: 
                     for file_item in file_names_qs.order_by('name'):
                         all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
+                        all_gti_labels_combined.append(single_obs_id)
                         gti_match = re.search(r'GTI(\d+)', file_item.name)
                         if gti_match: 
                             val = int(gti_match.group(1))
@@ -592,17 +604,25 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                 screening_summaries[plot_type_key] = get_screening_summary(results)
                 
                 if passed_files:
+                    # Filter labels to match screened files
+                    new_labels = []
+                    for pf in passed_files:
+                        for idx, orig_f in enumerate(all_file_paths_combined):
+                            if pf == orig_f:
+                                new_labels.append(all_gti_labels_combined[idx])
+                                break
                     all_file_paths_combined = passed_files
                     all_gti_numbers_combined = passed_gtis
+                    all_gti_labels_combined = new_labels
                 else:
                     bg_dash = 'dash' 
                     screening_summaries[plot_type_key]['all_failed'] = True
 
             try:
                 if plot_type_key in ['spectrum', 'summed_spectrum']:
-                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash)
+                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash, gti_labels=all_gti_labels_combined)
                 else:
-                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined)
+                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined)
                 plot_divs.append(plot_div)
             except Exception as e:
                 logger.exception(f"[plot_data] Error plotting {plot_type_key}: {e}")
@@ -902,6 +922,15 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
     if not fig.data: 
         return JsonResponse({'error': 'No valid data found for the selected observations.'})
 
+    # Prepare raw data for theater mode
+    raw_data = []
+    for trace in fig.data:
+        raw_data.append({
+            'obsid': trace.name,
+            'hardness': trace.x[0],
+            'intensity': trace.y[0]
+        })
+
     # Update Layout to match your preferred style
     fig.update_layout(
         title='Global HID (Muti-Observation PLOT)',  
@@ -930,4 +959,4 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
     )
 
     div = plot(fig, output_type='div', include_plotlyjs=False)
-    return JsonResponse({'plotDiv': div})
+    return JsonResponse({'plotDiv': div, 'rawData': raw_data})

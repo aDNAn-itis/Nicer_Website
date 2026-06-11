@@ -1,182 +1,304 @@
 /**
- * lcTheater.js
- * Implements the High-Speed Movie Engine for Sequence Tracking
+ * lcTheater.js - MATPLOTLIB-STYLE TWO-CONTAINER VIEWER
+ * Implements a paper-style 2x2 grid report with red-bordered boxes
  */
 
-// Cache to store plot data for each ObsID to avoid redundant network calls
 const theaterCache = new Map();
+let globalHidPoints = []; 
 
-window.openLCTheater = function() {
-    if (!window.lcTheaterPlaylist || window.lcTheaterPlaylist.length === 0) {
-        alert("Please click some points on the HID first to build a sequence!");
-        return;
+// Matplotlib-style constants for fixed, non-interactive plots
+const MATPLOTLIB_LAYOUT = {
+    font: { family: 'serif', size: 12, color: '#000', weight: 'normal' },
+    paper_bgcolor: '#fff',
+    plot_bgcolor: '#fff',
+    margin: { t: 30, b: 40, l: 60, r: 20 },
+    xaxis: {
+        linecolor: '#000',
+        linewidth: 1.5,
+        mirror: true,
+        showgrid: false,
+        zeroline: false,
+        ticks: 'inside',
+        tickcolor: '#000',
+        title: { font: { weight: 'normal' } },
+        tickfont: { weight: 'normal' }
+    },
+    yaxis: {
+        linecolor: '#000',
+        linewidth: 1.5,
+        mirror: true,
+        showgrid: false,
+        zeroline: false,
+        ticks: 'inside',
+        tickcolor: '#000',
+        title: { font: { weight: 'normal' } },
+        tickfont: { weight: 'normal' }
     }
-    $("#lc-theater-panel, #theater-overlay").fadeIn(200);
-    $("#theater-slider").attr("min", 0).attr("max", window.lcTheaterPlaylist.length - 1).val(0);
-    updateTheaterFrame(0);
 };
 
-export function updateTheaterFrame(index) {
-    console.log("Movie Sequence Array:", window.lcTheaterPlaylist);
+const PLOT_CONFIG = {
+    staticPlot: true, // Absolutely no interaction (zoom/pan/hover)
+    responsive: true,
+    displayModeBar: false
+};
+
+/**
+ * Opens the theater and initializes the sequence
+ */
+export async function openLCTheater() {
+    if (!window.lcTheaterPlaylist || window.lcTheaterPlaylist.length === 0) {
+        alert("Please select some observations first (click points on the Global HID plot)!");
+        return;
+    }
+
+    $("#lc-theater-panel, #theater-overlay").fadeIn(200, function() {
+        // Trigger resize to ensure plots fill the new 90% flex layout
+        const containers = ['theater-global-hid', 'theater-lc', 'theater-pds', 'theater-hid'];
+        containers.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) Plotly.Plots.resize(el);
+        });
+    });
+    
+    // Header info
+    const sourceName = $("#source-search").val() || "Unknown Source";
+    $("#theater-source-label").text(sourceName);
+
+    populateObsIDList();
+    
+    try {
+        await initGlobalHid();
+        updateTheaterFrame(0);
+    } catch (err) {
+        console.error("Failed to initialize theater:", err);
+        alert("Error initializing sequence viewer.");
+    }
+}
+window.openLCTheater = openLCTheater;
+
+/**
+ * Fills the right red box with clickable ObsIDs
+ */
+function populateObsIDList() {
+    const $list = $("#theater-obsid-list");
+    $list.empty();
+    
+    console.log("Populating ObsID List with:", window.lcTheaterPlaylist);
+
+    window.lcTheaterPlaylist.forEach((obsId, idx) => {
+        const $item = $("<div>")
+            .text(obsId)
+            .attr("data-index", idx)
+            .css({
+                "padding": "10px 15px",
+                "cursor": "pointer",
+                "border-bottom": "1px solid #eee",
+                "transition": "all 0.1s",
+                "color": "#000",
+                "font-weight": "normal"
+            })
+            .hover(
+                function() { $(this).css("background", "#f0f0f0"); },
+                function() { if (!$(this).hasClass("active")) $(this).css("background", "transparent"); }
+            )
+            .click(function() {
+                updateTheaterFrame($(this).attr("data-index"));
+            });
+        
+        $list.append($item);
+    });
+}
+
+/**
+ * Global HID data fetching
+ */
+async function initGlobalHid() {
+    const obsids = window.lcTheaterPlaylist;
+    const formData = new FormData();
+    formData.append('obs_ids', obsids.join(','));
+    formData.append('quality', quality || 'goddard');
+    formData.append('csrfmiddlewaretoken', $("input[name=\"csrfmiddlewaretoken\"]").val());
+
+    const response = await fetch(PLOT_COMBINED_URL, { method: 'POST', body: formData });
+    const data = await response.json();
+
+    if (data.error) throw new Error(data.error);
+    globalHidPoints = data.rawData || [];
+    renderGlobalHidBase();
+}
+
+function renderGlobalHidBase() {
+    const x = globalHidPoints.map(p => p.hardness);
+    const y = globalHidPoints.map(p => p.intensity);
+
+    // Sequence Background: Hollow Black Circles
+    const backgroundTrace = {
+        x: x,
+        y: y,
+        mode: 'markers',
+        type: 'scatter',
+        marker: { 
+            size: 8, 
+            color: 'white', 
+            line: { width: 1.5, color: '#000' } 
+        }
+    };
+
+    // Current State: Solid Red Circle with Text Label
+    const highlightTrace = {
+        x: [x[0]],
+        y: [y[0]],
+        mode: 'markers+text',
+        type: 'scatter',
+        marker: { 
+            size: 14, 
+            color: '#e03131', 
+            line: { width: 1.5, color: '#000' }
+        },
+        text: [globalHidPoints[0].obsid],
+        textposition: 'top right',
+        textfont: { family: 'monospace', size: 14, color: '#e03131', weight: 'normal' }
+    };
+
+    const layout = {
+        ...MATPLOTLIB_LAYOUT,
+        xaxis: { ...MATPLOTLIB_LAYOUT.xaxis, title: 'Hardness' },
+        yaxis: { ...MATPLOTLIB_LAYOUT.yaxis, title: 'Intensity', type: 'log' },
+        showlegend: false
+    };
+
+    Plotly.newPlot('theater-global-hid', [backgroundTrace, highlightTrace], layout, PLOT_CONFIG);
+}
+
+/**
+ * Main update function
+ */
+export async function updateTheaterFrame(index) {
     const obsId = window.lcTheaterPlaylist[index];
     if (!obsId) return;
 
-    const $plotArea = $("#theater-plot-area");
-    const layoutUpdate = {
-        paper_bgcolor: "#ffffff",
-        plot_bgcolor: "#ffffff",
-        "xaxis.autorange": true,
-        "yaxis.autorange": true,
-        margin: { t: 40, b: 40, l: 60, r: 20 }
-    };
+    $("#theater-obs-id-label").text(obsId);
 
-    // Check cache first for high-speed playback
-    if (theaterCache.has(obsId)) {
-        const plotData = theaterCache.get(obsId);
-        Plotly.react("theater-plot-area", plotData.data, plotData.layout || layoutUpdate, {displayModeBar: false});
-        $("#theater-obs-id").text("Sequence " + (parseInt(index)+1) + ": " + obsId);
-        return;
+    // List selection styling
+    $("#theater-obsid-list div").removeClass("active").css({"background": "transparent", "color": "#000"});
+    const $activeItem = $(`#theater-obsid-list div[data-index="${index}"]`);
+    $activeItem.addClass("active").css({"background": "#e03131", "color": "#fff"});
+
+    // 1. Update Global HID Marker
+    const point = globalHidPoints.find(p => p.obsid === obsId);
+    if (point) {
+        Plotly.restyle('theater-global-hid', {
+            x: [[point.hardness]],
+            y: [[point.intensity]],
+            text: [[obsId]]
+        }, [1]);
     }
 
-    // Show loading state in theater
-    $plotArea.addClass('loading');
-
-    $.ajax({ 
-        type: "POST", 
-        url: PLOT_GTI_URL, 
-        data: { 
-            "obs_id": obsId, 
-            "plot_type": "light_curve", 
-            "format": "json", 
-            "csrfmiddlewaretoken": $("input[name=\"csrfmiddlewaretoken\"]").val() 
-        },
-        success: function(response) {
-            $plotArea.removeClass('loading');
-            if (!response.plotDivs || response.plotDivs.length === 0) {
-                console.error("No plot data returned for", obsId);
-                return;
-            }
-            const plotData = response.plotDivs[0];
-            theaterCache.set(obsId, plotData);
-            
-            // Use Plotly.react for flicker-free data swapping
-            Plotly.react("theater-plot-area", plotData.data, plotData.layout || layoutUpdate, {displayModeBar: false});
-            $("#theater-obs-id").text("Sequence " + (parseInt(index)+1) + ": " + obsId);
-        },
-        error: function(err) {
-            $plotArea.removeClass('loading');
-            console.error("Failed to fetch theater frame:", err);
-        }
-    });
+    // 2. Update 3 Subplots (Forced B&W)
+    await updateSubplots(obsId);
 }
 window.updateTheaterFrame = updateTheaterFrame;
 
-async function generateGIF() {
-    if (!window.lcTheaterPlaylist || window.lcTheaterPlaylist.length === 0) {
-        alert("Playlist is empty!");
-        return;
-    }
+async function updateSubplots(obsId) {
+    const types = ['light_curve', 'power_density_spectrum', 'hardness_intensity_diagram'];
+    const containers = ['theater-lc', 'theater-pds', 'theater-hid'];
+    
+    for (let i = 0; i < types.length; i++) {
+        const type = types[i];
+        const container = containers[i];
+        const cacheKey = `${obsId}_${type}`;
 
-    if (typeof gifshot === 'undefined') {
-        alert("GIF library (gifshot) not loaded. Please check your internet connection.");
-        return;
-    }
-
-    const $btn = $('#theater-gif-btn');
-    const originalText = $btn.text();
-    $btn.prop('disabled', true).text("⌛ Processing...");
-
-    const images = [];
-    const gd = document.getElementById('theater-plot-area');
-
-    try {
-        // Prepare layout for GIF
-        const gifLayout = {
-            width: 800,
-            height: 400,
-            paper_bgcolor: "#ffffff",
-            plot_bgcolor: "#ffffff"
-        };
-
-        for (let i = 0; i < window.lcTheaterPlaylist.length; i++) {
-            $btn.text(`Frame ${i+1}/${window.lcTheaterPlaylist.length}`);
-            
-            const obsId = window.lcTheaterPlaylist[i];
-            let plotData;
-
-            if (theaterCache.has(obsId)) {
-                plotData = theaterCache.get(obsId);
-            } else {
-                // Fetch if not in cache (async)
-                plotData = await new Promise((resolve, reject) => {
-                    $.ajax({
-                        type: 'POST',
-                        url: PLOT_GTI_URL,
-                        data: {
-                            'obs_id': obsId,
-                            'plot_type': 'light_curve',
-                            'format': 'json',
-                            'csrfmiddlewaretoken': $("input[name='csrfmiddlewaretoken']").val()
-                        },
-                        success: (data) => {
-                            if (data.plotDivs && data.plotDivs.length > 0) {
-                                theaterCache.set(obsId, data.plotDivs[0]);
-                                resolve(data.plotDivs[0]);
-                            } else reject("No data");
-                        },
-                        error: reject
-                    });
+        let plotData;
+        if (theaterCache.has(cacheKey)) {
+            plotData = theaterCache.get(cacheKey);
+        } else {
+            try {
+                const response = await $.ajax({
+                    type: "POST",
+                    url: PLOT_GTI_URL,
+                    data: {
+                        "obs_id": obsId,
+                        "plot_type": type,
+                        "format": "json",
+                        "csrfmiddlewaretoken": $("input[name=\"csrfmiddlewaretoken\"]").val()
+                    }
                 });
-            }
-
-            // Render to theater area
-            await Plotly.react(gd, plotData.data, {...(plotData.layout || {}), ...gifLayout}, {displayModeBar: false});
-            
-            // Ensure WebGL/SVG is fully flushed
-            await new Promise(r => setTimeout(r, 200));
-
-            // Capture image
-            const imgData = await Plotly.toImage(gd, { format: 'png', width: 800, height: 400 });
-            images.push(imgData);
+                if (response.plotDivs && response.plotDivs.length > 0) {
+                    plotData = response.plotDivs[0];
+                    theaterCache.set(cacheKey, plotData);
+                }
+            } catch (err) { continue; }
         }
 
-        $btn.text("Creating GIF"); 
+        if (plotData) {
+            // Force Black and White with thick lines
+            const bwData = plotData.data.map(trace => ({
+                ...trace,
+                line: { ...trace.line, color: '#000', width: 1.5 },
+                marker: { ...trace.marker, color: '#000', line: { color: '#000', width: 1 } },
+                fillcolor: 'rgba(0,0,0,0.05)'
+            }));
 
+            Plotly.react(container, bwData, applyMatplotlibStyle(plotData.layout, type), PLOT_CONFIG);
+        }
+    }
+}
+
+function applyMatplotlibStyle(originalLayout, type) {
+    const styled = {
+        ...MATPLOTLIB_LAYOUT,
+        xaxis: { ...MATPLOTLIB_LAYOUT.xaxis, title: originalLayout.xaxis?.title?.text || '' },
+        yaxis: { ...MATPLOTLIB_LAYOUT.yaxis, title: originalLayout.yaxis?.title?.text || '' }
+    };
+    if (type === 'power_density_spectrum') {
+        styled.xaxis.type = 'log';
+        styled.yaxis.type = 'log';
+    } else if (type === 'hardness_intensity_diagram') {
+        styled.yaxis.type = 'log';
+    }
+    return styled;
+}
+
+/**
+ * GIF Generation
+ */
+async function generateGIF() {
+    const $btn = $('#theater-gif-btn');
+    $btn.prop('disabled', true).text("CAPTURNING...");
+
+    const images = [];
+    const playlist = window.lcTheaterPlaylist;
+    const pageElement = document.getElementById('theater-page-content');
+
+    try {
+        for (let i = 0; i < playlist.length; i++) {
+            await updateTheaterFrame(i);
+            await new Promise(r => setTimeout(r, 800));
+            const canvas = await html2canvas(pageElement, { scale: 1.5, backgroundColor: "#ffffff" });
+            images.push(canvas.toDataURL('image/png'));
+        }
+        $btn.text("ENCODING...");
         gifshot.createGIF({
             images: images,
-            gifWidth: 800,
-            gifHeight: 400,
-            interval: 0.5, // seconds
-            numFrames: images.length,
-            sampleInterval: 10
+            gifWidth: 1200,
+            gifHeight: 900,
+            interval: 0.6,
+            numFrames: images.length
         }, function(obj) {
             if (!obj.error) {
                 const link = document.createElement('a');
                 link.href = obj.image;
-                link.download = `nicer_sequence_${Date.now()}.gif`;
+                link.download = `nicer_report_${Date.now()}.gif`;
                 link.click();
-                $btn.prop('disabled', false).text(originalText);
-                if (window.StatusBar) window.StatusBar.getInstance().show("GIF downloaded successfully!", 3000);
-            } else {
-                console.error("GIF Error:", obj.error);
-                alert("Error generating GIF: " + obj.error);
-                $btn.prop('disabled', false).text(originalText);
             }
+            $btn.prop('disabled', false).text("GENERATE GIF");
         });
-
     } catch (err) {
-        console.error("GIF Generation failed:", err);
-        alert("GIF Generation failed. See console for details.");
-        $btn.prop('disabled', false).text(originalText);
+        $btn.prop('disabled', false).text("GENERATE GIF");
     }
 }
 
-// Initialize the listeners
 $(document).ready(function() {
-    $(document).off('input', '#theater-slider').on('input', '#theater-slider', function() {
-        updateTheaterFrame(this.value);
-    });
-
     $(document).off('click', '#theater-gif-btn').on('click', '#theater-gif-btn', function() {
         generateGIF();
     });

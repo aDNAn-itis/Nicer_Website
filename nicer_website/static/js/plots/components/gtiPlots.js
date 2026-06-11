@@ -217,9 +217,10 @@ export async function fetchGTIPlot(e) {
   const currentObsID = $form.find('input[name="obs_id"]').val();
   
   // 🟢 Fix State Loss: Look in the whole container for the search box
-  let gtiSearch = $form.closest(".plot-container").find('input[name="gti-search"]').val();
+  const $searchBox = $form.closest(".plot-container, .plot-type-section").find('input[name="gti-search"]');
+  let gtiSearch = $searchBox.length ? $searchBox.val() : undefined;
   
-  if (!gtiSearch && window.selectedGtis && window.selectedGtis.length > 0) {
+  if (gtiSearch === undefined && window.selectedGtis && window.selectedGtis.length > 0) {
     const obsIdArray = currentObsID.split(',').map(id => id.trim());
     if (obsIdArray.length > 1) {
         gtiSearch = window.selectedGtis
@@ -264,16 +265,37 @@ export async function fetchGTIPlot(e) {
   return;
   }
 
-  // 🟢 AJAX LOOP (DNA Fix Integrated)
+  // 🟢 AJAX LOOP (Surgical Sync Fix)
   openPlotTypes.forEach(type => {
   const opId = 'gti-change-' + type + '-' + currentObsID;
   startOperation(opId, `Updating ${type.replace(/_/, ' ')} plot...`);
 
-  let formData = $form.serialize();
+  // 🟢 FIX: Find the SPECIFIC form for this plot type to preserve its own binning/GTIs
+  const cleanObsForTarget = currentObsID.replace(/,/g, '-');
+  const cleanTypeForTarget = type.replace(/_/g, '-');
+  const altTypeForTarget = type.replace(/-/g, '_');
+
+  const $targetContainer = $(`
+      [data-plot-type="${type}"][data-obs-id="${currentObsID}"], 
+      [data-plot-type="${altTypeForTarget}"][data-obs-id="${currentObsID}"],
+      #${cleanTypeForTarget}-${cleanObsForTarget},
+      #${altTypeForTarget}-${cleanObsForTarget},
+      #combined-${cleanTypeForTarget}-${cleanObsForTarget}
+  `).first();
+
+  // Use target form if it's not the one we just changed, to keep its own binning/GTIs
+  const $targetForm = $targetContainer.find('form.fetch-gti');
+  let formData = ($targetForm.length > 0 && type !== triggeringPlotType) 
+      ? $targetForm.serialize() 
+      : $form.serialize();
 
   // 🟢 DNA FIX: Force request to ask for correct plot type per loop iteration
   const cleanTypeForReq = type.replace(/-/g, '_');
-  formData = formData.replace(/plot_type=[^&]*/, "plot_type=" + cleanTypeForReq);
+  if (formData.includes('plot_type=')) {
+      formData = formData.replace(/plot_type=[^&]*/, "plot_type=" + cleanTypeForReq);
+  } else {
+      formData += `&plot_type=${cleanTypeForReq}`;
+  }
 
   // Ensure search_type is included
   if (!formData.includes('search_type')) {

@@ -233,6 +233,9 @@ def light_curve_plot(
 
     if not x_data:
         empty_fig = go.Figure().add_annotation(text="No valid data", showarrow=False)
+        if output_type == 'dict':
+            import json
+            return json.loads(empty_fig.to_json())
         return plot(empty_fig, output_type='div', include_plotlyjs=False)
 
     # 3. Synchronized Normalization

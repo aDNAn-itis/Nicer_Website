@@ -7,9 +7,10 @@ import { fetchGraphPlots } from './components/graph.js?v=201';
 import { downloadData } from './components/download.js?v=201';
 import { fetchOptions } from './components/dropdowns.js?v=201';
 import { StatusBar } from './components/statusBar.js?v=201';
-import { updateTheaterFrame } from './components/lcTheater.js?v=201';
+import { updateTheaterFrame, openLCTheater } from './components/lcTheater.js?v=201';
 
 window.fetchGTIPlot = fetchGTIPlot; // 🟢 FIX: Global bridge for ESM modules and dynamic form listeners
+window.openLCTheater = openLCTheater; // 🟢 FIX: Make available to the Global HID button listener
 
 let gtiMap = {}; // Cache for GTIs: { obsId: [gti1, gti2, ...], ... }
 let selectedGtis = []; // [{ obsId: "...", gti: N }]
@@ -435,15 +436,7 @@ function populateResultsLayout(data, searchType) {
   }
 }
 
-function openLCTheater() {
-    if (!window.lcTheaterPlaylist || window.lcTheaterPlaylist.length === 0) {
-        alert("Please click some points on the HID first to build a sequence!");
-        return;
-    }
-    $("#lc-theater-panel, #theater-overlay").fadeIn(200);
-    $("#theater-slider").attr("max", window.lcTheaterPlaylist.length - 1).val(0);
-    updateTheaterFrame(0);
-}
+
 
 document.addEventListener("DOMContentLoaded", () => {
   StatusBar.getInstance();

@@ -119,7 +119,6 @@ def spectrum_data(
         print(f"Error processing Spectrum {data_path}: {e}")
         return (np.array([]),) * 6
 
-
 def spectrum_plot(
         min_value: int,
         obs_id: Any,
@@ -139,18 +138,21 @@ def spectrum_plot(
     # --- YOUR LABELING LOGIC ---
     obs_str = str(obs_id)
     is_combined = ',' in obs_str
-    
+
     if gti_labels is None:
         if is_combined:
             obs_ids_list = obs_str.split(',')
             gti_labels = []
             for i in range(len(data_paths)):
-                oid = obs_ids_list[i % len(obs_ids_list)] if len(obs_ids_list) > 0 else obs_str
+                data_path = data_paths[i]
+                # Extract actual ObsID from the path
+                oid = next((oid_part.strip() for oid_part in obs_ids_list if oid_part.strip() in data_path), obs_str)
                 gti = gti_numbers[i] if i < len(gti_numbers) else "?"
                 gti_labels.append(f"{oid} (GTI {gti})")
         else:
-            gti_labels = [f'GTI{gti}' for gti in gti_numbers]
+            gti_labels = [f"GTI {num}" for num in gti_numbers]
 
+    # Process each valid data path
     # Fetch results using Rahul's cleaner iteration while keeping your fallback checks
     for data_path in data_paths:
         results = spectrum_data(min_value, data_path, cut_off=cut_off)
