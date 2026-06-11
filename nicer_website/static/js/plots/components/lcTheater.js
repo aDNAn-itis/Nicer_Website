@@ -1,45 +1,13 @@
 /**
- * lcTheater.js - MATPLOTLIB-STYLE TWO-CONTAINER VIEWER
- * Implements a paper-style 2x2 grid report with red-bordered boxes
+ * lcTheater.js - INTERACTIVE SEQUENCE VIEWER
  */
 
 const theaterCache = new Map();
 let globalHidPoints = []; 
 
-// Matplotlib-style constants for fixed, non-interactive plots
-const MATPLOTLIB_LAYOUT = {
-    font: { family: 'serif', size: 12, color: '#000', weight: 'normal' },
-    paper_bgcolor: '#fff',
-    plot_bgcolor: '#fff',
-    margin: { t: 30, b: 40, l: 60, r: 20 },
-    xaxis: {
-        linecolor: '#000',
-        linewidth: 1.5,
-        mirror: true,
-        showgrid: false,
-        zeroline: false,
-        ticks: 'inside',
-        tickcolor: '#000',
-        title: { font: { weight: 'normal' } },
-        tickfont: { weight: 'normal' }
-    },
-    yaxis: {
-        linecolor: '#000',
-        linewidth: 1.5,
-        mirror: true,
-        showgrid: false,
-        zeroline: false,
-        ticks: 'inside',
-        tickcolor: '#000',
-        title: { font: { weight: 'normal' } },
-        tickfont: { weight: 'normal' }
-    }
-};
-
 const PLOT_CONFIG = {
-    staticPlot: true, // Absolutely no interaction (zoom/pan/hover)
     responsive: true,
-    displayModeBar: false
+    displayModeBar: true
 };
 
 /**
@@ -52,7 +20,7 @@ export async function openLCTheater() {
     }
 
     $("#lc-theater-panel, #theater-overlay").fadeIn(200, function() {
-        // Trigger resize to ensure plots fill the new 90% flex layout
+        // Trigger resize to ensure plots fill the new layout
         const containers = ['theater-global-hid', 'theater-lc', 'theater-pds', 'theater-hid'];
         containers.forEach(id => {
             const el = document.getElementById(id);
@@ -77,14 +45,12 @@ export async function openLCTheater() {
 window.openLCTheater = openLCTheater;
 
 /**
- * Fills the right red box with clickable ObsIDs
+ * Fills the ObsID list
  */
 function populateObsIDList() {
     const $list = $("#theater-obsid-list");
     $list.empty();
     
-    console.log("Populating ObsID List with:", window.lcTheaterPlaylist);
-
     window.lcTheaterPlaylist.forEach((obsId, idx) => {
         const $item = $("<div>")
             .text(obsId)
@@ -131,40 +97,33 @@ function renderGlobalHidBase() {
     const x = globalHidPoints.map(p => p.hardness);
     const y = globalHidPoints.map(p => p.intensity);
 
-    // Sequence Background: Hollow Black Circles
     const backgroundTrace = {
         x: x,
         y: y,
         mode: 'markers',
         type: 'scatter',
-        marker: { 
-            size: 8, 
-            color: 'white', 
-            line: { width: 1.5, color: '#000' } 
-        }
+        name: 'Sequence',
+        marker: { size: 10, color: '#ccc', opacity: 0.5 }
     };
 
-    // Current State: Solid Red Circle with Text Label
     const highlightTrace = {
         x: [x[0]],
         y: [y[0]],
         mode: 'markers+text',
         type: 'scatter',
-        marker: { 
-            size: 14, 
-            color: '#e03131', 
-            line: { width: 1.5, color: '#000' }
-        },
+        name: 'Current',
+        marker: { size: 14, color: '#3b82f6', line: { width: 2, color: '#fff' } },
         text: [globalHidPoints[0].obsid],
-        textposition: 'top right',
-        textfont: { family: 'monospace', size: 14, color: '#e03131', weight: 'normal' }
+        textposition: 'top right'
     };
 
     const layout = {
-        ...MATPLOTLIB_LAYOUT,
-        xaxis: { ...MATPLOTLIB_LAYOUT.xaxis, title: 'Hardness' },
-        yaxis: { ...MATPLOTLIB_LAYOUT.yaxis, title: 'Intensity', type: 'log' },
-        showlegend: false
+        title: 'Global HID Sequence',
+        xaxis: { title: 'Hardness' },
+        yaxis: { title: 'Intensity', type: 'log' },
+        showlegend: false,
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)'
     };
 
     Plotly.newPlot('theater-global-hid', [backgroundTrace, highlightTrace], layout, PLOT_CONFIG);
@@ -182,7 +141,7 @@ export async function updateTheaterFrame(index) {
     // List selection styling
     $("#theater-obsid-list div").removeClass("active").css({"background": "transparent", "color": "#000"});
     const $activeItem = $(`#theater-obsid-list div[data-index="${index}"]`);
-    $activeItem.addClass("active").css({"background": "#e03131", "color": "#fff"});
+    $activeItem.addClass("active").css({"background": "#3b82f6", "color": "#fff"});
 
     // 1. Update Global HID Marker
     const point = globalHidPoints.find(p => p.obsid === obsId);
@@ -194,7 +153,7 @@ export async function updateTheaterFrame(index) {
         }, [1]);
     }
 
-    // 2. Update 3 Subplots (Forced B&W)
+    // 2. Update Subplots (Default Styles)
     await updateSubplots(obsId);
 }
 window.updateTheaterFrame = updateTheaterFrame;
@@ -231,32 +190,9 @@ async function updateSubplots(obsId) {
         }
 
         if (plotData) {
-            // Force Black and White with thick lines
-            const bwData = plotData.data.map(trace => ({
-                ...trace,
-                line: { ...trace.line, color: '#000', width: 1.5 },
-                marker: { ...trace.marker, color: '#000', line: { color: '#000', width: 1 } },
-                fillcolor: 'rgba(0,0,0,0.05)'
-            }));
-
-            Plotly.react(container, bwData, applyMatplotlibStyle(plotData.layout, type), PLOT_CONFIG);
+            Plotly.react(container, plotData.data, plotData.layout, PLOT_CONFIG);
         }
     }
-}
-
-function applyMatplotlibStyle(originalLayout, type) {
-    const styled = {
-        ...MATPLOTLIB_LAYOUT,
-        xaxis: { ...MATPLOTLIB_LAYOUT.xaxis, title: originalLayout.xaxis?.title?.text || '' },
-        yaxis: { ...MATPLOTLIB_LAYOUT.yaxis, title: originalLayout.yaxis?.title?.text || '' }
-    };
-    if (type === 'power_density_spectrum') {
-        styled.xaxis.type = 'log';
-        styled.yaxis.type = 'log';
-    } else if (type === 'hardness_intensity_diagram') {
-        styled.yaxis.type = 'log';
-    }
-    return styled;
 }
 
 /**
