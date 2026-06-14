@@ -1,13 +1,12 @@
 /**
- * lcTheater.js - INTERACTIVE SEQUENCE VIEWER
+ * lcTheater.js - RAPID-FIRE SEQUENCE VIEWER & HIGH-RES GIF ENGINE
  */
 
-const theaterCache = new Map();
 let globalHidPoints = []; 
 
 const PLOT_CONFIG = {
     responsive: true,
-    displayModeBar: true
+    displayModeBar: false
 };
 
 /**
@@ -19,14 +18,7 @@ export async function openLCTheater() {
         return;
     }
 
-    $("#lc-theater-panel, #theater-overlay").fadeIn(200, function() {
-        // Trigger resize to ensure plots fill the new layout
-        const containers = ['theater-global-hid', 'theater-lc', 'theater-pds', 'theater-hid'];
-        containers.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) Plotly.Plots.resize(el);
-        });
-    });
+    $("#lc-theater-panel, #theater-overlay").fadeIn(200);
     
     // Header info
     const sourceName = $("#source-search").val() || "Unknown Source";
@@ -39,7 +31,6 @@ export async function openLCTheater() {
         updateTheaterFrame(0);
     } catch (err) {
         console.error("Failed to initialize theater:", err);
-        alert("Error initializing sequence viewer.");
     }
 }
 window.openLCTheater = openLCTheater;
@@ -60,8 +51,7 @@ function populateObsIDList() {
                 "cursor": "pointer",
                 "border-bottom": "1px solid #eee",
                 "transition": "all 0.1s",
-                "color": "#000",
-                "font-weight": "normal"
+                "color": "#000"
             })
             .hover(
                 function() { $(this).css("background", "#f0f0f0"); },
@@ -118,19 +108,19 @@ function renderGlobalHidBase() {
     };
 
     const layout = {
-        title: 'Global HID Sequence',
         xaxis: { title: 'Hardness' },
         yaxis: { title: 'Intensity', type: 'log' },
         showlegend: false,
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor: 'rgba(0,0,0,0)'
+        margin: { t: 30, b: 40, l: 50, r: 20 },
+        paper_bgcolor: 'white',
+        plot_bgcolor: 'white'
     };
 
     Plotly.newPlot('theater-global-hid', [backgroundTrace, highlightTrace], layout, PLOT_CONFIG);
 }
 
 /**
- * Main update function
+ * Main update function - RAPID IMAGE SWAPPING
  */
 export async function updateTheaterFrame(index) {
     const obsId = window.lcTheaterPlaylist[index];
@@ -153,89 +143,94 @@ export async function updateTheaterFrame(index) {
         }, [1]);
     }
 
-    // 2. Update Subplots (Default Styles)
-    await updateSubplots(obsId);
+    // 2. Update Subplot Images (FAST)
+    const q = quality || 'goddard';
+    const baseUrl = PLOT_THEATER_PNG_URL;
+
+    // We just swap the src. The browser handles the loading and caching.
+    document.getElementById('theater-lc-img').src = `${baseUrl}?obs_id=${obsId}&plot_type=light_curve&quality=${q}`;
+    document.getElementById('theater-pds-img').src = `${baseUrl}?obs_id=${obsId}&plot_type=power_density_spectrum&quality=${q}`;
+    document.getElementById('theater-hid-img').src = `${baseUrl}?obs_id=${obsId}&plot_type=hardness_intensity_diagram&quality=${q}`;
 }
 window.updateTheaterFrame = updateTheaterFrame;
 
-async function updateSubplots(obsId) {
-    const types = ['light_curve', 'power_density_spectrum', 'hardness_intensity_diagram'];
-    const containers = ['theater-lc', 'theater-pds', 'theater-hid'];
-    
-    for (let i = 0; i < types.length; i++) {
-        const type = types[i];
-        const container = containers[i];
-        const cacheKey = `${obsId}_${type}`;
-
-        let plotData;
-        if (theaterCache.has(cacheKey)) {
-            plotData = theaterCache.get(cacheKey);
-        } else {
-            try {
-                const response = await $.ajax({
-                    type: "POST",
-                    url: PLOT_GTI_URL,
-                    data: {
-                        "obs_id": obsId,
-                        "plot_type": type,
-                        "format": "json",
-                        "csrfmiddlewaretoken": $("input[name=\"csrfmiddlewaretoken\"]").val()
-                    }
-                });
-                if (response.plotDivs && response.plotDivs.length > 0) {
-                    plotData = response.plotDivs[0];
-                    theaterCache.set(cacheKey, plotData);
-                }
-            } catch (err) { continue; }
-        }
-
-        if (plotData) {
-            Plotly.react(container, plotData.data, plotData.layout, PLOT_CONFIG);
-        }
-    }
-}
-
 /**
- * GIF Generation
+ * GIF Generation - DIRECT CANVAS STITCHING (Rapid & Sharp)
  */
 async function generateGIF() {
     const $btn = $('#theater-gif-btn');
-    $btn.prop('disabled', true).text("CAPTURNING...");
+    $btn.prop('disabled', true).text("STITCHING...");
 
-    const images = [];
     const playlist = window.lcTheaterPlaylist;
-    const pageElement = document.getElementById('theater-page-content');
+    const frames = [];
+
+    // Helper to wait for image load
+    const waitLoad = (img) => new Promise(r => {
+        if (img.complete) r();
+        else img.onload = r;
+    });
 
     try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1600; 
+        canvas.height = 1200;
+        const ctx = canvas.getContext('2d');
+
         for (let i = 0; i < playlist.length; i++) {
             await updateTheaterFrame(i);
-            await new Promise(r => setTimeout(r, 800));
-            const canvas = await html2canvas(pageElement, { scale: 1.5, backgroundColor: "#ffffff" });
-            images.push(canvas.toDataURL('image/png'));
+            
+            // Get the 3 PNG images
+            const imgLC = document.getElementById('theater-lc-img');
+            const imgPDS = document.getElementById('theater-pds-img');
+            const imgHID = document.getElementById('theater-hid-img');
+
+            // Wait for them to actually load
+            await Promise.all([waitLoad(imgLC), waitLoad(imgPDS), waitLoad(imgHID)]);
+
+            // Get the Plotly image (Global HID) as a dataURL
+            const plotlyDataUrl = await Plotly.toImage('theater-global-hid', {format: 'png', width: 800, height: 600});
+            const imgGlobal = new Image();
+            imgGlobal.src = plotlyDataUrl;
+            await waitLoad(imgGlobal);
+
+            // Clear and Stitch onto Canvas
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2x2 Grid
+            ctx.drawImage(imgGlobal, 0, 0, 800, 600);    // Top Left
+            ctx.drawImage(imgLC, 800, 0, 800, 600);      // Top Right
+            ctx.drawImage(imgPDS, 0, 600, 800, 600);     // Bottom Left
+            ctx.drawImage(imgHID, 800, 600, 800, 600);   // Bottom Right
+
+            frames.push(canvas.toDataURL('image/png'));
+            $btn.text(`CAPTURED ${i+1}/${playlist.length}`);
         }
-        $btn.text("ENCODING...");
+
+        $btn.text("ENCODING GIF...");
+        
         gifshot.createGIF({
-            images: images,
+            images: frames,
             gifWidth: 1200,
             gifHeight: 900,
-            interval: 0.6,
-            numFrames: images.length
+            interval: 0.5,
+            numFrames: frames.length
         }, function(obj) {
             if (!obj.error) {
                 const link = document.createElement('a');
                 link.href = obj.image;
-                link.download = `nicer_report_${Date.now()}.gif`;
+                link.download = `nicer_sequence_${Date.now()}.gif`;
                 link.click();
             }
             $btn.prop('disabled', false).text("GENERATE GIF");
         });
+
     } catch (err) {
+        console.error("GIF Error:", err);
         $btn.prop('disabled', false).text("GENERATE GIF");
     }
 }
 
 $(document).ready(function() {
-    $(document).off('click', '#theater-gif-btn').on('click', '#theater-gif-btn', function() {
-        generateGIF();
-    });
+    $(document).off('click', '#theater-gif-btn').on('click', '#theater-gif-btn', generateGIF);
 });

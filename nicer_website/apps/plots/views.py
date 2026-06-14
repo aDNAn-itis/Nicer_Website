@@ -21,6 +21,10 @@ import warnings
 from astropy.utils.exceptions import AstropyWarning
 from dataclasses import dataclass
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 from django.conf import settings
 from django.shortcuts import render
 from django.db.models import QuerySet
@@ -875,7 +879,13 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
             name__contains=quality, 
             path__startswith=rel_dir_path, 
             type=Item.item_type[1][0]
-        ).filter(name__contains='.lc.gz')
+        ).filter(name__contains='.lc.gz').exclude(
+            name__contains='.bg-lc.gz'
+        ).exclude(
+            name__contains='.bg3c-lc.gz'
+        ).exclude(
+            name__contains='.keithbg1-lc.gz'
+        )
         
         paths = [os.path.join(abs_dir_path, f.name) for f in files]
         
@@ -960,3 +970,139 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
 
     div = plot(fig, output_type='div', include_plotlyjs=False)
     return JsonResponse({'plotDiv': div, 'rawData': raw_data})
+
+def plot_theater_png(request: HttpRequest) -> HttpResponse:
+    """
+    Generates a static PNG for the LC Theater to ensure rapid-fire navigation.
+    Thread-safe implementation using Matplotlib's Figure API.
+    """
+    obs_id = request.GET.get('obs_id', '')
+    plot_type = request.GET.get('plot_type', '').replace('-', '_')
+    quality = request.GET.get('quality', 'goddard')
+    min_value = request.GET.get('min_value')
+    
+    if not obs_id or not plot_type:
+        return HttpResponse("Missing parameters", status=400)
+
+    # 1. Locate File
+    plot_info = PLOTS.get(plot_type)
+    if not plot_info:
+        return HttpResponse("Invalid plot type", status=400)
+
+    rel_path = os.path.join(obs_id, 'jspipe/')
+    
+    # IMPROVED SELECTION: Avoid background files and prefer total plots
+    query = Item.objects.filter(path=rel_path, name__contains=quality).filter(name__contains=plot_info['file_type'])
+    
+    if plot_type in ['light_curve', 'hardness_intensity_diagram']:
+        query = query.exclude(name__contains='.bg-lc.gz').exclude(name__contains='.bg3c-lc.gz').exclude(name__contains='.keithbg1-lc.gz')
+    
+    if plot_type == 'power_density_spectrum':
+        total_pds = query.filter(name__contains='GTI0-bin.pds').first()
+        file_item = total_pds if total_pds else query.first()
+    else:
+        file_item = query.first()
+
+    # Thread-safe Matplotlib: Use Figure directly, not plt.subplots()
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    import matplotlib.ticker as ticker
+    
+    fig = Figure(figsize=(8, 6), dpi=100)
+    canvas = FigureCanvasAgg(fig)
+    ax = fig.add_subplot(111)
+    ax.set_facecolor('white')
+    fig.patch.set_facecolor('white')
+
+    if not file_item:
+        ax.text(0.5, 0.5, f"No Data Found\n{obs_id}\n{plot_type}", ha='center', va='center')
+        buf = BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        return HttpResponse(buf.getvalue(), content_type="image/png")
+
+    full_path = os.path.join(settings.DATA_DIR, rel_path, file_item.name)
+    
+    try:
+        try:
+            m_val = int(min_value) if min_value else plot_info['min_value']
+        except:
+            m_val = plot_info['min_value']
+
+        if plot_type == 'light_curve':
+            from src.apps.plots.light_curve_preprocessing import light_curve_data
+            x, y, bg_x, bg_y, x_err, y_err = light_curve_data(m_val, full_path)
+            ax.errorbar(x, y, yerr=y_err, fmt='o', color='#3b82f6', markersize=2, capsize=0, elinewidth=1, label='Rate')
+            ax.step(bg_x, bg_y, where='mid', color='red', linewidth=1, label='Background')
+            ax.set_xlabel('Time (s)', fontweight='bold')
+            ax.set_ylabel('Counts/s', fontweight='bold')
+            ax.set_title(f'Light Curve: {obs_id}', fontsize=14, fontweight='bold')
+
+        elif plot_type == 'power_density_spectrum':
+            from src.apps.plots.power_density_processing import read_fits_file, process_pds_data
+            gti_data, _ = read_fits_file(full_path, [0])
+            if gti_data:
+                rsp_path = full_path.replace('-bin.pds', '-fak.rsp')
+                if not os.path.exists(rsp_path):
+                    dir_name = os.path.dirname(full_path)
+                    for f in os.listdir(dir_name):
+                        if f.endswith('-fak.rsp') and quality in f:
+                            rsp_path = os.path.join(dir_name, f); break
+
+                rsp_data, _ = read_fits_file(rsp_path, [0])
+                if rsp_data:
+                    freq, pds, err = process_pds_data(gti_data[0], rsp_data[0])
+                    ax.errorbar(freq, pds, yerr=err, fmt='o', color='#10b981', markersize=3, capsize=0)
+                    ax.set_xscale('log')
+                    ax.set_yscale('log')
+                    ax.set_xlabel('Frequency (Hz)', fontweight='bold')
+                    ax.set_ylabel('Power (rms/mean)^2/Hz', fontweight='bold')
+                    ax.set_title(f'PDS: {obs_id}', fontsize=14, fontweight='bold')
+                else:
+                    ax.text(0.5, 0.5, "RSP File Not Found", ha='center', va='center')
+                    ax.set_title(f'PDS (No RSP): {obs_id}')
+            else:
+                ax.text(0.5, 0.5, "PDS Data Not Found", ha='center', va='center')
+                ax.set_title(f'PDS (No Data): {obs_id}')
+
+        elif plot_type == 'hardness_intensity_diagram':
+            t, s, h, i = process_lc_file(full_path)
+            if len(h) > 0 and len(s) > 0:
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    hardness = h / s
+                valid = np.isfinite(hardness) & np.isfinite(i) & (hardness > 0) & (i > 0)
+                if np.any(valid):
+                    ax.scatter(hardness[valid], i[valid], alpha=0.5, color='#f59e0b', s=10)
+                    ax.set_yscale('log')
+                    ax.set_xlabel('Hardness (Hard/Soft)', fontweight='bold')
+                    ax.set_ylabel('Intensity (counts/s)', fontweight='bold')
+                    ax.set_title(f'HID: {obs_id}', fontsize=14, fontweight='bold')
+                    # Use a safer formatter for log scale to avoid ParseException in concurrent environments
+                    ax.yaxis.set_major_formatter(ticker.LogFormatterSciNotation(labelOnlyBase=False))
+                else:
+                    ax.text(0.5, 0.5, "No Finite HID Data", ha='center', va='center')
+                    ax.set_title(f'HID (Empty): {obs_id}')
+            else:
+                ax.text(0.5, 0.5, "LC File Empty or Invalid", ha='center', va='center')
+                ax.set_title(f'HID (No Data): {obs_id}')
+
+        elif 'spectrum' in plot_type:
+            from src.apps.plots.spectrum_preprocessing import spectrum_data
+            y, bg, x, x_err, y_err = spectrum_data(m_val, full_path, cut_off=(0.3, 12.0))
+            ax.errorbar(x, y, yerr=y_err, fmt='o', color='#8b5cf6', markersize=2, capsize=0)
+            ax.step(x, bg, where='mid', color='gray', alpha=0.5, label='BG')
+            ax.set_xscale('log')
+            ax.set_yscale('log')
+            ax.set_xlabel('Energy (keV)', fontweight='bold')
+            ax.set_ylabel('Photons/cm^2/s/keV', fontweight='bold')
+            ax.set_title(f'Spectrum: {obs_id}', fontsize=14, fontweight='bold')
+
+        ax.grid(True, which='both', linestyle='--', alpha=0.3)
+        fig.tight_layout()
+
+        buf = BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        return HttpResponse(buf.getvalue(), content_type="image/png")
+
+    except Exception as e:
+        logger.error(f"PNG Generation Error: {e}")
+        return HttpResponse(f"Error: {str(e)}", status=500)

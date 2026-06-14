@@ -21,6 +21,7 @@
   const PLOT_COMBINED_URL = "{% url 'plots:plot_combined' %}"; 
   const SOURCE_SEARCH_URL = "{% url 'plots:source_search' %}"; 
   const FETCH_GTIS_URL = "{% url 'plots:fetch_gtis' %}"; 
+  const PLOT_THEATER_PNG_URL = "{% url 'plots:theater_png' %}";
   
 
   let quality = '{{ quality }}';
@@ -525,26 +526,32 @@
                 </div>
 
                 <!-- 2x2 Static Plot Grid -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 20px; flex: 1;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 20px; flex: 1; min-height: 0;">
                     <!-- Top Left: Global HID -->
-                    <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px;">
+                    <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: normal; border-bottom: 1px solid #eee; padding: 5px; background: #f9f9f9; color: #666;">GLOBAL HID-DIAGRAM</div>
-                        <div id="theater-global-hid" style="width:100%; flex: 1;"></div>
+                        <div id="theater-global-hid" style="width:100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Top Right: Light Curve -->
-                    <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px;">
+                    <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: normal; border-bottom: 1px solid #eee; padding: 5px; background: #f9f9f9; color: #666;">LIGHT-CURVE</div>
-                        <div id="theater-lc" style="width:100%; flex: 1;"></div>
+                        <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #fff;">
+                            <img id="theater-lc-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        </div>
                     </div>
                     <!-- Bottom Left: PDS -->
-                    <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px;">
+                    <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: normal; border-bottom: 1px solid #eee; padding: 5px; background: #f9f9f9; color: #666;">PDS</div>
-                        <div id="theater-pds" style="width:100%; flex: 1;"></div>
+                        <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #fff;">
+                            <img id="theater-pds-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        </div>
                     </div>
                     <!-- Bottom Right: Local HID -->
-                    <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px;">
+                    <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: normal; border-bottom: 1px solid #eee; padding: 5px; background: #f9f9f9; color: #666;">HID-DIAGRAM</div>
-                        <div id="theater-hid" style="width:100%; flex: 1;"></div>
+                        <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #fff;">
+                            <img id="theater-hid-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        </div>
                     </div>
                 </div>
             </div>

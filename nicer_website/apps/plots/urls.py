@@ -17,5 +17,5 @@ urlpatterns = [
     path('download', views.download_data, name='download_data'),
     path('source_search/', views.source_search_view, name='source_search'),
     path('plot_combined', views.plot_combined_global_hid, name='plot_combined'),
-    
+    path('theater_png', views.plot_theater_png, name='theater_png'),
 ]
