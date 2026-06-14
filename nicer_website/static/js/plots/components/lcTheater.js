@@ -3,6 +3,7 @@
  */
 
 let globalHidPoints = []; 
+const theaterImageCache = new Map(); // 🟢 NEW: In-memory cache for preloaded images
 
 const PLOT_CONFIG = {
     responsive: true,
@@ -29,11 +30,37 @@ export async function openLCTheater() {
     try {
         await initGlobalHid();
         updateTheaterFrame(0);
+        
+        // 🟢 START PRE-LOADING THE ENTIRE SEQUENCE
+        preloadSequence();
     } catch (err) {
         console.error("Failed to initialize theater:", err);
     }
 }
 window.openLCTheater = openLCTheater;
+
+/**
+ * 🟢 NEW: Pre-loads all images in the playlist into browser memory
+ */
+function preloadSequence() {
+    const playlist = window.lcTheaterPlaylist;
+    const q = quality || 'goddard';
+    const baseUrl = PLOT_THEATER_PNG_URL;
+    const plotTypes = ['light_curve', 'power_density_spectrum', 'hardness_intensity_diagram'];
+
+    console.log(`🚀 Pre-loading ${playlist.length * 3} images...`);
+
+    playlist.forEach(obsId => {
+        plotTypes.forEach(type => {
+            const url = `${baseUrl}?obs_id=${obsId}&plot_type=${type}&quality=${q}`;
+            if (!theaterImageCache.has(url)) {
+                const img = new Image();
+                img.src = url;
+                theaterImageCache.set(url, img); // Store the Image object in memory
+            }
+        });
+    });
+}
 
 /**
  * Fills the ObsID list
@@ -146,11 +173,20 @@ export async function updateTheaterFrame(index) {
     // 2. Update Subplot Images (FAST)
     const q = quality || 'goddard';
     const baseUrl = PLOT_THEATER_PNG_URL;
+    const plotTypes = ['light_curve', 'power_density_spectrum', 'hardness_intensity_diagram'];
+    const imgIds = ['theater-lc-img', 'theater-pds-img', 'theater-hid-img'];
 
-    // We just swap the src. The browser handles the loading and caching.
-    document.getElementById('theater-lc-img').src = `${baseUrl}?obs_id=${obsId}&plot_type=light_curve&quality=${q}`;
-    document.getElementById('theater-pds-img').src = `${baseUrl}?obs_id=${obsId}&plot_type=power_density_spectrum&quality=${q}`;
-    document.getElementById('theater-hid-img').src = `${baseUrl}?obs_id=${obsId}&plot_type=hardness_intensity_diagram&quality=${q}`;
+    plotTypes.forEach((type, i) => {
+        const url = `${baseUrl}?obs_id=${obsId}&plot_type=${type}&quality=${q}`;
+        const el = document.getElementById(imgIds[i]);
+        
+        // 🟢 CHECK CACHE FIRST: If pre-loaded, swap instantly.
+        if (theaterImageCache.has(url)) {
+            el.src = theaterImageCache.get(url).src;
+        } else {
+            el.src = url;
+        }
+    });
 }
 window.updateTheaterFrame = updateTheaterFrame;
 
