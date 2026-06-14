@@ -1,6 +1,11 @@
 /* plot.js v200 - Clean Slate */
 console.log("plot.js (v200 - Clean Slate) loaded.");
 
+// 🟢 INITIALIZE GLOBALS AT THE ABSOLUTE TOP
+window.gtiMap = window.gtiMap || {};
+window.selectedGtis = window.selectedGtis || [];
+window.allObservationsData = window.allObservationsData || [];
+
 import { fetchGTIPlot } from './components/gtiPlots.js?v=201';
 import { displayInfo } from './components/observationInfo.js?v=201';
 import { fetchGraphPlots } from './components/graph.js?v=201';
@@ -9,13 +14,10 @@ import { fetchOptions } from './components/dropdowns.js?v=201';
 import { StatusBar } from './components/statusBar.js?v=201';
 import { updateTheaterFrame, openLCTheater } from './components/lcTheater.js?v=201';
 
-window.fetchGTIPlot = fetchGTIPlot; // 🟢 FIX: Global bridge for ESM modules and dynamic form listeners
-window.openLCTheater = openLCTheater; // 🟢 FIX: Make available to the Global HID button listener
+window.fetchGTIPlot = fetchGTIPlot; // Global bridge for ESM modules and dynamic form listeners
+window.openLCTheater = openLCTheater; 
 
-let gtiMap = {}; // Cache for GTIs: { obsId: [gti1, gti2, ...], ... }
-let selectedGtis = []; // [{ obsId: "...", gti: N }]
-window.selectedGtis = selectedGtis; // 🟢 Make globally accessible to break import loop
-let allObservationsData = [];
+// 🟢 NO 'LET' DECLARATIONS HERE. Use window directly to avoid TDZ errors during module loading.
 
 function sanitizeId(obsId) {
     if (!obsId) return '';
@@ -435,8 +437,6 @@ function populateResultsLayout(data, searchType) {
     }
   }
 }
-
-
 
 document.addEventListener("DOMContentLoaded", () => {
   StatusBar.getInstance();

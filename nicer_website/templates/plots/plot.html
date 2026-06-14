@@ -402,7 +402,7 @@
               <div class="results-right">
                 
                 <form id="plot-selection-form" method="post">
-                  
+                  {% csrf_token %}
                   <h3 id="plot-selection-title">Select Plot Types for...</h3>
                   <div class="plot-selection-box info-box" style="min-height: 220px; margin-bottom: 1.5rem;">
                     <div class="plot-checkbox">
@@ -441,8 +441,8 @@
 
                   
                   <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
-                    <button id="download-obs-btn" class="btn-sketch download-data" style="flex: 1;">Download</button>
-                    <button id="show-gti-btn" class="btn-sketch" style="flex: 1;">GTI Details</button>
+                    <button type="button" id="download-obs-btn" class="btn-sketch download-data" style="flex: 1;">Download</button>
+                    <button type="button" id="show-gti-btn" class="btn-sketch" style="flex: 1;">GTI Details</button>
                     <button type="submit" form="plot-selection-form" id="plot-selected-btn" class="btn-search" style="flex: 1;">
                       Plot
                     </button>
