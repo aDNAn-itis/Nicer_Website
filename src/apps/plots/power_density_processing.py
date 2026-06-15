@@ -110,18 +110,16 @@ def get_pds_data_and_plot(
             pds_path = data_paths[i]
             gti_number = gti_numbers[i]
             
-            # Use provided labels if available, otherwise try Smart Labeling
+            # Smart Labeling: Extract actual ObsID from the path
             if gti_labels and i < len(gti_labels):
                 current_obs = gti_labels[i]
             else:
-                # Smart Labeling: Extract actual ObsID from the path
-                # Improved: try to find any 10-digit number in path if list matching fails
                 current_obs = next((oid for oid in obs_ids_list if oid in pds_path), None)
                 if not current_obs:
-                    import re
                     match = re.search(r'/(\d{10})/', pds_path)
                     current_obs = match.group(1) if match else obs_str
             
+            # Combine ObsID and GTI for clarity in combined mode
             label = f"{current_obs} (GTI {gti_number})"
             
             # Derive RSP path directly from PDS path
@@ -159,11 +157,8 @@ def get_pds_data_and_plot(
             rsp_data_list, _ = read_fits_file(rsp_path, [gti_number])
 
             if pds_data_list and rsp_data_list:
-                # Use provided label or fallback to GTI number
-                if gti_labels and i < len(gti_labels):
-                    label = gti_labels[i]
-                else:
-                    label = f"GTI {gti_number}"
+                # For single obs, prioritize GTI number in the legend
+                label = f"GTI {gti_number}"
                 
                 process_and_append(
                     pds_data_list[0], rsp_data_list[0], 
@@ -195,13 +190,12 @@ def get_pds_data_and_plot(
         xaxis_range = yaxis_range = None
 
     return data_plot(
-        plot_type='lines+markers',
         gti_numbers=gti_numbers,
         gti_labels=plot_labels,
         x_data_list=x_data_list,
         y_data_list=y_data_list,
         y_uncertainties=y_uncertainties,
-        plot_kwargs={'output_type': output_type},
+        plot_kwargs={'mode': 'markers', 'output_type': output_type},
         layout_kwargs={
             'title': f'Power Density Spectrum {obs_id}',
             'xaxis_title': 'Frequency (Hz)',

@@ -233,14 +233,16 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
         if not os.path.exists(lc_path): continue
         
         if gti_labels and i < len(gti_labels):
-            label = gti_labels[i]
+            current_oid = gti_labels[i]
         else:
-            found_oid = obs_ids_list[0]
-            for oid in obs_ids_list:
-                if oid in lc_path:
-                    found_oid = oid
-                    break
-            label = f"{found_oid} (GTI {gti_num})"
+            current_oid = next((oid for oid in obs_ids_list if oid in lc_path), obs_ids_list[0])
+        
+        # Determine if we should show full ObsID or just GTI (Matches PDS Fix)
+        is_actually_combined = ',' in str(obs_id) or (gti_labels and len(set(gti_labels)) > 1)
+        if is_actually_combined:
+            label = f"{current_oid} (GTI {gti_num})"
+        else:
+            label = f"GTI {gti_num}"
 
         time, soft, hard, intensity = process_lc_file(lc_path)
         if len(time) == 0: continue

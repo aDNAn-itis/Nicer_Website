@@ -135,22 +135,22 @@ def spectrum_plot(
     x_data, y_data, x_error = [], [], []
     background, x_background, y_uncertainties = [], [], []
 
-    # --- YOUR LABELING LOGIC ---
+    # --- UPDATED LABELING LOGIC ---
     obs_str = str(obs_id)
-    is_combined = ',' in obs_str
+    is_combined = ',' in obs_str or (gti_labels and len(set(gti_labels)) > 1)
 
-    if gti_labels is None:
+    plot_labels = []
+    for i in range(len(data_paths)):
+        gti = gti_numbers[i] if i < len(gti_numbers) else "?"
         if is_combined:
-            obs_ids_list = obs_str.split(',')
-            gti_labels = []
-            for i in range(len(data_paths)):
-                data_path = data_paths[i]
-                # Extract actual ObsID from the path
-                oid = next((oid_part.strip() for oid_part in obs_ids_list if oid_part.strip() in data_path), obs_str)
-                gti = gti_numbers[i] if i < len(gti_numbers) else "?"
-                gti_labels.append(f"{oid} (GTI {gti})")
+            if gti_labels and i < len(gti_labels):
+                oid = gti_labels[i]
+            else:
+                oid = next((o.strip() for o in obs_str.split(',') if o.strip() in data_paths[i]), obs_str)
+            plot_labels.append(f"{oid} (GTI {gti})")
         else:
-            gti_labels = [f"GTI {num}" for num in gti_numbers]
+            plot_labels.append(f"GTI {gti}")
+    gti_labels = plot_labels
 
     # Process each valid data path
     # Fetch results using Rahul's cleaner iteration while keeping your fallback checks

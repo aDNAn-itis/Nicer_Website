@@ -722,7 +722,15 @@ document.addEventListener("DOMContentLoaded", () => {
                             </div>
                         </div>
                     `);
-                    $('#plots').empty();
+                    
+                    // 🟢 FIX: Use the proper removal function instead of just emptying the div
+                    // This ensures 'Remove Observation' buttons are also cleared.
+                    if (typeof removePlots === 'function') {
+                        removePlots(); 
+                    } else {
+                        $('#plots').empty();
+                        $('#remove-obs').empty();
+                    }
 
                     // Attach listener to the newly injected button
                     $(`#${safeContainerId}`).find('#btn-open-theater').on('click', openLCTheater);
@@ -789,7 +797,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            $('#plots').empty(); 
+            // 🟢 FIX: Use removePlots() instead of manual empty() to sync buttons
+            if (typeof removePlots === 'function') {
+                removePlots();
+            } else {
+                $('#plots').empty();
+                $('#remove-obs').empty();
+            }
+
             const $tempForm = $('<form>');
             
             const combinedString = obsidsToPlot.join(',');

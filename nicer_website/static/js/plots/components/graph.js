@@ -319,14 +319,25 @@ export function removePlots(response, removeButton) {
         return;
     }
     if (response && response.obsID) {
+        const safeObsId = response.obsID.replace(/,/g, '-');
+        
         $('.plot-type-section').each(function () {
             const TYPE = this.id.replace('-section', '');
-            // Try to find the plot specific to this ObsID
-            let target = $(this).find(`[id*="${response.obsID.replace(/,/g, '-')}"]`);
+            
+            // 🟢 IMPROVED: Use data-obs-id attribute for reliable removal
+            let target = $(this).find(`[data-obs-id="${response.obsID}"]`);
+            
+            // Fallback to ID-based search if data-attribute fails (for older plots)
+            if (target.length === 0) {
+                target = $(this).find(`[id*="${safeObsId}"]`);
+            }
+            
             target.remove();
             
             // Clean up empty sections
-            if ($(this).children('div').length == 0) $(this).remove();
+            if ($(this).find('.plot-container, .js-plotly-plot').length === 0) {
+                $(this).remove();
+            }
             updateCombineButtonVisibility(TYPE);
         });
 
@@ -339,10 +350,40 @@ export function removePlots(response, removeButton) {
             $('#add-obs').hide(); 
         }
 
-        if (removeButton) $(removeButton).remove();
+        // 🟢 SYNC REMOVAL BUTTONS: Ensure no orphaned buttons remain
+        if (removeButton) {
+            $(removeButton).remove();
+        }
+        
+        // Final garbage collection of buttons
+        syncRemoveButtons();
         
         // Refresh selection tools
         setTimeout(() => { updateAllSelections(); }, 500);
+    }
+}
+
+/**
+ * 🟢 NEW: Synchronizes removal buttons with visible plots.
+ * Removes any 'Remove Observation' buttons that don't have matching plots.
+ */
+function syncRemoveButtons() {
+    $('.remove-observation-btn').each(function() {
+        const buttonObsId = $(this).attr('id').replace('remove-', '').replace(/-/g, ',');
+        const hasPlots = $(`[data-obs-id="${buttonObsId}"]`).length > 0;
+        
+        // Also check by ID fallback if no data-obs-id found
+        const safeId = buttonObsId.replace(/,/g, '-');
+        const hasPlotsById = $(`[id*="${safeId}"]`).length > 0;
+
+        if (!hasPlots && !hasPlotsById) {
+            $(this).remove();
+        }
+    });
+
+    // If all buttons are gone, ensure container state is clean
+    if ($('.remove-observation-btn').length === 0) {
+        $('#remove-obs').empty();
     }
 }
 
