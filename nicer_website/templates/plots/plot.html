@@ -503,7 +503,7 @@
 </div>
 
 <div id="theater-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9998;"></div>
-<div id="lc-theater-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width: 90vw; height: 90vh; background:transparent; z-index:9999; font-family: 'Times New Roman', serif; overflow-y: auto; padding: 20px;">
+<div id="lc-theater-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width: 95vw; height: 95vh; background:transparent; z-index:9999; font-family: 'Times New Roman', serif; overflow: hidden; padding: 20px; box-sizing: border-box;">
     
     <!-- Independent Close Button -->
     <button onclick="$('#lc-theater-panel, #theater-overlay').fadeOut(200)" 
@@ -511,55 +511,49 @@
         &times;
     </button>
 
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 20px; height: 100%;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 15px; height: 100%; box-sizing: border-box;">
         
-        <div id="theater-page-content" style="display: flex; gap: 20px; background: transparent; align-items: stretch; width: 100%; flex: 1;">
+        <div id="theater-page-content" style="display: flex; gap: 15px; background: transparent; align-items: stretch; width: 100%; flex: 1; min-height: 0;">
             
             <!-- 1st CONTAINER: PLOTS BOX -->
-            <div id="theater-plot-box" style="flex: 1; border: 1px solid #ddd; padding: 20px; background: #fff; position: relative; display: flex; flex-direction: column; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div id="theater-plot-box" style="flex: 1; border: 1px solid #ddd; padding: 15px; background: #fff; position: relative; display: flex; flex-direction: column; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 0;">
                 
                 <!-- Header: obsid | source -->
-                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
-                    <div style="font-family: monospace; font-size: 24px; font-weight: normal; text-transform: uppercase; color: #333;">
+                <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 5px;">
+                    <div style="font-family: monospace; font-size: 20px; font-weight: normal; text-transform: uppercase; color: #333;">
                         obsid - <span id="theater-obs-id-label">xxxxxx</span> | source - <span id="theater-source-label">xxxx</span>
                     </div>
                 </div>
 
                 <!-- 2x2 Static Plot Grid -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 20px; flex: 1; min-height: 0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 15px; flex: 1; min-height: 0;">
                     <!-- Top Left: Global HID -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: normal; border-bottom: 1px solid #eee; padding: 5px; background: #f9f9f9; color: #666;">GLOBAL HID-DIAGRAM</div>
-                        <div id="theater-global-hid" style="width:100%; flex: 1; min-height: 0;"></div>
+                        <div style="text-align: center; font-family: monospace; font-size: 12px; font-weight: normal; border-bottom: 1px solid #eee; padding: 3px; background: #f9f9f9; color: #666;">GLOBAL HID-DIAGRAM</div>
+                        <img id="theater-global-hid-img" style="width: 100%; flex: 1; min-height: 0; object-fit: fill;">
                     </div>
                     <!-- Top Right: Light Curve -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: normal; border-bottom: 1px solid #eee; padding: 5px; background: #f9f9f9; color: #666;">LIGHT-CURVE</div>
-                        <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #fff;">
-                            <img id="theater-lc-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
-                        </div>
+                        <div style="text-align: center; font-family: monospace; font-size: 12px; font-weight: normal; border-bottom: 1px solid #eee; padding: 3px; background: #f9f9f9; color: #666;">LIGHT-CURVE</div>
+                        <img id="theater-lc-img" style="width: 100%; flex: 1; min-height: 0; object-fit: fill;">
                     </div>
                     <!-- Bottom Left: PDS -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: normal; border-bottom: 1px solid #eee; padding: 5px; background: #f9f9f9; color: #666;">PDS</div>
-                        <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #fff;">
-                            <img id="theater-pds-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
-                        </div>
+                        <div style="text-align: center; font-family: monospace; font-size: 12px; font-weight: normal; border-bottom: 1px solid #eee; padding: 3px; background: #f9f9f9; color: #666;">PDS</div>
+                        <img id="theater-pds-img" style="width: 100%; flex: 1; min-height: 0; object-fit: fill;">
                     </div>
                     <!-- Bottom Right: Local HID -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: normal; border-bottom: 1px solid #eee; padding: 5px; background: #f9f9f9; color: #666;">HID-DIAGRAM</div>
-                        <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #fff;">
-                            <img id="theater-hid-img" style="max-width: 100%; max-height: 100%; object-fit: contain;">
-                        </div>
+                        <div style="text-align: center; font-family: monospace; font-size: 12px; font-weight: normal; border-bottom: 1px solid #eee; padding: 3px; background: #f9f9f9; color: #666;">HID-DIAGRAM</div>
+                        <img id="theater-hid-img" style="width: 100%; flex: 1; min-height: 0; object-fit: fill;">
                     </div>
                 </div>
             </div>
 
             <!-- 2nd CONTAINER: OBSID LIST BOX -->
-            <div id="theater-obsid-box" style="width: 250px; border: 1px solid #ddd; padding: 20px; background: #fff; display: flex; flex-direction: column; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                <div style="font-family: monospace; font-size: 20px; font-weight: normal; text-align: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; color: #333;">OBSID'S</div>
-                <div id="theater-obsid-list" style="overflow-y: auto; flex: 1; font-family: monospace; font-size: 16px; display: flex; flex-direction: column; gap: 5px; color: #444;">
+            <div id="theater-obsid-box" style="width: 200px; border: 1px solid #ddd; padding: 15px; background: #fff; display: flex; flex-direction: column; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-height: 0;">
+                <div style="font-family: monospace; font-size: 18px; font-weight: normal; text-align: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 5px; color: #333;">OBSID'S</div>
+                <div id="theater-obsid-list" style="overflow-y: auto; flex: 1; font-family: monospace; font-size: 14px; display: flex; flex-direction: column; gap: 5px; color: #444;">
                     <!-- Populated by JS -->
                 </div>
             </div>
@@ -567,8 +561,8 @@
         </div>
 
         <!-- 3rd CONTAINER: GENERATE GIF BOX -->
-        <div id="theater-gif-box" style="border: 1px solid #ddd; background: #fff; padding: 10px 30px; transition: all 0.1s; border-radius: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
-            <button id="theater-gif-btn" style="padding: 5px 20px; font-family: monospace; font-weight: normal; font-size: 18px; background: transparent; color: #333; border: none; cursor: pointer; text-transform: uppercase;">
+        <div id="theater-gif-box" style="border: 1px solid #ddd; background: #fff; padding: 8px 25px; transition: all 0.1s; border-radius: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); flex-shrink: 0;">
+            <button id="theater-gif-btn" style="padding: 5px 15px; font-family: monospace; font-weight: normal; font-size: 16px; background: transparent; color: #333; border: none; cursor: pointer; text-transform: uppercase;">
                 Generate GIF
             </button>
         </div>

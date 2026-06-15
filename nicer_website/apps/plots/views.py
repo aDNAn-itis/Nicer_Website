@@ -21,6 +21,8 @@ import warnings
 from astropy.utils.exceptions import AstropyWarning
 from dataclasses import dataclass
 
+import hashlib
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -863,113 +865,96 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
     if not obs_ids_str: 
         return JsonResponse({'error': 'No ObsIDs provided.'}, status=400)
     
-    obs_ids = [x.strip() for x in obs_ids_str.split(',')]
+    playlist_obs_ids = [x.strip() for x in obs_ids_str.split(',')]
     
-    # Create the figure object
-    fig = go.Figure()
+    # 1. Identify Source and fetch ALL obsids for that source for context
+    source_name = None
+    all_source_obs_ids = []
+    try:
+        first_item = Item.objects.filter(path__startswith=playlist_obs_ids[0] + os.path.sep).first()
+        if first_item and first_item.source:
+            source_name = first_item.source
+            paths = Item.objects.filter(source=source_name).values_list('path', flat=True).distinct()
+            all_source_obs_ids = sorted(list(set(p.split(os.path.sep)[0] for p in paths if p.split(os.path.sep)[0].isdigit())))
+    except Exception: pass
 
-    # Loop through each ObsID to calculate its single point and add a trace
-    for obs_id in obs_ids:
-        # Construct paths
+    # Ensure all playlist items are included even if source discovery failed
+    obs_ids_to_process = list(playlist_obs_ids)
+    for oid in all_source_obs_ids:
+        if oid not in obs_ids_to_process:
+            obs_ids_to_process.append(oid)
+
+    fig = go.Figure()
+    raw_data = []
+    
+    # Separate points for background trace to keep plot clean
+    bg_x, bg_y, bg_obsids = [], [], []
+
+    for obs_id in obs_ids_to_process:
         abs_dir_path = os.path.join(settings.DATA_DIR, obs_id, 'jspipe/') 
         rel_dir_path = os.path.join(obs_id, 'jspipe/')
         
-        # Fetch lightcurve files for this ObsID
         files = Item.objects.filter(
-            name__contains=quality, 
-            path__startswith=rel_dir_path, 
-            type=Item.item_type[1][0]
-        ).filter(name__contains='.lc.gz').exclude(
-            name__contains='.bg-lc.gz'
-        ).exclude(
-            name__contains='.bg3c-lc.gz'
-        ).exclude(
-            name__contains='.keithbg1-lc.gz'
-        )
+            name__contains=quality, path__startswith=rel_dir_path, type=Item.item_type[1][0]
+        ).filter(name__contains='.lc.gz').exclude(name__contains='.bg').exclude(name__contains='.keithbg')
         
         paths = [os.path.join(abs_dir_path, f.name) for f in files]
-        
-        all_hardness = []
-        all_intensity = []
+        all_hardness, all_intensity = [], []
 
-        # Process all files for this single ObsID to get an average
         for fp in paths:
             try:
-                # 🟢 FIXED: Revert process_lc_file to only take 1 argument as it's defined in hardness_intensity_preprocessing.py
                 t, s, h, i = process_lc_file(fp)
                 with np.errstate(divide='ignore', invalid='ignore'):
                     h_ratio = h / s
-                
                 valid = np.isfinite(h_ratio) & np.isfinite(i) & (h_ratio > 0) & (i > 0)
                 if np.any(valid):
                     all_hardness.extend(h_ratio[valid])
                     all_intensity.extend(i[valid])
             except Exception: continue
         
-        # If we have data, calculate the mean point and add a trace
         if all_hardness and all_intensity:
-            avg_h = np.mean(all_hardness)
-            avg_i = np.mean(all_intensity)
+            avg_h, avg_i = np.mean(all_hardness), np.mean(all_intensity)
+            is_active = obs_id in playlist_obs_ids
+            raw_data.append({'obsid': obs_id, 'hardness': float(avg_h), 'intensity': float(avg_i)})
             
-            # Add a trace for THIS specific ObsID
-            fig.add_trace(go.Scatter(
-                x=[avg_h], 
-                y=[avg_i], 
-                mode='markers+text',
-                text=[obs_id],
-                textposition='top center',
-                name=obs_id,  # This creates the Legend entry
-                marker=dict(size=12, line=dict(width=1, color='white')), # Clean marker style
-                hovertemplate=(
-                    f"<b>{obs_id}</b><br>" +
-                    "Hardness: %{x:.3f}<br>" +
-                    "Intensity: %{y:.2f} counts/s<br>" +
-                    "<extra></extra>"
-                )
-            ))
+            if is_active:
+                # Add individual trace for playlist items (Legend entry)
+                fig.add_trace(go.Scatter(
+                    x=[avg_h], y=[avg_i], mode='markers+text', text=[obs_id],
+                    textposition='top center', name=obs_id,
+                    marker=dict(size=12, line=dict(width=1, color='white')),
+                    hovertemplate=f"<b>{obs_id}</b><br>Hardness: %{{x:.3f}}<br>Intensity: %{{y:.2f}}<extra></extra>"
+                ))
+            else:
+                bg_x.append(avg_h)
+                bg_y.append(avg_i)
+                bg_obsids.append(obs_id)
 
-    # Check if any traces were added
-    if not fig.data: 
-        return JsonResponse({'error': 'No valid data found for the selected observations.'})
+    # Add single background trace for context points
+    if bg_x:
+        fig.add_trace(go.Scatter(
+            x=bg_x, y=bg_y, mode='markers',
+            marker=dict(size=8, color='#e5e7eb', opacity=0.4),
+            name='Other Observations',
+            text=bg_obsids,
+            hoverinfo='text+x+y',
+            showlegend=True
+        ))
 
-    # Prepare raw data for theater mode
-    raw_data = []
-    for trace in fig.data:
-        raw_data.append({
-            'obsid': trace.name,
-            'hardness': trace.x[0],
-            'intensity': trace.y[0]
-        })
+    if not raw_data: 
+        return JsonResponse({'error': 'No valid data found.'})
 
-    # Update Layout to match your preferred style
     fig.update_layout(
-        title='Global HID (Muti-Observation PLOT)',  
-        xaxis=dict(
-            title='Average Hardness (Hard/Soft)', 
-            showline=True, 
-            linewidth=1, 
-            linecolor='black', 
-            showgrid=False
-        ),
-        yaxis=dict(
-            title='Average Intensity (counts/s)', 
-            type='log', 
-            showline=True, 
-            linewidth=1, 
-            linecolor='black', 
-            showgrid=False
-        ),
-        height=600,
-        template='plotly_white',
-        plot_bgcolor='white',
-        paper_bgcolor='white',
-        font=dict(color='black'),
-        showlegend=True,  # Shows the list of ObsIDs on the right
-        hovermode='closest'
+        title=f'Global HID: {source_name or "Multi-Observation"}',  
+        xaxis=dict(title='Average Hardness (Hard/Soft)', showline=True, linewidth=1, linecolor='black', showgrid=False),
+        yaxis=dict(title='Average Intensity (counts/s)', type='log', showline=True, linewidth=1, linecolor='black', showgrid=False),
+        height=600, template='plotly_white', plot_bgcolor='white', paper_bgcolor='white', font=dict(color='black'),
+        showlegend=True, hovermode='closest'
     )
 
     div = plot(fig, output_type='div', include_plotlyjs=False)
     return JsonResponse({'plotDiv': div, 'rawData': raw_data})
+
 
 def plot_theater_png(request: HttpRequest) -> HttpResponse:
     """
@@ -980,6 +965,8 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
     obs_id = request.GET.get('obs_id', '')
     plot_type = request.GET.get('plot_type', '').replace('-', '_')
     quality = request.GET.get('quality', 'goddard')
+    playlist_str = request.GET.get('playlist', '')
+    playlist = [x.strip() for x in playlist_str.split(',')] if playlist_str else []
 
     if not obs_id or not plot_type:
         return HttpResponse("Missing parameters", status=400)
@@ -987,28 +974,37 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
     # --- DISK CACHE LOGIC ---
     cache_dir = os.path.join(settings.BASE_DIR, 'theater_cache')
     os.makedirs(cache_dir, exist_ok=True)
-    cache_filename = f"plotly_{obs_id}_{plot_type}_{quality}.png"
+    
+    # 🟢 MODIFIED CACHE FILENAME: Include playlist hash for global_hid to avoid collisions
+    if plot_type == 'global_hid' and playlist_str:
+        import hashlib
+        playlist_hash = hashlib.md5(playlist_str.encode()).hexdigest()[:8]
+        cache_filename = f"plotly_{obs_id}_{plot_type}_{quality}_{playlist_hash}.png"
+    else:
+        cache_filename = f"plotly_{obs_id}_{plot_type}_{quality}.png"
+        
     cache_path = os.path.join(cache_dir, cache_filename)
 
     if os.path.exists(cache_path):
         with open(cache_path, 'rb') as f:
             return HttpResponse(f.read(), content_type="image/png")
 
-    # 1. Locate File
+    # 1. Locate File (Not needed for global_hid which uses DB discovery)
     plot_info = PLOTS.get(plot_type)
     if not plot_info:
         return HttpResponse("Invalid plot type", status=400)
 
-    rel_path = os.path.join(obs_id, 'jspipe/')
-    query = Item.objects.filter(path=rel_path, name__contains=quality).filter(name__contains=plot_info['file_type'])
-    if plot_type in ['light_curve', 'hardness_intensity_diagram']:
-        query = query.exclude(name__contains='.bg-lc.gz').exclude(name__contains='.bg3c-lc.gz')
-    
-    file_item = query.first()
-    if not file_item:
-        return HttpResponse("File Not Found", status=404)
-
-    full_path = os.path.join(settings.DATA_DIR, rel_path, file_item.name)
+    full_path = None
+    if plot_type != 'global_hid':
+        rel_path = os.path.join(obs_id, 'jspipe/')
+        query = Item.objects.filter(path=rel_path, name__contains=quality).filter(name__contains=plot_info['file_type'])
+        if plot_type in ['light_curve', 'hardness_intensity_diagram']:
+            query = query.exclude(name__contains='.bg-lc.gz').exclude(name__contains='.bg3c-lc.gz')
+        
+        file_item = query.first()
+        if not file_item:
+            return HttpResponse("File Not Found", status=404)
+        full_path = os.path.join(settings.DATA_DIR, rel_path, file_item.name)
     
     try:
         # 2. Use the ACTUAL Plotly functions we already have!
@@ -1037,9 +1033,12 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
             img_data = fig_to_png(go.Figure(fig_dict))
 
         elif plot_type == 'hardness_intensity_diagram':
-            # 🟢 FIXED: Call with [0] for gti_numbers to avoid missing argument error
             fig_dict = get_hid_data_and_plot(m_val, obs_id, [full_path], [0], output_type='dict')
             img_data = fig_to_png(go.Figure(fig_dict))
+            
+        elif plot_type == 'global_hid':
+            fig = get_global_hid_theater_figure(obs_id, quality=quality, playlist=playlist)
+            img_data = fig_to_png(fig)
 
         if img_data:
             with open(cache_path, 'wb') as f:
@@ -1052,3 +1051,116 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
         logger.error(f"Plotly PNG Generation Error: {e}")
         return HttpResponse(f"Error: {str(e)}", status=500)
 
+def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
+    """
+    Generates a Global HID figure for the theater.
+    Shows the full source context in light gray, 
+    the playlist in medium gray with labels, and the current obs_id in blue.
+    """
+    # 1. Identify Source and fetch ALL obsids for that source for context
+    source_name = None
+    all_source_obs_ids = []
+    playlist = playlist or []
+    
+    # Try to find source name from current obs_id or playlist items
+    discovery_ids = [obs_id] + playlist
+    try:
+        for oid in discovery_ids:
+            item = Item.objects.filter(path__startswith=oid, source__isnull=False).exclude(source='').first()
+            if item and item.source:
+                source_name = item.source
+                paths = Item.objects.filter(source=source_name).values_list('path', flat=True).distinct()
+                all_source_obs_ids = sorted(list(set(p.replace('\\', '/').split('/')[0] for p in paths if p and p.replace('\\', '/').split('/')[0].isdigit())))
+                break
+    except Exception as e:
+        logger.warning(f"Source discovery failed for {obs_id}: {e}")
+
+    # Ensure all playlist items and current obs_id are included
+    obs_ids_to_process = list(set([obs_id] + playlist))
+    for oid in all_source_obs_ids:
+        if oid not in obs_ids_to_process:
+            obs_ids_to_process.append(oid)
+    
+    fig = go.Figure()
+    
+    # Points to plot
+    bg_x, bg_y, bg_obsids = [], [], []       # Not in playlist
+    seq_x, seq_y, seq_obsids = [], [], []     # In playlist
+    curr_x, curr_y = [], []                   # Active obs_id
+
+    for oid in obs_ids_to_process:
+        rel_dir_path = os.path.join(oid, 'jspipe/')
+        abs_dir_path = os.path.join(settings.DATA_DIR, rel_dir_path)
+        
+        files = Item.objects.filter(
+            name__contains=quality, path__startswith=rel_dir_path, type=Item.item_type[1][0]
+        ).filter(name__contains='.lc.gz').exclude(name__contains='.bg').exclude(name__contains='.keithbg')
+        
+        paths = [os.path.join(abs_dir_path, f.name) for f in files]
+        all_hardness, all_intensity = [], []
+
+        for fp in paths:
+            try:
+                t, s, h, i = process_lc_file(fp)
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    h_ratio = h / s
+                valid = np.isfinite(h_ratio) & np.isfinite(i) & (h_ratio > 0) & (i > 0)
+                if np.any(valid):
+                    all_hardness.extend(h_ratio[valid])
+                    all_intensity.extend(i[valid])
+            except Exception: continue
+        
+        if all_hardness and all_intensity:
+            avg_h, avg_i = np.mean(all_hardness), np.mean(all_intensity)
+            
+            if oid == obs_id:
+                curr_x.append(avg_h)
+                curr_y.append(avg_i)
+            elif oid in playlist:
+                seq_x.append(avg_h)
+                seq_y.append(avg_i)
+                seq_obsids.append(oid)
+            else:
+                bg_x.append(avg_h)
+                bg_y.append(avg_i)
+                bg_obsids.append(oid)
+
+    # Layer 1: Background History - Substantially more visible grey
+    if bg_x:
+        fig.add_trace(go.Scatter(
+            x=bg_x, y=bg_y, mode='markers',
+            marker=dict(size=8, color='#d1d5db', opacity=0.4),
+            text=bg_obsids,
+            name='Other Obs'
+        ))
+    
+    # Layer 2: Selected Sequence - Darker Grey + LABELS
+    if seq_x:
+        fig.add_trace(go.Scatter(
+            x=seq_x, y=seq_y, mode='markers+text',
+            text=seq_obsids, textposition='top center',
+            marker=dict(size=10, color='#6b7280', opacity=0.8),
+            textfont=dict(color='#4b5563', size=9),
+            name='Sequence'
+        ))
+        
+    # Layer 3: Active Frame - Bright Blue + BOLD LABEL
+    if curr_x:
+        fig.add_trace(go.Scatter(
+            x=curr_x, y=curr_y, mode='markers+text',
+            text=[obs_id], textposition='top center',
+            marker=dict(size=16, color='#3b82f6', line=dict(width=2, color='white')),
+            textfont=dict(color='#1d4ed8', size=11, family='Arial Black'),
+            name='Current'
+        ))
+
+    fig.update_layout(
+        title=f'Global HID: {source_name or "Unknown"}',
+        xaxis=dict(title='Hardness', showline=True, linewidth=1, linecolor='black'),
+        yaxis=dict(title='Intensity', type='log', showline=True, linewidth=1, linecolor='black'),
+        template='plotly_white',
+        showlegend=False,
+        margin=dict(l=50, r=20, t=50, b=50)
+    )
+    
+    return fig
