@@ -387,12 +387,13 @@
             <div class="results-grid" style="margin-top: 1rem;">
               
               <div class="results-left">
-                  <h3>Selected ObsIDs for:</h3>
-                  <ul id="selected-obsids-list" class="list-group-scrollable" style="min-height: 150px; max-height: 150px; margin-bottom: 1rem;">
-                  </ul>
+                <h3>Selected ObsIDs for: <span id="selected-source-label">---</span></h3>
+                <ul id="selected-obsids-list" class="list-group-scrollable" style="min-height: 150px; max-height: 150px; margin-bottom: 1rem;">
+                </ul>
 
-                  <h3>Available GTIs for:</h3>
-                  <div id="gti-selector-box" class="info-box" style="min-height: 125px; max-height: 125px; padding: 0;">
+                <h3>Available GTIs for: <span id="selected-obsid-label" class="obsid-value-red">---</span></h3>
+                <div id="gti-selector-box" class="info-box" style="min-height: 125px; max-height: 125px; padding: 0;">
+
                       <ul id="gti-list" class="list-group-scrollable" style="min-height: 125px; max-height: 125px; border: none; box-shadow: none;">
                           <li class="disabled-message" style="padding: 0.75rem 1rem; color: var(--text-secondary); cursor: default;">Select an ObsID to see available GTIs</li>
                       </ul>
@@ -441,8 +442,8 @@
 
                   
                   <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
-                    <button type="button" id="download-obs-btn" class="btn-sketch download-data" style="flex: 1;">Download</button>
-                    <button type="button" id="show-gti-btn" class="btn-sketch" style="flex: 1;">GTI Details</button>
+                    <button type="button" id="download-obs-btn" class="btn-sketch download-data" data-type="obs" style="flex: 1;">Download</button>
+                    <button type="button" id="show-gti-btn" class="btn-sketch" style="flex: 1;" disabled>GTI Details</button>
                     <button type="submit" form="plot-selection-form" id="plot-selected-btn" class="btn-search" style="flex: 1;">
                       Plot
                     </button>

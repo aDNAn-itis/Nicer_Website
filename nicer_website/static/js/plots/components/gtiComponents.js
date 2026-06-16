@@ -6,8 +6,8 @@ import {
   updateOperationMessage,
   clearOperationsByPattern,
   completeOperationsByPattern,
-} from './statusBar.js?v=201';
-import { setGTICrossLinking, clearGTIHighlighting } from './gtiCrossLinking.js?v=201';
+} from './statusBar.js?v=301';
+import { setGTICrossLinking, clearGTIHighlighting } from './gtiCrossLinking.js?v=301';
 
 /**
  * Generates a GTI selection field for a specific plot

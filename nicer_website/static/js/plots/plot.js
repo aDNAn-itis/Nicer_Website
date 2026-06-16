@@ -6,13 +6,13 @@ window.gtiMap = window.gtiMap || {};
 window.selectedGtis = window.selectedGtis || [];
 window.allObservationsData = window.allObservationsData || [];
 
-import { fetchGTIPlot } from './components/gtiPlots.js?v=201';
-import { displayInfo } from './components/observationInfo.js?v=201';
-import { fetchGraphPlots } from './components/graph.js?v=201';
-import { downloadData } from './components/download.js?v=201';
-import { fetchOptions } from './components/dropdowns.js?v=201';
-import { StatusBar } from './components/statusBar.js?v=201';
-import { updateTheaterFrame, openLCTheater } from './components/lcTheater.js?v=201';
+import { fetchGTIPlot } from './components/gtiPlots.js?v=301';
+import { displayInfo } from './components/observationInfo.js?v=301';
+import { fetchGraphPlots } from './components/graph.js?v=301';
+import { downloadData } from './components/download.js?v=301';
+import { fetchOptions } from './components/dropdowns.js?v=301';
+import { StatusBar } from './components/statusBar.js?v=301';
+import { updateTheaterFrame, openLCTheater } from './components/lcTheater.js?v=301';
 
 window.fetchGTIPlot = fetchGTIPlot; // Global bridge for ESM modules and dynamic form listeners
 window.openLCTheater = openLCTheater; 
@@ -223,7 +223,7 @@ function populateGtiSelector(activeObsId) {
             const li = document.createElement('li');
             li.dataset.obsid = activeObsId;
             li.dataset.gti = gtiNum;
-            li.textContent = `GTI ${gtiNum}`;
+            li.textContent = `GTI(${gtiNum})`;
 
             if (selectedGtis.some(item => item.obsId === activeObsId && item.gti === gtiNum)) {
                 li.classList.add('selected');
@@ -293,7 +293,8 @@ function updateSelectedGtisDisplay() {
 
         const textSpan = document.createElement('span');
         textSpan.className = 'gti-card-text';
-        textSpan.textContent = `GTI${item.gti} (${item.obsId})`;
+        textSpan.textContent = `GTI(${item.gti}) (${item.obsId})`;
+
 
         const removeBtn = document.createElement('span');
         removeBtn.className = 'gti-card-remove';
@@ -326,6 +327,10 @@ function setActiveObsID(obsId) {
     const currentObsDisplay = document.getElementById("current-obsid-display");
     if (currentObsDisplay) currentObsDisplay.innerHTML = `Current ObsID: <span class="obsid-value-red">${obsId}</span>`;
 
+    // 🟢 NEW: Update the 'Available GTIs for' label
+    const selectedObsidLabel = document.getElementById("selected-obsid-label");
+    if (selectedObsidLabel) selectedObsidLabel.textContent = obsId;
+
     const plotTitle = document.getElementById("plot-selection-title");
     if (plotTitle) plotTitle.textContent = `Select Plot Types for Observation ID: ${obsId}`;
 
@@ -344,12 +349,12 @@ function setActiveObsID(obsId) {
         }
         fetchObsIDDataForGTI(obsId);
         loadGTIsForObsID(obsId);
-        $('#show-gti-btn').prop('disabled', false).text("GTI Details");
     } else {
         fetchObsIDDataForGTI(obsId);
         loadGTIsForObsID(obsId);
-        $('#show-gti-btn').prop('disabled', false).text("GTI Details");
     }
+    // Disable button until new data is fetched by fetchObsIDDataForGTI
+    $('#show-gti-btn').prop('disabled', true).text("GTI Details (Loading...)");
 }
 
 function addToTheaterPlaylist(obsid) {
@@ -384,7 +389,7 @@ function handleGlobalPointClick(obsId) {
     setActiveObsID(obsId);
     
     // Auto-track in Theater
-    addToTheaterPlaylist(obsId);
+    addToTheaterPlaylist(obsid);
     
     StatusBar.getInstance().show(`Selected ObsID ${obsId}.`, 2000);
 }
@@ -395,6 +400,18 @@ function populateResultsLayout(data, searchType) {
   const selectedList = document.getElementById("selected-obsids-list");
   const title = document.getElementById("all-obsids-title");
   const globalToolsSection = document.getElementById("global-tools-section");
+
+  // 🟢 NEW: Update the 'Selected ObsIDs for' label
+  const selectedSourceLabel = document.getElementById("selected-source-label");
+  if (selectedSourceLabel) {
+      selectedSourceLabel.textContent = data.source_name || (searchType === 'obs_id' ? data.observations[0]?.obsid : "---");
+  }
+
+  // 🟢 FIX: Reset the 'Available GTIs for' label to default state during new search
+  const selectedObsidLabel = document.getElementById("selected-obsid-label");
+  if (selectedObsidLabel) {
+      selectedObsidLabel.textContent = "---";
+  }
 
   allList.innerHTML = "";
   selectedList.innerHTML = "";
@@ -479,44 +496,6 @@ document.addEventListener("DOMContentLoaded", () => {
                   gtiListItem.classList.remove('selected');
               }
           }
-      });
-  }
-
-  // New listener for the 'GTI Details' button
-  const showGtiBtn = document.getElementById('show-gti-btn');
-  if (showGtiBtn) {
-      showGtiBtn.addEventListener('click', () => {
-          const modal = document.getElementById('gti-modal');
-          const modalBody = document.getElementById('gti-modal-body');
-          const selectedObs = Array.from(document.getElementById('selected-obsids-list').children).map(li => li.dataset.obsid);
-
-          modalBody.innerHTML = ''; // Clear previous content
-          
-          if (selectedObs.length === 0) {
-              modalBody.innerHTML = '<p>Please select an Observation ID first.</p>';
-          } else {
-              let tableHTML = '<table class="gti-table"><thead><tr><th>ObsID</th><th>GTI Number</th><th>Details</th></tr></thead><tbody>';
-              let gtiFound = false;
-              selectedObs.forEach(obsId => {
-                  const gtis = gtiMap[obsId] || [];
-                  if (gtis.length > 0) {
-                      gtis.forEach(gtiNum => {
-                          const isSelected = selectedGtis.some(item => item.obsId === obsId && item.gti === gtiNum);
-                          if (isSelected) {
-                            gtiFound = true;
-                            tableHTML += `<tr><td>${obsId}</td><td>GTI ${gtiNum}</td><td>Detailed information not yet available.</td></tr>`;
-                          }
-                      });
-                  }
-              });
-              if (!gtiFound) {
-                tableHTML += '<tr><td colspan="3">No GTIs selected in the dropdown. Select some to see details.</td></tr>';
-              }
-              tableHTML += '</tbody></table>';
-              modalBody.innerHTML = tableHTML;
-          }
-
-          modal.style.display = 'block';
       });
   }
 
@@ -850,8 +829,26 @@ document.addEventListener("DOMContentLoaded", () => {
         if (currentObsIdText && !currentObsIdText.includes("---")) obsId = currentObsIdText.replace('Current ObsID: ', '');
     }
     if (!obsId) { alert("Please select an ObsID first."); return; }
+    
     let gtiNum = $(this).data('gti');
     const quality = $('#quality-select').val();
+
+    // --- SMART LOGIC: Full vs. Selected GTIs ---
+    // If the button says 'obs' (like the main Download button), 
+    // we check if the user actually has specific GTIs selected for THIS obsId.
+    if (dataType === 'obs') {
+        const obsGtis = window.selectedGtis
+            .filter(item => item.obsId === obsId)
+            .map(item => item.gti);
+        
+        if (obsGtis.length > 0) {
+            console.log(`Smart Download: Switching to GTI mode for GTIs: ${obsGtis}`);
+            downloadData('gti', obsId, null, obsGtis, quality);
+            return;
+        }
+    }
+
+    // Default behavior for individual GTI buttons or if no selection was found
     if (dataType === 'gti' && gtiNum) downloadData(dataType, obsId, null, [gtiNum], quality);
     else downloadData(dataType, obsId, null, null, quality);
   });

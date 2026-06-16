@@ -5,14 +5,14 @@
 import {
   updateAllSelections,
   initSynchronizedSelection,
-} from './syncSelection.js?v=201';
-import { initInteractiveLinking } from './interactiveLinking.js?v=201';
-import { initGTICrossLinking } from './gtiCrossLinking.js?v=201'; 
+} from './syncSelection.js?v=301';
+import { initInteractiveLinking } from './interactiveLinking.js?v=301';
+import { initGTICrossLinking } from './gtiCrossLinking.js?v=301'; 
 import { 
   startOperation, 
   completeOperation, 
   errorOperation, 
-} from './statusBar.js?v=201';
+} from './statusBar.js?v=301';
 
 
 /**
@@ -25,9 +25,9 @@ export function flagScreenedGTIs(obsID, failedGTIs) {
   if ($table.length === 0) return;
 
   $table.find('.gti-row').removeClass('screening-failed');
-  $table.find('.screening-badge').remove();
+  $table.find('.screening-badge').remove();11
 
-  failedGTIs.forEach((gtiNum) => {
+  failedGTIs.forEach((gtiNum) => {int
     const $row = $table.find(`.gti-row[data-gti="GTI${gtiNum}"]`);
     if ($row.length) {
       $row.addClass('screening-failed');

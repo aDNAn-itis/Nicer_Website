@@ -1,8 +1,8 @@
 // --- observationInfo.js (v15.1 - Integrated GTI Sync) ---
 console.log("observationInfo.js (v15.1) loaded.");
 
-import { showPlotSelectionPopup, fetchGraphPlots } from './graph.js?v=201';
-import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=201';
+import { showPlotSelectionPopup, fetchGraphPlots } from './graph.js?v=301';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=301';
 import { mjdToDate } from '../utils/dateUtils.js';
 
 // --- GLOBAL STATE ---
@@ -19,10 +19,7 @@ document.addEventListener('click', function(event) {
         console.log("👇 Show GTI button clicked (Vanilla JS detected)");
 
         if (!currentGTIData || !currentObsID) {
-            console.warn("⚠️ Data not ready.");
-            if (!document.getElementById('show-gti-btn').disabled) {
-                alert("Please wait, GTI data is loading...");
-            }
+            console.warn("⚠️ Data not ready yet. Ignoring click.");
             return;
         }
         openGTIModal(currentObsID, currentGTIData);

@@ -776,7 +776,8 @@ def download_data(request: HttpRequest):
                 gti_numbers = gti_numbers_str.split(',')
                 if len(gti_numbers) == 1:
                     gti_num = gti_numbers[0]
-                    gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI{gti_num}*'))
+                    # Broaden glob to catch both 'js_' and 'js_ni' prefixes
+                    gti_files = list(jspipe_dir.glob(f'js*{obs_id}*_{quality}*GTI{gti_num}*'))
                     
                     if not gti_files: return HttpResponse(f'No files found for GTI{gti_num}', status=404)
                     if len(gti_files) == 1: return FileResponse(open(str(gti_files[0]), 'rb'), as_attachment=True, filename=gti_files[0].name)
@@ -790,13 +791,15 @@ def download_data(request: HttpRequest):
                         with zipfile.ZipFile(tmp.name, 'w') as archive:
                             files_added = False
                             for gti_num in gti_numbers:
-                                gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI{gti_num}*'))
+                                # Broaden glob here as well
+                                gti_files = list(jspipe_dir.glob(f'js*{obs_id}*_{quality}*GTI{gti_num}*'))
                                 if gti_files:
                                     for file in gti_files: archive.write(str(file), file.name); files_added = True
                             if not files_added: return HttpResponse('No GTI files found', status=404)
                         return FileResponse(open(tmp.name, 'rb'), as_attachment=True, filename=f'{obs_id}_GTI_{"-".join(gti_numbers)}_{quality}.zip')
             else:
-                gti_files = list(jspipe_dir.glob(f'js_ni{obs_id}*_{quality}_GTI*'))
+                # Broaden glob for 'all GTIs' download
+                gti_files = list(jspipe_dir.glob(f'js*{obs_id}*_{quality}*GTI*'))
                 if not gti_files: return HttpResponse(f'No GTI files found', status=404)
                 with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp:
                     with zipfile.ZipFile(tmp.name, 'w') as archive:
