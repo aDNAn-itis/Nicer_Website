@@ -79,8 +79,7 @@ export function showPlotSelectionPopup(obsID, gti = null) {
         { id: 'summed-spectrum', name: 'Summed Spectrum' },
         { id: 'light-curve', name: 'Light Curve' },
         { id: 'power-density-spectrum', name: 'Power Density Spectrum' },
-        { id: 'hardness-intensity-diagram', name: 'Hardness Intensity Diagram' },
-        { id: 'global-hid', name: 'Global HID Diagram' }
+        { id: 'hardness-intensity-diagram', name: 'Hardness Intensity Diagram' }
     ];
 
     plotTypes.forEach((type) => {

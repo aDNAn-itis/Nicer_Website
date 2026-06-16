@@ -152,6 +152,8 @@ export function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
   $form.append($('<input>', { type: 'hidden', name: 'gti-search', value: selectedGTIs.join(',') }));
   $form.append($('<button>', { type: 'submit', class: 'plot-submit-btn', text: 'Generate Plots' }));
 
+  $content.append($form);
+
   $form.on('submit', function (event) {
     event.preventDefault();
     $popup.fadeOut(200);
@@ -173,6 +175,7 @@ export function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
       let fd = new FormData($form[0]);
       fd.set('plot_type', type);
       fd.set('quality', $('#quality-select').val().toLowerCase());
+      fd.set('csrfmiddlewaretoken', $("input[name='csrfmiddlewaretoken']").val());
       return $.ajax({ type: 'POST', url: PLOT_GTI_URL, data: fd, processData: false, contentType: false });
     })).then((responses) => {
       responses.forEach((response, index) => {

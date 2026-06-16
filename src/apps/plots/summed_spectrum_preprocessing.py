@@ -578,7 +578,6 @@ def summed_spectrum_plot(
     # Create plot with multiple traces
     title = f'Summed Spectrum for {obs_id}' if ',' in obs_id else f'Summed Spectrum for {obs_id}'
 
-# ... keep all your obs_id grouping and data_plot logic ...
     result = data_plot(
         gti_numbers=list(range(len(x_data_list))),
         x_data_list=x_data_list,
@@ -593,6 +592,9 @@ def summed_spectrum_plot(
             'xaxis_type': 'log',
             'yaxis_type': 'log',
             'showlegend': True,
+            'template': 'plotly_white',
+            'plot_bgcolor': 'white',
+            'paper_bgcolor': 'white',
         },
         gti_labels=plot_labels
     )

@@ -2,6 +2,7 @@
 console.log("observationInfo.js (v15.1) loaded.");
 
 import { showPlotSelectionPopup, fetchGraphPlots } from './graph.js?v=301';
+import { showGTIPlotSelectionPopup, fetchGTIPlot } from './gtiPlots.js?v=301';
 import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=301';
 import { mjdToDate } from '../utils/dateUtils.js';
 
@@ -127,7 +128,7 @@ function openGTIModal(obsID, rows) {
                 e.preventDefault();
                 e.stopPropagation(); // Stop bubbling so it doesn't trigger other things
                 $('#gti-modal').hide(); 
-                showPlotSelectionPopup(obsID, gti.GTI); 
+                showGTIPlotSelectionPopup(obsID, [gti.GTI]); 
             });
 
             const $downloadGtiBtn = $('<button>').addClass('btn btn-secondary download-data').html('<i class="fas fa-download"></i> Download')

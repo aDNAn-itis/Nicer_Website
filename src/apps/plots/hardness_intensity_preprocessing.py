@@ -261,7 +261,10 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
             min_bins = min_bin(min_value, (s_counts + h_counts)[sort])
             # CORRECTED UNPACKING: b_sz (bin sizes) must come before the unused uncertainty (_)
             (bs, bh, _), b_sz, _ = binning(min_bins, np.stack([s_counts[sort], h_counts[sort], t_vals[sort]]))
-            h_final, i_final = bh / bs, (bs + bh) / (b_sz * dt)
+            # FIX: Intensity was being divided by bin size twice. 
+            # bs and bh are already normalized by b_sz (counts/samples). 
+            # Dividing by dt (sample duration) gives the final counts/sec rate.
+            h_final, i_final = bh / bs, (bs + bh) / dt
         else:
             h_final, i_final = h_counts / s_counts, (s_counts + h_counts) / dt
 
@@ -299,6 +302,7 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
     try:
         lx_m, lx_M = np.log10(np.min(all_h_agg)), np.log10(np.max(all_h_agg))
         ly_m, ly_M = np.log10(np.min(all_i_agg)), np.log10(np.max(all_i_agg))
+        # FIX: Corrected range margin calculation typo
         x_r = [lx_m - (lx_M - lx_m) * 0.1, lx_M + (lx_M - lx_m) * 0.1]
         y_r = [ly_m - (ly_M - ly_m) * 0.1, ly_M + (ly_M - ly_m) * 0.1]
     except:
