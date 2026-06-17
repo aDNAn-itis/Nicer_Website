@@ -92,6 +92,7 @@ function populateObsIDList() {
 
 /**
  * Main update function - RAPID IMAGE SWAPPING
+ * Optimized to wait for all 4 images to load before showing them simultaneously.
  */
 export async function updateTheaterFrame(index) {
     const obsId = window.lcTheaterPlaylist[index];
@@ -112,21 +113,35 @@ export async function updateTheaterFrame(index) {
     const plotTypes = ['global_hid', 'light_curve', 'power_density_spectrum', 'hardness_intensity_diagram'];
     const imgIds = ['theater-global-hid-img', 'theater-lc-img', 'theater-pds-img', 'theater-hid-img'];
 
-    plotTypes.forEach((type, i) => {
-        let url = `${baseUrl}?obs_id=${obsId}&plot_type=${type}&quality=${q}`;
-        if (type === 'global_hid') {
-            url += `&playlist=${playlistStr}`;
-        }
-        
-        const el = document.getElementById(imgIds[i]);
-        if (!el) return;
+    // 🟢 SYNCED LOADING LOGIC
+    // We create temporary images in the background and only update the DOM when all are ready
+    const loadPromises = plotTypes.map((type, i) => {
+        return new Promise((resolve) => {
+            let url = `${baseUrl}?obs_id=${obsId}&plot_type=${type}&quality=${q}`;
+            if (type === 'global_hid') {
+                url += `&playlist=${playlistStr}`;
+            }
 
-        // 🟢 CHECK CACHE FIRST: If pre-loaded, swap instantly.
-        if (theaterImageCache.has(url)) {
-            el.src = theaterImageCache.get(url).src;
-        } else {
-            el.src = url;
-        }
+            // If it's already in our in-memory cache, resolve immediately
+            if (theaterImageCache.has(url)) {
+                resolve({ id: imgIds[i], src: theaterImageCache.get(url).src });
+                return;
+            }
+
+            const tempImg = new Image();
+            tempImg.onload = () => resolve({ id: imgIds[i], src: url });
+            tempImg.onerror = () => resolve({ id: imgIds[i], src: url }); // Resolve anyway to avoid hanging
+            tempImg.src = url;
+        });
+    });
+
+    // Wait for all 4 images to be fully ready
+    const results = await Promise.all(loadPromises);
+
+    // Swap all 4 images in the DOM at the exact same time
+    results.forEach(res => {
+        const el = document.getElementById(res.id);
+        if (el) el.src = res.src;
     });
 }
 window.updateTheaterFrame = updateTheaterFrame;

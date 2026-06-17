@@ -1,7 +1,3 @@
-"""
-Main functions for backend functionality of the interactive plot page
-v200.8 - FULL INTEGRATION - 100% of Your Functionality + Rahul's Upgrades
-"""
 import os
 import re
 import time
@@ -14,12 +10,15 @@ import zipfile
 import numpy as np
 from io import BytesIO
 import plotly.graph_objs as go
+import plotly.graph_objects as go_obj
+import plotly.io as pio
 from plotly.offline import plot
 from astropy.io import fits
 from astropy.table import Table
 import warnings
 from astropy.utils.exceptions import AstropyWarning
 from dataclasses import dataclass
+from django.core.cache import cache
 
 import hashlib
 
@@ -279,13 +278,13 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     for oid in obs_id_list:
         rel_path = os.path.join(oid, 'jspipe/')
         full_dir_path = os.path.join(settings.DATA_DIR, rel_path)
-        # 🟢 CORRECTED: Chain the filters to avoid the "keyword argument repeated" error
+        # 🟢 CORRECTED: Chain the filters and exclude BAND files to prevent duplicate legend entries
         plot_files_qs = Item.objects.filter(
             path=rel_path,
             name__contains=quality
         ).filter(
             name__contains=PLOTS[plot_type]['file_type']
-        ).order_by('name')
+        ).exclude(name__regex=r'_BAND\d+').order_by('name')
 
         if gti_specifiers and oid in gti_specifiers:
             gtis_to_process = gti_specifiers[oid]
@@ -961,10 +960,9 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
 
 def plot_theater_png(request: HttpRequest) -> HttpResponse:
     """
-    Generates a static PNG for the LC Theater using Plotly (for aesthetic consistency).
-    Includes high-speed disk cache.
+    Generates a static PNG for the LC Theater using Plotly.
+    Matches the EXACT logic of the background interactive plots.
     """
-    import plotly.io as pio
     obs_id = request.GET.get('obs_id', '')
     plot_type = request.GET.get('plot_type', '').replace('-', '_')
     quality = request.GET.get('quality', 'goddard')
@@ -974,85 +972,107 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
     if not obs_id or not plot_type:
         return HttpResponse("Missing parameters", status=400)
 
-    # --- DISK CACHE LOGIC ---
-    cache_dir = os.path.join(settings.BASE_DIR, 'theater_cache')
-    os.makedirs(cache_dir, exist_ok=True)
-    
-    # 🟢 MODIFIED CACHE FILENAME: Include playlist hash for global_hid to avoid collisions
+    # 1. 🟢 CACHE LOOKUP (v4 - Full GTI Aggregation Fix)
+    cache_key = f"theater_v4_{obs_id}_{plot_type}_{quality}"
     if plot_type == 'global_hid' and playlist_str:
-        import hashlib
         playlist_hash = hashlib.md5(playlist_str.encode()).hexdigest()[:8]
-        cache_filename = f"plotly_{obs_id}_{plot_type}_{quality}_{playlist_hash}.png"
-    else:
-        cache_filename = f"plotly_{obs_id}_{plot_type}_{quality}.png"
-        
-    cache_path = os.path.join(cache_dir, cache_filename)
+        cache_key += f"_{playlist_hash}"
+    
+    cached_img = cache.get(cache_key)
+    if cached_img:
+        response = HttpResponse(cached_img, content_type="image/png")
+        response['Cache-Control'] = 'public, max-age=86400' 
+        return response
 
-    if os.path.exists(cache_path):
-        with open(cache_path, 'rb') as f:
-            return HttpResponse(f.read(), content_type="image/png")
-
-    # 1. Locate File (Not needed for global_hid which uses DB discovery)
+    # 2. Locate Data
     plot_info = PLOTS.get(plot_type)
     if not plot_info:
         return HttpResponse("Invalid plot type", status=400)
 
-    full_path = None
+    full_paths = []
+    gti_numbers = []
     if plot_type != 'global_hid':
-        rel_path = os.path.join(obs_id, 'jspipe/')
-        query = Item.objects.filter(path=rel_path, name__contains=quality).filter(name__contains=plot_info['file_type'])
+        # 🟢 ROBUST GTI DISCOVERY (Matches plot_data logic)
+        rel_dir_fragment = os.path.join(obs_id, 'jspipe')
+        query = Item.objects.filter(
+            path__contains=rel_dir_fragment, 
+            name__contains=quality,
+            type=Item.item_type[1][0] # Ensure we only get files
+        ).filter(name__contains=plot_info['file_type'])
+        
         if plot_type in ['light_curve', 'hardness_intensity_diagram']:
             query = query.exclude(name__contains='.bg-lc.gz').exclude(name__contains='.bg3c-lc.gz')
         
-        file_item = query.first()
-        if not file_item:
-            return HttpResponse("File Not Found", status=404)
-        full_path = os.path.join(settings.DATA_DIR, rel_path, file_item.name)
+        # 🟢 CRITICAL: Exclude sub-bands to prevent duplicate legend entries/lines
+        file_items = query.exclude(name__regex=r'_BAND\d+').order_by('name')
+        if not file_items.exists():
+            return HttpResponse(f"No data files found for {obs_id} ({plot_type})", status=404)
+        
+        for item in file_items:
+            # Reconstruct absolute path carefully
+            path_cleaned = item.path.lstrip('./').lstrip('/')
+            fp = os.path.join(settings.DATA_DIR, path_cleaned, item.name)
+            
+            if os.path.exists(fp):
+                full_paths.append(fp)
+                match = re.search(r'GTI(\d+)', item.name)
+                gti_numbers.append(int(match.group(1)) if match else 0)
     
     try:
-        # 2. Use the ACTUAL Plotly functions we already have!
+        # 3. Use default binning logic (Original Behavior)
         m_val = plot_info.get('min_value', 10)
+        if full_paths:
+            calc_min = calculate_default_binning(full_paths[0], plot_type)
+            if calc_min is not None:
+                m_val = calc_min
         
         def fig_to_png(fig_obj):
-            if not fig_obj: return None
-            # 🟢 REVERTED SIZE: Back to 700x500
+            if not fig_obj or not hasattr(fig_obj, 'update_layout'): return None
             fig_obj.update_layout(
                 width=700, height=500,
-                margin=dict(l=40, r=10, t=40, b=40),
+                margin=dict(l=50, r=20, t=50, b=50),
                 paper_bgcolor='white',
                 plot_bgcolor='white',
-                font=dict(size=10)
+                font=dict(size=12, color='black'),
+                showlegend=(plot_type == 'global_hid') 
             )
             return pio.to_image(fig_obj, format='png', engine='kaleido')
 
         img_data = None
 
         if plot_type == 'light_curve':
-            fig_dict = light_curve_plot(m_val, obs_id, [full_path], [0], output_type='dict')
-            img_data = fig_to_png(go.Figure(fig_dict))
+            # 🟢 Pass ALL paths and GTI numbers
+            res = light_curve_plot(m_val, obs_id, full_paths, gti_numbers, gti_labels=[obs_id]*len(full_paths), output_type='dict')
+            if isinstance(res, dict): img_data = fig_to_png(go_obj.Figure(res))
 
         elif plot_type == 'power_density_spectrum':
-            fig_dict = get_pds_data_and_plot(m_val, obs_id, [full_path], [0], output_type='dict')
-            img_data = fig_to_png(go.Figure(fig_dict))
+            # 🟢 Pass ALL paths and GTI numbers
+            res = get_pds_data_and_plot(m_val, obs_id, full_paths, gti_numbers, gti_labels=[obs_id]*len(full_paths), output_type='dict')
+            if isinstance(res, dict): img_data = fig_to_png(go_obj.Figure(res))
 
         elif plot_type == 'hardness_intensity_diagram':
-            fig_dict = get_hid_data_and_plot(m_val, obs_id, [full_path], [0], output_type='dict')
-            img_data = fig_to_png(go.Figure(fig_dict))
+            # 🟢 Pass ALL paths and GTI numbers
+            res = get_hid_data_and_plot(m_val, obs_id, full_paths, gti_numbers, gti_labels=[obs_id]*len(full_paths), output_type='dict')
+            if isinstance(res, dict): img_data = fig_to_png(go_obj.Figure(res))
             
         elif plot_type == 'global_hid':
             fig = get_global_hid_theater_figure(obs_id, quality=quality, playlist=playlist)
             img_data = fig_to_png(fig)
 
         if img_data:
-            with open(cache_path, 'wb') as f:
-                f.write(img_data)
-            return HttpResponse(img_data, content_type="image/png")
+            # 4. 🟢 SAVE TO CACHE
+            cache.set(cache_key, img_data)
+
+            response = HttpResponse(img_data, content_type="image/png")
+            response['Cache-Control'] = 'public, max-age=86400'
+            return response
         else:
             return HttpResponse("Error generating figure", status=500)
 
     except Exception as e:
-        logger.error(f"Plotly PNG Generation Error: {e}")
+        logger.exception(f"Theater PNG Speed Error: {e}")
         return HttpResponse(f"Error: {str(e)}", status=500)
+
 
 def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
     """
