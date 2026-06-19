@@ -75,6 +75,15 @@ def min_bin(
             count = 0.0
 
     # Handle the last bin - if it's too small, merge with previous bin
+    # TODO (For Jack the Astronomer):
+    # There is a potential mathematical flaw here. In the loop above, we iterate through
+    # data[:-1] and accumulate leftover counts in the `count` variable. 
+    # However, when evaluating this last bin, we only check `data[-1] < min_value`
+    # and completely ignore the accumulated `count`. 
+    # For example, if min_value=10, accumulated count=9, and data[-1]=2, the total 
+    # available for the last bin is 11 (which is >= 10). But since data[-1] (2) < 10,
+    # the code incorrectly merges it instead of letting it be a valid bin.
+    # The correct physical logic should likely check if `(count + data[-1]) < min_value`.
     if len(data) > 0:
         if data[-1] < min_value and len(bins) > 1:
             # Don't create a new bin, extend the last one

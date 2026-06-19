@@ -346,6 +346,7 @@
                     type="text"
                     value="{{ sourceName }}"
                     placeholder="Source Name..."
+                    style="color: #dc2626; font-weight: bold;"
                   />
                   <div id="source-options" class="dropdown-content"></div>
                 </div>
@@ -364,7 +365,7 @@
             <div class="results-grid">
               
               <div class="results-left">
-                <h3>General Info:</h3>
+                <h3>Observation Metadata:</h3>
                 <div class="info-box" id="general-info-box">
                   <ul></ul>
                 </div>
@@ -388,7 +389,7 @@
               
               <div class="results-left">
                 <h3>Selected ObsIDs for: <span id="selected-source-label">---</span></h3>
-                <ul id="selected-obsids-list" class="list-group-scrollable" style="min-height: 150px; max-height: 150px; margin-bottom: 1rem;">
+                <ul id="selected-obsids-list" class="list-group-scrollable" style="min-height: 180px; max-height: 180px; margin-bottom: 1rem;">
                 </ul>
 
                 <h3>Available GTIs for: <span id="selected-obsid-label" class="obsid-value-red">---</span></h3>
@@ -441,10 +442,12 @@
                   </div>
 
                   
-                  <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
-                    <button type="button" id="download-obs-btn" class="btn-sketch download-data" data-type="obs" style="flex: 1;">Download</button>
-                    <button type="button" id="show-gti-btn" class="btn-sketch" style="flex: 1;" disabled>GTI Details</button>
-                    <button type="submit" form="plot-selection-form" id="plot-selected-btn" class="btn-search" style="flex: 1;">
+                  <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                    <div style="display: flex; gap: 0.5rem;">
+                      <button type="button" id="download-obs-btn" class="btn-sketch download-data" data-type="obs" style="flex: 1;">Download</button>
+                      <button type="button" id="show-gti-btn" class="btn-sketch" style="flex: 1;" disabled>GTI Details</button>
+                    </div>
+                    <button type="submit" form="plot-selection-form" id="plot-selected-btn" class="btn-search" style="width: 100%;">
                       Plot
                     </button>
                   </div>
@@ -480,6 +483,7 @@
               type="text"
               value="{{ obsID }}"
               placeholder="Enter Observation ID..."
+              style="color: #dc2626; font-weight: bold;"
             />
             <div id="additional-observation-options" class="dropdown-content"></div>
             <button type="submit" class="btn-primary" style="margin-top: 1rem">
@@ -492,6 +496,7 @@
     </section>
   </div>
 </div>
+
 
 <div id="gti-modal" class="modal-overlay">
   <div class="modal-content">

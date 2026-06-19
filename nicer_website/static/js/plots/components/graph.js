@@ -230,7 +230,7 @@ export function fetchGraphPlots(refresh = false, event) {
                              const defaultBinning = response.defaultBinnings ? response.defaultBinnings[TYPE] : 1;
                              const gtiQuery = response.gtiQuery || '';
 
-                             if (maxVal !== undefined && maxVal > 0) {
+                             if (maxVal !== undefined && maxVal >= 0) {
                                  // We use your component but ensure handlers are attached
                                  const $GTI_FORM_HTML = $(GTISelection(maxVal, response.obsID || obsIdInput, TYPE, defaultBinning, gtiQuery));
                                  

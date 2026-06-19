@@ -356,6 +356,12 @@ export async function fetchGTIPlot(e) {
       `).first();
 
       if ($container.length > 0 && data.plotDivs?.length > 0) {
+        // Freeze the height temporarily to prevent the scroll jump
+        const currentHeight = $container.height();
+        if (currentHeight > 0) {
+            $container.css('min-height', currentHeight + 'px');
+        }
+
         const $plotlyPlot = $container.find('.js-plotly-plot');
         if ($plotlyPlot.length > 0) {
           // Surgical replace of JUST the plot
@@ -365,18 +371,22 @@ export async function fetchGTIPlot(e) {
           $container.html(data.plotDivs[0]).append($formToSave);
         }
 
+        // Release the height freeze after Plotly renders
+        setTimeout(() => { $container.css('min-height', ''); }, 500);
+
         // 🟢 Echo synchronization
         if (data.gtiQuery) {
           $container.find('input[name="gti-search"]').val(data.gtiQuery);
         }
       }
-        initGTICrossLinking();
         completeOperation(opId, 'Plot updated');
         if (typeof MathJax !== 'undefined') MathJax.typeset();
         
         setTimeout(() => { 
-          initSynchronizedSelection(); updateAllSelections(); 
-        }, 300);
+          initGTICrossLinking();
+          initSynchronizedSelection(); 
+          updateAllSelections(); 
+        }, 500);
       },
       error: function() { errorOperation(opId, 'Error updating plot'); }
     });

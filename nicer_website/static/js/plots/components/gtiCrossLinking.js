@@ -46,13 +46,16 @@ export function initGTICrossLinking() {
       obsId,
     );
 
-    // Attach click handler
-    hidPlot.on('plotly_click', function (data) {
-      handleHIDClick(data, obsId);
-    });
-
-    // Mark as initialized
-    hidPlot.setAttribute('data-gti-linking', 'true');
+    // Attach click handler safely (Plotly might not have fully rendered yet)
+    if (typeof hidPlot.on === 'function') {
+      hidPlot.on('plotly_click', function (data) {
+        handleHIDClick(data, obsId);
+      });
+      // Mark as initialized
+      hidPlot.setAttribute('data-gti-linking', 'true');
+    } else {
+      console.log('[GTI Cross-Linking] Skipping init, Plotly object not ready:', hidPlot.id);
+    }
   });
 
   gtiCrossLinkingEnabled = true;
