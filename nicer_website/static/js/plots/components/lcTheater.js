@@ -33,31 +33,11 @@ export async function openLCTheater() {
 window.openLCTheater = openLCTheater;
 
 /**
- * 🟢 Pre-loads all images in the playlist into browser memory
+ * 🟢 Pre-load is disabled for smart loading. 
+ * We now fetch images lazily on demand.
  */
 function preloadSequence() {
-    const playlist = window.lcTheaterPlaylist;
-    const q = quality || 'goddard';
-    const baseUrl = PLOT_THEATER_PNG_URL;
-    const plotTypes = ['light_curve', 'power_density_spectrum', 'hardness_intensity_diagram', 'global_hid'];
-    const playlistStr = playlist.join(',');
-
-    console.log(`🚀 Pre-loading ${playlist.length * 4} images...`);
-
-    playlist.forEach(obsId => {
-        plotTypes.forEach(type => {
-            let url = `${baseUrl}?obs_id=${obsId}&plot_type=${type}&quality=${q}`;
-            if (type === 'global_hid') {
-                url += `&playlist=${playlistStr}`;
-            }
-            
-            if (!theaterImageCache.has(url)) {
-                const img = new Image();
-                img.src = url;
-                theaterImageCache.set(url, img); // Store the Image object in memory
-            }
-        });
-    });
+    console.log("Preloading disabled to prevent network jam.");
 }
 
 /**
@@ -113,6 +93,10 @@ export async function updateTheaterFrame(index) {
     const plotTypes = ['global_hid', 'light_curve', 'power_density_spectrum', 'hardness_intensity_diagram'];
     const imgIds = ['theater-global-hid-img', 'theater-lc-img', 'theater-pds-img', 'theater-hid-img'];
 
+
+    // Show the loading text overlay
+    $('#theater-loading-overlay').css('display', 'flex');
+
     // 🟢 SYNCED LOADING LOGIC
     // We create temporary images in the background and only update the DOM when all are ready
     const loadPromises = plotTypes.map((type, i) => {
@@ -143,6 +127,9 @@ export async function updateTheaterFrame(index) {
         const el = document.getElementById(res.id);
         if (el) el.src = res.src;
     });
+
+    // Hide the loading overlay
+    $('#theater-loading-overlay').fadeOut(200);
 }
 window.updateTheaterFrame = updateTheaterFrame;
 
@@ -194,7 +181,7 @@ async function generateGIF() {
             $btn.text(`CAPTURED ${i+1}/${playlist.length}`);
         }
 
-        $btn.text("ENCODING GIF...");
+        $btn.text("CREATING GIF...");
         
         gifshot.createGIF({
             images: frames,

@@ -972,17 +972,24 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
     if not obs_id or not plot_type:
         return HttpResponse("Missing parameters", status=400)
 
-    # 1. 🟢 CACHE LOOKUP (v4 - Full GTI Aggregation Fix)
-    cache_key = f"theater_v4_{obs_id}_{plot_type}_{quality}"
+    # 1. 🟢 CACHE LOOKUP (v9 - Size reduced to 9) - TEMPORARILY DISABLED FOR DEVELOPMENT
+    cache_key = f"theater_v9_{obs_id}_{plot_type}_{quality}"
     if plot_type == 'global_hid' and playlist_str:
         playlist_hash = hashlib.md5(playlist_str.encode()).hexdigest()[:8]
         cache_key += f"_{playlist_hash}"
     
-    cached_img = cache.get(cache_key)
-    if cached_img:
-        response = HttpResponse(cached_img, content_type="image/png")
-        response['Cache-Control'] = 'public, max-age=86400' 
-        return response
+    # =========================================================================
+    # 🚨🚨🚨 URGENT PRODUCTION REMINDER: CACHE IS PAUSED FOR DEVELOPMENT 🚨🚨🚨
+    # =========================================================================
+    # UNCOMMENT THE BLOCK BELOW BEFORE DEPLOYING TO PRODUCTION!
+    # If left commented, generating 4 plots per user click will CRASH the server.
+    # 
+    # cached_img = cache.get(cache_key)
+    # if cached_img:
+    #     response = HttpResponse(cached_img, content_type="image/png")
+    #     response['Cache-Control'] = 'public, max-age=86400' 
+    #     return response
+    # =========================================================================
 
     # 2. Locate Data
     plot_info = PLOTS.get(plot_type)
@@ -1034,7 +1041,7 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
                 paper_bgcolor='white',
                 plot_bgcolor='white',
                 font=dict(size=12, color='black'),
-                showlegend=(plot_type == 'global_hid') 
+                showlegend=False
             )
             return pio.to_image(fig_obj, format='png', engine='kaleido')
 
@@ -1060,11 +1067,14 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
             img_data = fig_to_png(fig)
 
         if img_data:
-            # 4. 🟢 SAVE TO CACHE
-            cache.set(cache_key, img_data)
+            # =========================================================================
+            # 🚨🚨🚨 URGENT PRODUCTION REMINDER: UNCOMMENT THIS FOR PRODUCTION 🚨🚨🚨
+            # =========================================================================
+            # cache.set(cache_key, img_data)
+            # =========================================================================
 
             response = HttpResponse(img_data, content_type="image/png")
-            response['Cache-Control'] = 'public, max-age=86400'
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0' # Prevent browser caching too during dev
             return response
         else:
             return HttpResponse("Error generating figure", status=500)
@@ -1107,8 +1117,7 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
     fig = go.Figure()
     
     # Points to plot
-    bg_x, bg_y, bg_obsids = [], [], []       # Not in playlist
-    seq_x, seq_y, seq_obsids = [], [], []     # In playlist
+    bg_x, bg_y, bg_obsids = [], [], []       # All other obs
     curr_x, curr_y = [], []                   # Active obs_id
 
     for oid in obs_ids_to_process:
@@ -1139,40 +1148,26 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
             if oid == obs_id:
                 curr_x.append(avg_h)
                 curr_y.append(avg_i)
-            elif oid in playlist:
-                seq_x.append(avg_h)
-                seq_y.append(avg_i)
-                seq_obsids.append(oid)
             else:
                 bg_x.append(avg_h)
                 bg_y.append(avg_i)
                 bg_obsids.append(oid)
 
-    # Layer 1: Background History - Substantially more visible grey
+    # Layer 1: Background History - Dark Grey, no labels
     if bg_x:
         fig.add_trace(go.Scatter(
             x=bg_x, y=bg_y, mode='markers',
-            marker=dict(size=8, color='#d1d5db', opacity=0.4),
+            marker=dict(size=9, color='#6b7280', opacity=0.8),
             text=bg_obsids,
             name='Other Obs'
         ))
-    
-    # Layer 2: Selected Sequence - Darker Grey + LABELS
-    if seq_x:
-        fig.add_trace(go.Scatter(
-            x=seq_x, y=seq_y, mode='markers+text',
-            text=seq_obsids, textposition='top center',
-            marker=dict(size=10, color='#6b7280', opacity=0.8),
-            textfont=dict(color='#4b5563', size=9),
-            name='Sequence'
-        ))
         
-    # Layer 3: Active Frame - Bright Blue + BOLD LABEL
+    # Layer 2: Active Frame - Bright Blue + BOLD LABEL
     if curr_x:
         fig.add_trace(go.Scatter(
             x=curr_x, y=curr_y, mode='markers+text',
             text=[obs_id], textposition='top center',
-            marker=dict(size=16, color='#3b82f6', line=dict(width=2, color='white')),
+            marker=dict(size=9, color='#3b82f6'),
             textfont=dict(color='#1d4ed8', size=11, family='Arial Black'),
             name='Current'
         ))
