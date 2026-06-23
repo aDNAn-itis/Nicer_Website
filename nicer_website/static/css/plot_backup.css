@@ -132,9 +132,6 @@ label {
   font-weight: 500;
   color: var(--text-primary);
 }
-  font-size: 14px;
-}
-
 .info-table th {
   background-color: var(--header-bg);
   color: var(--header-text);

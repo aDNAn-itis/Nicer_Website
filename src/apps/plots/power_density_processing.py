@@ -8,7 +8,7 @@ from typing import List, Tuple, Any
 import numpy as np
 from numpy import ndarray
 from astropy.io import fits
-
+import plotly.graph_objects as go
 from src.apps.plots.plots import data_plot
 from src.utils.utils import min_bin, binning
 

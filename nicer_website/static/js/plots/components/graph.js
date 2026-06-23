@@ -229,10 +229,16 @@ export function fetchGraphPlots(refresh = false, event) {
   }
 
   const operationId = 'fetch-plots-' + Date.now();
-  const obsIdInput = serializedData.match(/obs_id=([^&]+)/)?.[1] || 'unknown';
+  const rawObsId = serializedData.match(/obs_id=([^&]+)/)?.[1] || 'unknown';
+  const decodedObsId = decodeURIComponent(rawObsId);
+  const obsIdCount = decodedObsId.split(',').length;
+  
+  const displayMessage = obsIdCount > 1 
+      ? `Loading combined data for ${obsIdCount} observations...` 
+      : `Loading data for observation ${decodedObsId}...`;
   
   // Clear status reporting
-  startOperation(operationId, 'Loading data for observation ' + obsIdInput + '...');
+  startOperation(operationId, displayMessage);
 
   $.ajax({
     type: 'POST',

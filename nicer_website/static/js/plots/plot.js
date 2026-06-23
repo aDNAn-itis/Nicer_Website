@@ -315,6 +315,10 @@ function toggleMultiSelect(obsId) {
         document.getElementById('selected-obsids-list').appendChild(li);
     }
     li.classList.toggle('multi-selected');
+    
+    // Auto-scroll to the selected item
+    li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
     if(li.classList.contains('multi-selected')) {
         StatusBar.getInstance().show(`Added ${obsId} to Compare Group`, 1500);
     } else {
@@ -381,14 +385,18 @@ function handleGlobalPointClick(obsId) {
     const globalCheck = document.getElementById('plot-global-hid');
     if(globalCheck) globalCheck.checked = false;
 
-    if (!document.getElementById(`selected-${sanitizeId(obsId)}`)) {
-        let li = createListItem(obsId);
+    let li = document.getElementById(`selected-${sanitizeId(obsId)}`);
+    if (!li) {
+        li = createListItem(obsId);
         document.getElementById('selected-obsids-list').appendChild(li);
     }
     setActiveObsID(obsId);
     
+    // Auto-scroll to the selected item
+    if (li) li.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    
     // Auto-track in Theater
-    addToTheaterPlaylist(obsid);
+    addToTheaterPlaylist(obsId);
     
     StatusBar.getInstance().show(`Selected ObsID ${obsId}.`, 2000);
 }

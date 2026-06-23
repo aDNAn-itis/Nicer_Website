@@ -1,6 +1,5 @@
 """
 Utility to correct light curve data
-Integrated Version: v2026.05.03
 """
 
 from typing import Any
@@ -52,7 +51,7 @@ def light_curve_data(
         return (np.array([]),) * 6
 
     try:
-        # Rahul's scientific column selection (1, 2, 3) integrated with your dtype
+        # Load data columns (time, counts, detectors)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
@@ -66,7 +65,7 @@ def light_curve_data(
         except:
             background = np.zeros(len(data[0]))
 
-        # --- YOUR ORIGINAL TIME FILTERING LOGIC ---
+        # Time filtering logic
         if start_time is not None and stop_time is not None:
             time_mask = (data[0] >= start_time) & (data[0] <= stop_time)
             data = data[:, time_mask]
@@ -82,15 +81,15 @@ def light_curve_data(
         counts = data[1] * time_diff
         dets = int(data[2][0])
 
-        # --- INTEGRATED BINNING STRATEGY ---
-        # Adopting Rahul's exact np.arange strategy for scientific bin_factor
+        # Binning strategy
+        # Binning strategy
         bin_factor = int(min_value) if min_value > 0 else 1
         min_bins = np.arange(0, len(counts), bin_factor)
         if len(min_bins) == 0 or min_bins[-1] != len(counts):
             min_bins = np.append(min_bins, len(counts))
         min_bins = np.unique(min_bins)
 
-        # Maintaining your validation check
+        # Validation check
         valid_len = min(len(counts), len(background), len(data[0]))
         
         (y_bin, bg_bin, x_bin), x_width, uncertainty = binning(
@@ -289,12 +288,12 @@ def light_curve_plot(
         oid = final_labels[i]
         gti_n = final_gti_nums[i]
         
-        # 🟢 FEATURE 1: Color Logic
-        # If multi-obs, use ObsID color. If single search, use GTI-specific color.
+        # Color Logic
+            # If multi-obs, use ObsID color. If single search, use GTI-specific color.
         color = color_map[oid] if is_multi_obs else gti_color_map[gti_n]
         
-        # 🟢 FEATURE 2: Double-Click Compatibility
-        # Naming format: "ObsID GTI Number" so JS regex matches it
+        # Double-Click Compatibility
+            # Naming format: "ObsID GTI Number" so JS regex matches it
         trace_name = f"{oid} GTI {gti_n}"
         
         show_in_legend = trace_name not in seen_labels
@@ -312,14 +311,32 @@ def light_curve_plot(
                 'showlegend': show_in_legend,
                 'output_type': output_type
             },
-            layout_kwargs={'template': 'plotly_white', 'hovermode': 'closest'},
+            layout_kwargs={
+                'template': 'plotly_white',
+                'hovermode': 'closest',
+                'yaxis_title': r'$\text{Photons}\ (s^{-1} {\rm det}^{-1})$'
+            },
             subplot_kwargs=subplot_kwargs[i], fig=fig,
         )
         seen_oids.add(oid)
         fig.data[-1].showlegend = False # Hide BG trace
 
-    fig.update_layout(title=f"Light Curve {obs_id}", legend=dict(groupclick="toggleitem"))
-    fig.add_annotation(text=x_axis_label, xref='paper', yref='paper', x=0.5, y=-0.15, showarrow=False)
+    layout_update = {"title": f"Light Curve {obs_id}", "legend": dict(groupclick="toggleitem")}
+    if output_type == 'dict':
+        layout_update["margin"] = dict(b=60)
+    fig.update_layout(**layout_update)
+    y_coord = -0.06 if output_type == 'dict' else -0.15
+    fig.add_annotation(
+        text=x_axis_label,
+        xref='paper',
+        yref='paper',
+        x=0.5,
+        y=y_coord,
+        showarrow=False,
+        xanchor='center',
+        yanchor='top',
+        font=dict(size=14)
+    )
 
     if output_type == 'div': 
         return plot(fig, output_type='div', include_plotlyjs=False)

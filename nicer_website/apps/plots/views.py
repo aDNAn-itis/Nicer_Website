@@ -125,8 +125,8 @@ def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output
         )
         layout = go.Layout(
             title=dict(text=f'Global Average HID: {obs_id}', x=0.5),
-            xaxis=dict(title='Average Hardness (Hard/Soft)', zeroline=False),
-            yaxis=dict(title='Average Intensity (counts/s)', type='log'),
+            xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', zeroline=False),
+            yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log'),
             hovermode='closest', width=600, height=500, template='plotly_white'
         )
         fig = go.Figure(data=[trace], layout=layout)
@@ -948,8 +948,8 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
 
     fig.update_layout(
         title=f'Global HID: {source_name or "Multi-Observation"}',  
-        xaxis=dict(title='Average Hardness (Hard/Soft)', showline=True, linewidth=1, linecolor='black', showgrid=False),
-        yaxis=dict(title='Average Intensity (counts/s)', type='log', showline=True, linewidth=1, linecolor='black', showgrid=False),
+        xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', showgrid=False),
+        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', showgrid=False),
         height=600, template='plotly_white', plot_bgcolor='white', paper_bgcolor='white', font=dict(color='black'),
         showlegend=True, hovermode='closest'
     )
@@ -1174,8 +1174,8 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
 
     fig.update_layout(
         title=f'Global HID: {source_name or "Unknown"}',
-        xaxis=dict(title='Hardness', showline=True, linewidth=1, linecolor='black'),
-        yaxis=dict(title='Intensity', type='log', showline=True, linewidth=1, linecolor='black'),
+        xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black'),
+        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black'),
         template='plotly_white',
         showlegend=False,
         margin=dict(l=50, r=20, t=50, b=50)
