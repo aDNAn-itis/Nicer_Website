@@ -684,8 +684,8 @@ def fetch_observations(request: HttpRequest, count: int = 5) -> JsonResponse:
 
     if not suggested_obs.exists(): return JsonResponse({'error': 'Observational data not found'})
 
-    if obs_id: return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('name', flat=True))})
-    else: return JsonResponse({'dir_suggestions': list(suggested_obs.values_list('source', flat=True))})
+    if obs_id: return JsonResponse({'suggestions': list(suggested_obs.values_list('name', flat=True))})
+    else: return JsonResponse({'suggestions': list(suggested_obs.values_list('source', flat=True))})
 
 
 def fetch_sources(request: HttpRequest, count: int = 5) -> JsonResponse:

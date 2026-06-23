@@ -1,22 +1,26 @@
 /**
  * Fetches and plots GTIs from the search field for the given plot type.
- * v201.5 Master - Complete Restoration with UUID Protection and Multi-Sync Fixes
  */
 import {
   updateAllSelections,
   initSynchronizedSelection,
-} from './syncSelection.js?v=301';
-import { initInteractiveLinking } from './interactiveLinking.js?v=301';
-import { initGTICrossLinking } from './gtiCrossLinking.js?v=301'; 
+} from './syncSelection.js';
+import { initInteractiveLinking } from './interactiveLinking.js';
+import { initGTICrossLinking } from './gtiCrossLinking.js'; 
 import { 
   startOperation, 
   completeOperation, 
   errorOperation, 
-} from './statusBar.js?v=301';
+} from './statusBar.js';
 
 
 /**
- * RAHUL'S UTILITY: Highlight GTI rows that failed screening.
+ * Highlight GTI rows in the observation info table that failed screening.
+ * Adds a CSS class and a small badge so the user knows why a GTI is missing
+ * from the plot.
+ *
+ * @param {string} obsID           Observation ID
+ * @param {number[]} failedGTIs    GTI numbers that failed screening
  */
 export function flagScreenedGTIs(obsID, failedGTIs) {
   if (!failedGTIs || failedGTIs.length === 0) return;
@@ -47,7 +51,7 @@ export function flagScreenedGTIs(obsID, failedGTIs) {
 }
 
 /**
- * RAHUL'S TOAST HELPER: Displays the screening notification
+ * Displays the screening notification toast.
  */
 function showScreeningToast(obsID, summary) {
   if (!summary || summary.failed_gtis === 0) return;
@@ -67,31 +71,161 @@ function showScreeningToast(obsID, summary) {
 }
 
 /**
- * YOUR POPUP: Full implementation with Integrated Screening UI
+ * Shows a popup for selecting which plot types to generate for selected GTIs
+ * @param {string} obsID The observation ID
+ * @param {Array} selectedGTIs Array of selected GTI numbers
  */
 export function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
   if (!document.getElementById('popup-styles')) {
     const styles = `
-      .popup-container { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center; animation: fadeIn 0.3s ease-out; }
-      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-      @keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-      .popup-content { background-color: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); width: 90%; max-width: 500px; padding: 0; position: relative; animation: slideIn 0.3s ease-out; }
-      .popup-title { background-color: #505050; color: white; padding: 15px 20px; font-size: 18px; font-weight: bold; border-top-left-radius: 8px; border-top-right-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-      .popup-close { background: none; border: none; color: white; font-size: 24px; cursor: pointer; transition: transform 0.2s; }
-      .popup-close:hover { transform: scale(1.2); }
-      .plot-type-form { padding: 20px; background-color: #f5f5f5; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
-      .plot-option { margin-bottom: 15px; display: flex; align-items: center; }
-      .plot-option input { margin-right: 10px; width: 18px; height: 18px; }
-      .plot-option label { font-size: 16px; color: #333; cursor: pointer; }
-      .plot-submit-btn { background-color: #666666; color: white; border: none; padding: 10px 20px; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; width: 100%; transition: background-color 0.2s; }
-      .plot-submit-btn:hover { background-color: #555555; }
-      .screening-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; }
-      .screening-toggle-container { display: flex; align-items: center; margin-bottom: 10px; }
-      .screening-toggle-container label { font-size: 14px; font-weight: bold; color: #333; cursor: pointer; }
-      .screening-options { display: none; padding: 10px; background: #e9e9e9; border-radius: 4px; margin-top: 10px; }
-      .screening-options.visible { display: block; }
-      .screening-option-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; font-size: 12px; }
-      .screening-option-row input { width: 70px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; }
+      .popup-container {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        animation: fadeIn 0.3s ease-out;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      @keyframes slideIn {
+        from { transform: translateY(-50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      
+      .popup-content {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 500px;
+        padding: 0;
+        position: relative;
+        animation: slideIn 0.3s ease-out;
+      }
+      
+      .popup-title {
+        background-color: #505050;
+        color: white;
+        padding: 15px 20px;
+        font-size: 18px;
+        font-weight: bold;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .popup-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+      
+      .popup-close:hover {
+        transform: scale(1.2);
+      }
+      
+      .plot-type-form {
+        padding: 20px;
+        background-color: #f5f5f5;
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
+      }
+      
+      .plot-option {
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+      }
+      
+      .plot-option input {
+        margin-right: 10px;
+        width: 18px;
+        height: 18px;
+      }
+      
+      .plot-option label {
+        font-size: 16px;
+        color: #333;
+        cursor: pointer;
+      }
+      
+      .plot-submit-btn {
+        background-color: #666666;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-size: 16px;
+        cursor: pointer;
+        margin-top: 10px;
+        width: 100%;
+        transition: background-color 0.2s;
+      }
+      
+      .plot-submit-btn:hover {
+        background-color: #555555;
+      }
+      
+      .screening-section {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #ddd;
+      }
+      
+      .screening-toggle-container {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      
+      .screening-toggle-container label {
+        font-size: 14px;
+        font-weight: bold;
+        color: #333;
+        cursor: pointer;
+      }
+      
+      .screening-options {
+        display: none;
+        padding: 10px;
+        background: #e9e9e9;
+        border-radius: 4px;
+        margin-top: 10px;
+      }
+      
+      .screening-options.visible {
+        display: block;
+      }
+      
+      .screening-option-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        gap: 10px;
+        font-size: 12px;
+      }
+      
+      .screening-option-row input {
+        width: 70px;
+        padding: 4px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+      }
     `;
     const styleSheet = document.createElement('style');
     styleSheet.id = 'popup-styles';
@@ -210,8 +344,8 @@ export function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
 }
 
 /**
- * MASTER FUNCTION: fetchGTIPlot
- * RESTORED V2 AJAX LOOP WITH UUID & DNA PROTECTION
+ * Fetches and plots GTIs from the search field for the given plot type.
+ * @param {Event} e Event generated by form submit
  */
 export async function fetchGTIPlot(e) {
   e.preventDefault();
@@ -219,7 +353,7 @@ export async function fetchGTIPlot(e) {
   const triggeringPlotType = $form.find('input[name="plot_type"]').val();
   const currentObsID = $form.find('input[name="obs_id"]').val();
   
-  // 🟢 Fix State Loss: Look in the whole container for the search box
+  // Look in the whole container for the search box
   const $searchBox = $form.closest(".plot-container, .plot-type-section").find('input[name="gti-search"]');
   let gtiSearch = $searchBox.length ? $searchBox.val() : undefined;
   
@@ -243,7 +377,7 @@ export async function fetchGTIPlot(e) {
   const currentGtis = gtiSearch || "";
   const selectedGTIsArray = currentGtis ? currentGtis.split(',').map(g => g.trim()).filter(g => g !== '') : [];
 
-  // 🟢 DYNAMIC SECTION DETECTION (UUID PROOF)
+  // Dynamic section detection
   let openPlotTypes = [];
   const isCrossLinkEnabled = $("#cross-link-check").is(":checked");
 
@@ -268,12 +402,12 @@ export async function fetchGTIPlot(e) {
   return;
   }
 
-  // 🟢 AJAX LOOP (Surgical Sync Fix)
+  // Perform AJAX updates for open plot types
   openPlotTypes.forEach(type => {
   const opId = 'gti-change-' + type + '-' + currentObsID;
   startOperation(opId, `Updating ${type.replace(/_/, ' ')} plot...`);
 
-  // 🟢 FIX: Find the SPECIFIC form for this plot type to preserve its own binning/GTIs
+  // Find the specific form for this plot type to preserve its own binning/GTIs
   const cleanObsForTarget = currentObsID.replace(/,/g, '-');
   const cleanTypeForTarget = type.replace(/_/g, '-');
   const altTypeForTarget = type.replace(/-/g, '_');
@@ -292,7 +426,7 @@ export async function fetchGTIPlot(e) {
       ? $targetForm.serialize() 
       : $form.serialize();
 
-  // 🟢 DNA FIX: Force request to ask for correct plot type per loop iteration
+  // Force request to ask for correct plot type per loop iteration
   const cleanTypeForReq = type.replace(/-/g, '_');
   if (formData.includes('plot_type=')) {
       formData = formData.replace(/plot_type=[^&]*/, "plot_type=" + cleanTypeForReq);
@@ -305,7 +439,7 @@ export async function fetchGTIPlot(e) {
       formData += `&search_type=${encodeURIComponent($('#search-type').val())}`;
   }
 
-  // 🟢 DNA FIX: Force fallback to trigger if search is empty or missing
+  // Force fallback to trigger if search is empty or missing
   if (!formData.includes("gti-search") || formData.includes("gti-search=&")) {
       // If it's empty in the form, use our recovered gtiSearch
       if (formData.includes("gti-search=&")) {
@@ -342,7 +476,7 @@ export async function fetchGTIPlot(e) {
     success: function (data) {
       if (data.screeningSummary) showScreeningToast(currentObsID, data.screeningSummary);
 
-      // 🟢 UUID SHIELD: Robust lookup for container by attribute or ID (hyphen/underscore flexible)
+      // Robust lookup for container by attribute or ID
       const cleanObsForTarget = currentObsID.replace(/,/g, '-');
       const cleanTypeForTarget = type.replace(/_/g, '-');
       const altTypeForTarget = type.replace(/-/g, '_');
@@ -374,7 +508,7 @@ export async function fetchGTIPlot(e) {
         // Release the height freeze after Plotly renders
         setTimeout(() => { $container.css('min-height', ''); }, 500);
 
-        // 🟢 Echo synchronization
+        // Echo synchronization
         if (data.gtiQuery) {
           $container.find('input[name="gti-search"]').val(data.gtiQuery);
         }
@@ -415,7 +549,8 @@ export function fetchTheaterLC(obsID) {
 }
 
 /**
- * YOUR COMBINE LOGIC: Full Preservation
+ * Combines and plots all GTIs from all observations for a given plot type
+ * @param {Event} event Event generated by form submit
  */
 export function combineAndPlotGTIs(event) {
   event.preventDefault();
@@ -449,7 +584,7 @@ export function combineAndPlotGTIs(event) {
         $combinedContainer.find('.js-plotly-plot').remove();
         $combinedContainer.append(data.plotDivs[0]);
         completeOperation(operationId, 'GTIs combined');
-        // 🟢 FIX: Re-bind double click functionality for newly injected Combined plot!
+        // Re-bind double click functionality for newly injected combined plot
         setTimeout(() => { initInteractiveLinking(); }, 100);
       }
     },

@@ -3,8 +3,7 @@
  * This module enables synchronized region selection across different plot types
  * (light curve, spectrum, etc.) so when a user selects a region on one graph,
  * the same time region is automatically selected on other graphs.
- * * MODIFIED: Triple-Check Filter to exclude Global HID.
- */
+  */
 
 /**
  * Mapping of plot types to their x-axis units
@@ -80,14 +79,14 @@ export function initSynchronizedSelection() {
   // Find all plotly graphs on the page
   const allGraphs = document.querySelectorAll('.js-plotly-plot');
 
-  // 🔴 TRIPLE-CHECK FILTER: Ignore Global HID
+  // Ignore Global HID
   const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
     // 1. Check Title (Most Reliable)
     const layoutTitle = plot.layout?.title;
     const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
     
     if (titleText.includes('global hid') || titleText.includes('multi-observation')) {
-      console.log(`🛡️ SyncSelection: Ignoring Global HID (Title Match)`);
+      
       return false;
     }
 
@@ -99,7 +98,7 @@ export function initSynchronizedSelection() {
         parent.id === 'global-safe-container' ||
         parent.id === 'global-hid-section'
       ) {
-        console.log(`🛡️ SyncSelection: Ignoring Global HID (Container Match)`);
+        
         return false;
       }
       parent = parent.parentElement;
@@ -359,7 +358,7 @@ function updateSelectionIndicators(sourceType) {
   // Find all plotly graph containers
   const allGraphs = document.querySelectorAll('.js-plotly-plot');
 
-  // 🔴 TRIPLE-CHECK FILTER: Apply to Indicators
+  // Ignore Global HID
   const plotlyGraphContainers = Array.from(allGraphs).filter((plot) => {
     // 1. Check Title
     const layoutTitle = plot.layout?.title;
@@ -415,7 +414,7 @@ function propagateSelection(xRange, sourceType) {
 
     const allGraphs = document.querySelectorAll('.js-plotly-plot');
 
-    // 🔴 TRIPLE-CHECK FILTER: Apply to Propagation
+    // Ignore Global HID
     const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
         const layoutTitle = plot.layout?.title;
         const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
@@ -584,7 +583,7 @@ function propagateGTISelection(gtiNumber, sourceType) {
   try {
     const allGraphs = document.querySelectorAll('.js-plotly-plot');
 
-    // 🔴 TRIPLE-CHECK FILTER: Apply to GTI
+    // Ignore Global HID
     const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
         const layoutTitle = plot.layout?.title;
         const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
@@ -694,7 +693,7 @@ function clearGTISelection() {
   try {
     const allGraphs = document.querySelectorAll('.js-plotly-plot');
 
-    // 🔴 TRIPLE-CHECK FILTER: Apply to Clear GTI
+    // Ignore Global HID
     const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
       const layoutTitle = plot.layout?.title;
       const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();
@@ -770,7 +769,7 @@ function clearAllSelections() {
   try {
     const allGraphs = document.querySelectorAll('.js-plotly-plot');
 
-    // 🔴 TRIPLE-CHECK FILTER: Apply to Clear All
+    // Ignore Global HID
     const plotlyGraphs = Array.from(allGraphs).filter((plot) => {
       const layoutTitle = plot.layout?.title;
       const titleText = (typeof layoutTitle === 'string' ? layoutTitle : layoutTitle?.text || '').toLowerCase();

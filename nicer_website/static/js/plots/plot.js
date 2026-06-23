@@ -1,23 +1,22 @@
-/* plot.js v200 - Clean Slate */
-console.log("plot.js (v200 - Clean Slate) loaded.");
+console.log("plot.js loaded.");
 
-// 🟢 INITIALIZE GLOBALS AT THE ABSOLUTE TOP
+// Initialize globals
 window.gtiMap = window.gtiMap || {};
 window.selectedGtis = window.selectedGtis || [];
 window.allObservationsData = window.allObservationsData || [];
 
-import { fetchGTIPlot } from './components/gtiPlots.js?v=301';
-import { displayInfo } from './components/observationInfo.js?v=301';
-import { fetchGraphPlots } from './components/graph.js?v=301';
-import { downloadData } from './components/download.js?v=301';
-import { fetchOptions } from './components/dropdowns.js?v=301';
-import { StatusBar } from './components/statusBar.js?v=301';
-import { updateTheaterFrame, openLCTheater } from './components/lcTheater.js?v=301';
+import { fetchGTIPlot } from './components/gtiPlots.js';
+import { displayInfo } from './components/observationInfo.js';
+import { fetchGraphPlots } from './components/graph.js';
+import { downloadData } from './components/download.js';
+import { fetchOptions } from './components/dropdowns.js';
+import { StatusBar } from './components/statusBar.js';
+import { updateTheaterFrame, openLCTheater } from './components/lcTheater.js';
 
 window.fetchGTIPlot = fetchGTIPlot; // Global bridge for ESM modules and dynamic form listeners
 window.openLCTheater = openLCTheater; 
 
-// 🟢 NO 'LET' DECLARATIONS HERE. Use window directly to avoid TDZ errors during module loading.
+// Use window directly to avoid TDZ errors during module loading.
 
 function sanitizeId(obsId) {
     if (!obsId) return '';
@@ -128,7 +127,7 @@ setInterval(() => {
         const graphDiv = globalPlotContainer.querySelector('.plotly-graph-div');
         if (graphDiv && graphDiv._fullLayout) {
             if (graphDiv._fullLayout.dragmode === 'select' || graphDiv._fullLayout.dragmode === 'lasso') {
-                console.log("💓 Heartbeat: Unlocking Global HID...");
+                console.log("Heartbeat: Unlocking Global HID...");
                 Plotly.relayout(graphDiv, { 'dragmode': 'zoom', 'clickmode': 'event' });
                 Plotly.restyle(graphDiv, {selectedpoints: [null]});
             }
@@ -327,7 +326,7 @@ function setActiveObsID(obsId) {
     const currentObsDisplay = document.getElementById("current-obsid-display");
     if (currentObsDisplay) currentObsDisplay.innerHTML = `Current ObsID: <span class="obsid-value-red">${obsId}</span>`;
 
-    // 🟢 NEW: Update the 'Available GTIs for' label
+    // Update the 'Available GTIs for' label
     const selectedObsidLabel = document.getElementById("selected-obsid-label");
     if (selectedObsidLabel) selectedObsidLabel.textContent = obsId;
 
@@ -401,13 +400,13 @@ function populateResultsLayout(data, searchType) {
   const title = document.getElementById("all-obsids-title");
   const globalToolsSection = document.getElementById("global-tools-section");
 
-  // 🟢 NEW: Update the 'Selected ObsIDs for' label
+  // Update the 'Selected ObsIDs for' label
   const selectedSourceLabel = document.getElementById("selected-source-label");
   if (selectedSourceLabel) {
       selectedSourceLabel.textContent = data.source_name || (searchType === 'obs_id' ? data.observations[0]?.obsid : "---");
   }
 
-  // 🟢 FIX: Reset the 'Available GTIs for' label to default state during new search
+  // Reset the 'Available GTIs for' label to default state during new search
   const selectedObsidLabel = document.getElementById("selected-obsid-label");
   if (selectedObsidLabel) {
       selectedObsidLabel.textContent = "---";
@@ -702,7 +701,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         </div>
                     `);
                     
-                    // 🟢 FIX: Use the proper removal function instead of just emptying the div
+                    // Use the proper removal function instead of just emptying the div
                     // This ensures 'Remove Observation' buttons are also cleared.
                     if (typeof removePlots === 'function') {
                         removePlots(); 
@@ -776,7 +775,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            // 🟢 FIX: Use removePlots() instead of manual empty() to sync buttons
+            // Use removePlots() instead of manual empty() to sync buttons
             if (typeof removePlots === 'function') {
                 removePlots();
             } else {
@@ -833,7 +832,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let gtiNum = $(this).data('gti');
     const quality = $('#quality-select').val();
 
-    // --- SMART LOGIC: Full vs. Selected GTIs ---
+    // Smart logic: Full vs. Selected GTIs
     // If the button says 'obs' (like the main Download button), 
     // we check if the user actually has specific GTIs selected for THIS obsId.
     if (dataType === 'obs') {

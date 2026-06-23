@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/dist/gifshot.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-<script type="module" src="{% static 'js/plots/plot.js' %}?v={% now 'U' %}"></script>
+<script type="module" src="{% static 'js/plots/plot.js' %}"></script>
 <script
   id="MathJax-script"
   src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
@@ -346,7 +346,6 @@
                     type="text"
                     value="{{ sourceName }}"
                     placeholder="Source Name..."
-                    style="color: #dc2626; font-weight: bold;"
                   />
                   <div id="source-options" class="dropdown-content"></div>
                 </div>

@@ -6,12 +6,18 @@ import {
   updateOperationMessage,
   clearOperationsByPattern,
   completeOperationsByPattern,
-} from './statusBar.js?v=301';
-import { setGTICrossLinking, clearGTIHighlighting } from './gtiCrossLinking.js?v=301';
+} from './statusBar.js';
+import { setGTICrossLinking, clearGTIHighlighting } from './gtiCrossLinking.js';
 
 /**
  * Generates a GTI selection field for a specific plot
- * v200.6 - Full Structural Merge (Preserving your long-form code)
+ * for the user to select which GTIs to plot.
+ * @param {number} maxGTI Maximum GTI number for the plot type and observation ID
+ * @param {number} obsID Observation ID for the plot
+ * @param {String} plotType Which plot is the GTI selection field being added to
+ * @param {number} defaultBinning Default binning value (1% of max counts)
+ * @param {String} currentGtiQuery Current value for the search input
+ * @returns {JQuery<HTMLFormElement>} HTML form element containing the GTI selection field and submit button
  */
 export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, currentGtiQuery = '') {
   // Constants and Logging
@@ -22,8 +28,6 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
 
   // Calculate slider max
   let sliderMax = Math.max(200, defaultBinning * 10);
-
-  // --- YOUR ORIGINAL CONFIGURATION BLOCK ---
   let binningLabel = 'Binning';
   let binningUnit = 'counts';
   let binningDescription = 'Higher = fewer points, faster loading';
@@ -55,8 +59,6 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
     binningUnit = 'counts';
     binningDescription = 'Combines energy bins (higher = fewer points)';
   }
-
-  // --- YOUR ORIGINAL ELEMENT CREATION ---
   const $TYPE = $('<input>', {
     name: 'plot_type',
     type: 'hidden',
@@ -72,7 +74,7 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
   const $SEARCH = $('<input>', {
         name: 'gti-search',
         type: 'text',
-        value: currentGtiQuery, // 🟢 Set the persistence value
+        value: currentGtiQuery, // Set the persistence value
         placeholder: `GTI numbers...`,
         class: 'gti-search-input'
     });
@@ -129,8 +131,6 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
   $CONTROLS_CONTAINER.append($UNIT_LABEL);
 
   const $SUBMIT = $('<button>', { type: 'submit', text: 'Submit' });
-
-  // --- RAHUL'S HID CROSS-LINKING BUTTON ---
   let $crossLinkToggle = null;
   if (cleanPlotType === 'hardness_intensity_diagram' || cleanPlotType === 'hardness-intensity-diagram') {
     $crossLinkToggle = $('<button>', {
@@ -151,8 +151,6 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
       }
     });
   }
-
-  // --- FORM ASSEMBLY (Your original sequential style) ---
   $FORM.append($TYPE);
   $FORM.append($OBS_ID);
   $FORM.append($HIDDEN_MIN_VALUE);
@@ -162,8 +160,6 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
   if ($crossLinkToggle) {
     $FORM.append($crossLinkToggle);
   }
-
-  // --- AUTO-SUBMIT LOGIC (Integrated into your structure) ---
   let sliderTimeout;
   function handleBinningChange() {
     if (sliderTimeout) {
@@ -179,8 +175,6 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
       $FORM.trigger('submit');
     }, 300); 
   }
-
-  // Rahul's Sync Logic inserted here
   function syncOtherPlotBinning(val, gtiSearchVal) {
     if (!$("#cross-link-check").is(":checked")) return;
     const currentType = cleanPlotType.replace(/_/g, '-');
@@ -192,7 +186,7 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
     }
     if (!targetType) return;
 
-    // 🟢 FIX: Sanitize obsID for selector (Replace commas with hyphens)
+    // Sanitize obsID for selector (Replace commas with hyphens)
     const cleanObsId = obsID.replace(/,/g, '-');
     const altTargetType = targetType.replace(/-/g, '_');
 
@@ -228,8 +222,6 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
       }
     }
   }
-
-  // --- YOUR ORIGINAL EVENT LISTENERS (Updated with Rahul's sync) ---
   $MIN_SLIDER.on('input', function (e, data) {
     const isSync = data && data.fromSync;
     const newValue = parseInt($(this).val());

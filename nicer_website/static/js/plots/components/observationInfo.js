@@ -1,26 +1,24 @@
-// --- observationInfo.js (v15.1 - Integrated GTI Sync) ---
-console.log("observationInfo.js (v15.1) loaded.");
 
-import { showPlotSelectionPopup, fetchGraphPlots } from './graph.js?v=301';
-import { showGTIPlotSelectionPopup, fetchGTIPlot } from './gtiPlots.js?v=301';
-import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=301';
+import { showPlotSelectionPopup, fetchGraphPlots } from './graph.js';
+import { showGTIPlotSelectionPopup, fetchGTIPlot } from './gtiPlots.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js';
 import { mjdToDate } from '../utils/dateUtils.js';
 
-// --- GLOBAL STATE ---
+
 let currentGTIData = null;
 let currentObsID = null;
 
-// --- GLOBAL EVENT LISTENERS (Vanilla JS) ---
+
 document.addEventListener('click', function(event) {
     const target = event.target;
     
     // 1. Handle "Show GTI" Button
     if (target && (target.id === 'show-gti-btn' || target.closest('#show-gti-btn'))) {
         event.preventDefault();
-        console.log("👇 Show GTI button clicked (Vanilla JS detected)");
+        console.log("Show GTI button clicked");
 
         if (!currentGTIData || !currentObsID) {
-            console.warn("⚠️ Data not ready yet. Ignoring click.");
+            console.warn("Data not ready yet. Ignoring click.");
             return;
         }
         openGTIModal(currentObsID, currentGTIData);
@@ -29,13 +27,13 @@ document.addEventListener('click', function(event) {
     // 2. Handle "Close (X)" Button
     if (target && (target.classList.contains('modal-close-btn') || target.closest('.modal-close-btn'))) {
         event.preventDefault();
-        console.log("❌ Close button clicked (Vanilla JS detected)");
+        console.log("Close button clicked");
         document.getElementById('gti-modal').style.display = 'none';
     }
 
     // 3. Handle Background Click
     if (target && target.id === 'gti-modal') {
-        console.log("🌑 Background clicked (Vanilla JS detected)");
+        console.log("Background clicked");
         document.getElementById('gti-modal').style.display = 'none';
     }
 });
@@ -45,7 +43,7 @@ document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         const modal = document.getElementById('gti-modal');
         if (modal && modal.style.display !== 'none') {
-            console.log("⌨️ Escape pressed");
+            console.log("Escape pressed");
             modal.style.display = 'none';
         }
     }
@@ -55,7 +53,7 @@ document.addEventListener('keydown', function(event) {
  * Called by plot.js when data arrives.
  */
 export function displayInfo(info) {
-  console.log('📥 displayInfo called with data.');
+  console.log('displayInfo called with data.');
 
   if (info && info.length > 0) {
     const OBS_BY_OBS_ID = info.reduce((acc, row) => {
@@ -71,7 +69,7 @@ export function displayInfo(info) {
     currentObsID = obsID;
     currentGTIData = OBS_BY_OBS_ID[obsID];
     
-    console.log(`💾 Saved ${currentGTIData.length} rows for ObsID ${obsID}. Enabling button.`);
+    console.log(`Saved ${currentGTIData.length} rows for ObsID ${obsID}. Enabling button.`);
 
     // Enable button using jQuery for convenience (visuals only)
     $('#show-gti-btn').prop('disabled', false).text("Show GTI's");
@@ -182,10 +180,179 @@ function openGTIModal(obsID, rows) {
 }
 
 
-export function handleMultipleObservations() {}
-// ***************************************************
-// SOURCE SUMMARY HELPER FUNCTION
-// ***************************************************
+export function handleMultipleObservations(observations, sourceName) {
+  console.log("Handling multiple observations:", observations);
+
+  const container = document.createElement("div");
+  container.className = "multiple-observations-container";
+
+  const sourceHeader = document.createElement("h2");
+  sourceHeader.className = "source-name-header";
+  sourceHeader.textContent = `Source: ${sourceName}`;
+  container.appendChild(sourceHeader);
+
+  const tablesGrid = document.createElement("div");
+  tablesGrid.className = "tables-grid";
+  tablesGrid.style.display = "flex";
+  tablesGrid.style.flexDirection = "column";
+  tablesGrid.style.gap = "20px";
+  tablesGrid.style.margin = "20px 0";
+
+  const sourceSummaryPlaceholder = document.createElement("div");
+  sourceSummaryPlaceholder.className = "source-summary-placeholder";
+  sourceSummaryPlaceholder.textContent = "Loading source summary...";
+  tablesGrid.appendChild(sourceSummaryPlaceholder);
+
+  const observationsTablePlaceholder = document.createElement("div");
+  observationsTablePlaceholder.className = "observations-table-placeholder";
+  observationsTablePlaceholder.textContent = "Loading observations...";
+  tablesGrid.appendChild(observationsTablePlaceholder);
+
+  container.appendChild(tablesGrid);
+
+  const plotsContainer = document.querySelector("#plots");
+  plotsContainer.innerHTML = "";
+  plotsContainer.appendChild(container);
+
+  // Create the observations table structure in advance
+  const observationsTable = document.createElement("div");
+  observationsTable.className = "info-table multiple-observations-table";
+
+  const table = document.createElement("table");
+  table.className = "info-table";
+  const thead = document.createElement("thead");
+  const tbody = document.createElement("tbody");
+
+  const headerRow = document.createElement("tr");
+  [
+    "Observation ID",
+    "MJD (UTC)",
+    "Date (UTC)",
+    "Exposure Time (s)",
+    "Undershoot Rate (s⁻¹)",
+    "Overshoot Rate (s⁻¹)",
+    "52-FPM Rate [0.5-12 keV] (s⁻¹)",
+    "Action",
+  ].forEach((headerText) => {
+    const th = document.createElement("th");
+    th.textContent = headerText;
+    th.style.padding = "8px 12px";
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+
+  table.appendChild(thead);
+  table.appendChild(tbody);
+  observationsTable.appendChild(table);
+
+  const processObservations = async () => {
+    for (const obs of observations) {
+      const formData = new FormData();
+      formData.append("obs_id", obs.obs_id);
+      formData.append("quality", $("#quality-select").val().toLowerCase());
+      formData.append(
+        "csrfmiddlewaretoken",
+        $("input[name='csrfmiddlewaretoken']").val(),
+      );
+
+      try {
+        const response = await fetch(PLOT_GRAPH_URL, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await response.json();
+
+        if (data.info && data.info.length > 0) {
+          const firstGTI = data.info[0];
+          const row = document.createElement("tr");
+          row.className = "obs-row";
+
+          const mjdValue = parseFloat(firstGTI.TSTART_MJD_UTC);
+          const dateInfo = mjdToDate(mjdValue);
+
+          [
+            [obs.obs_id || "N/A", null],
+            [firstGTI.TSTART_MJD_UTC, 5],
+            [dateInfo.formattedWithoutSeconds, null],
+            [firstGTI.EXPTIME, 2],
+            [firstGTI.USHOOT_NET_RATE, 4],
+            [firstGTI.OSHOOT_NET_RATE, 4],
+            [firstGTI.GOODX_5_12_RATE, 4],
+          ].forEach(([value, decimals]) => {
+            const cell = document.createElement("td");
+            cell.style.padding = "8px 12px";
+            cell.style.borderBottom = "1px solid #ddd";
+            if (value && decimals !== null) {
+              const numValue = parseFloat(value);
+              cell.textContent = isNaN(numValue)
+                ? "N/A"
+                : numValue.toFixed(decimals);
+            } else {
+              cell.textContent = value || "N/A";
+            }
+            row.appendChild(cell);
+          });
+
+          const actionCell = document.createElement("td");
+          actionCell.style.padding = "8px 12px";
+          actionCell.style.borderBottom = "1px solid #ddd";
+          const selectButton = document.createElement("button");
+          selectButton.textContent = "Select";
+          selectButton.className = "select-observation-btn";
+          selectButton.style.padding = "4px 8px";
+          selectButton.style.borderRadius = "4px";
+          selectButton.style.border = "1px solid #ccc";
+          selectButton.style.cursor = "pointer";
+          selectButton.addEventListener("click", () => {
+            $("#obs-id-dropdown").show();
+            $("#source-name-dropdown").hide();
+            $("#observation-search").val(obs.obs_id);
+            $("#search-type").val("obs_id").change();
+            container.remove();
+          });
+          actionCell.appendChild(selectButton);
+          row.appendChild(actionCell);
+
+          tbody.appendChild(row);
+        }
+      } catch (error) {
+        console.error(
+          `Error fetching details for observation ${obs.obs_id}:`,
+          error,
+        );
+        const errorRow = document.createElement("tr");
+        errorRow.className = "obs-row";
+        errorRow.innerHTML = `
+            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">${obs.obs_id}</td>
+            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">N/A</td>
+            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">N/A</td>
+            <td colspan="4" style="padding: 8px 12px; border-bottom: 1px solid #ddd;">Error loading observation details</td>
+            <td style="padding: 8px 12px; border-bottom: 1px solid #ddd;">
+              <button class="select-observation-btn" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer;">Select</button>
+            </td>
+          `;
+        tbody.appendChild(errorRow);
+      }
+    }
+  };
+
+  fetchSourceSummary(observations)
+    .then((summaryElement) => {
+      sourceSummaryPlaceholder.replaceWith(summaryElement);
+
+      return processObservations();
+    })
+    .then(() => {
+      observationsTablePlaceholder.replaceWith(observationsTable);
+    })
+    .catch((error) => {
+      console.error("Error processing observations:", error);
+      observationsTablePlaceholder.textContent = "Error loading observations.";
+    });
+
+  return container;
+}
+
 async function fetchSourceSummary(observations) {
   console.log('Fetching source summary for observations:', observations);
 
