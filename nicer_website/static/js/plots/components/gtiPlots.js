@@ -520,6 +520,7 @@ export async function fetchGTIPlot(e) {
           initGTICrossLinking();
           initSynchronizedSelection(); 
           updateAllSelections(); 
+          initInteractiveLinking(); // RE-BIND double-click functionality!
         }, 500);
       },
       error: function() { errorOperation(opId, 'Error updating plot'); }
