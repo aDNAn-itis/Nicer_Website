@@ -237,11 +237,28 @@ def light_curve_plot(
             return json.loads(empty_fig.to_json())
         return plot(empty_fig, output_type='div', include_plotlyjs=False)
 
-    # 3. Synchronized Normalization
+    # 3. Reference Time Calculation & Normalization
     obs_group_starts = {}
     for datum, oid in zip(x_data, final_labels):
         obs_group_starts[oid] = min(obs_group_starts.get(oid, float('inf')), np.min(datum))
 
+    # -------------------------------------------------------------------------
+    # NOTE TO ETHAN: Question about X-Axis time normalization
+    #
+    # YOUR APPROACH:
+    #   x_data = [(datum - datum[0]) for datum in x_data]
+    #   -> In your code, every single GTI subtracted its OWN first timestamp.
+    #   -> This caused every GTI panel to reset to 0 (GTI 0 started at 0, GTI 1 
+    #      started at 0, etc.). Was there a specific scientific reason for doing 
+    #      this instead of showing continuous time? Let me know!
+    #
+    # MY APPROACH (Current code):
+    #   -> I calculate a single `obs_group_starts` (the absolute earliest time of 
+    #      GTI 0 for the entire observation).
+    #   -> Then I subtract that SAME start time (`ref_t`) from ALL GTIs.
+    #   -> GTI 0 starts at 0, but GTI 1 starts at its true elapsed time (e.g. 0.05 days).
+    #      I did this to properly preserve the sequence of time across the X-axis.
+    # -------------------------------------------------------------------------
     for i in range(len(x_data)):
         ref_t = obs_group_starts[final_labels[i]]
         x_data[i] = (x_data[i] - ref_t) / 86400.0
@@ -262,7 +279,25 @@ def light_curve_plot(
     subplot_kwargs = [{'row': 1, 'col': 1}]
     for i in range(1, len(x_data)):
         gap = np.min(x_data[i]) - np.max(x_data[i-1])
+        
+        # NOTE TO ETHAN:
+        # I am using a hardcoded gap threshold of > 0.05 days (1.2 hours) rather than 
+        # the dynamic threshold like `10 * max_bin_width` from your approach.
+        # I have done this because if a user selects a highly granular binning factor (e.g. 1-second bins), 
+        # your dynamic approach splits the graph into a new subplot every 10 seconds of missing data.
+        # This causes the UI to shatter into hundreds of tiny, unreadable subplots.
+        # Using 0.05 days ensures plots only split when there is a true orbital gap!
+        # Please review this and let me know if you want me to change it.
+        
         subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + (1 if gap > 0.05 else 0)})
+
+    # Apply Ethan's "Reset to Zero" ONLY for Theater PNGs right before plotting
+    if output_type == 'dict':
+        for i in range(len(x_data)):
+            ref_t = x_data[i][0]
+            x_data[i] = x_data[i] - ref_t
+            x_background[i] = x_background[i] - ref_t
+            subplot_kwargs[i]['col'] = 1  # Force all GTIs to overlay in the exact same panel
 
     # 5. Color Mapping Logic
     unique_oids = sorted(list(obs_group_starts.keys()))
