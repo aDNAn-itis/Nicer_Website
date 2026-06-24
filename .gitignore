@@ -12,5 +12,7 @@
 **/*[Tt][Ee][Mm][Pp]*.*
 /node_modules/
 **/.env
-exported_spectra/
+/exported_spectra/*
 .DS_Store
+config.json
+db_user.json
