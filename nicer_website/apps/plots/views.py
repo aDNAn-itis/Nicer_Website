@@ -274,9 +274,9 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
             gti_list_parsed = sorted(list(set(gti_list_parsed)))
 
     # 6. File Discovery Loop (The fix for the Path Construction Error)
-    # We look into each observation's 'jspipe/' directory separately
+    # We look into each observation's 'jspipe' directory separately
     for oid in obs_id_list:
-        rel_path = os.path.join(oid, 'jspipe/')
+        rel_path = os.path.join(oid, 'jspipe')
         full_dir_path = os.path.join(settings.DATA_DIR, rel_path)
         # 🟢 CORRECTED: Chain the filters and exclude BAND files to prevent duplicate legend entries
         plot_files_qs = Item.objects.filter(
@@ -387,7 +387,7 @@ def plot_single_gti(request: HttpRequest) -> JsonResponse:
 
         min_value = plot_info.get('min_value', 100)
 
-        rel_dir_path = os.path.join(obs_id, 'jspipe/')
+        rel_dir_path = os.path.join(obs_id, 'jspipe')
         file_item = Item.objects.filter(
             path=rel_dir_path,
             type=Item.item_type[1][0],
@@ -505,8 +505,8 @@ def plot_data(request: HttpRequest) -> JsonResponse:
 
     if request.POST.get('get_detailed_info') == 'true':
         target_id = raw_obs_id_input.split(',')[0].strip() if ',' in raw_obs_id_input else raw_obs_id_input
-        dir_path = os.path.join(settings.DATA_DIR, target_id, 'jspipe/')
-        files = Item.objects.filter(name__contains=quality, path__startswith=os.path.join(target_id, 'jspipe/'), type=Item.item_type[1][0]).order_by('name')
+        dir_path = os.path.join(settings.DATA_DIR, target_id, 'jspipe')
+        files = Item.objects.filter(name__contains=quality, path__startswith=os.path.join(target_id, 'jspipe'), type=Item.item_type[1][0]).order_by('name')
         
         infos = []
         try:
@@ -552,8 +552,8 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             current_max_gti = 0
 
             for single_obs_id in obs_id_list:
-                single_obs_dir = os.path.join(settings.DATA_DIR, single_obs_id, 'jspipe/')
-                files = Item.objects.filter(name__contains=quality, path__startswith=os.path.join(single_obs_id, 'jspipe/'), type=Item.item_type[1][0]).order_by('name')
+                single_obs_dir = os.path.join(settings.DATA_DIR, single_obs_id, 'jspipe')
+                files = Item.objects.filter(name__contains=quality, path__startswith=os.path.join(single_obs_id, 'jspipe'), type=Item.item_type[1][0]).order_by('name')
                 file_names_qs = files.filter(name__contains=plot_info['file_type']).exclude(name__regex=r'_BAND\d+')
                 
                 if not file_names_qs.exists(): continue
@@ -647,7 +647,13 @@ def plot_data(request: HttpRequest) -> JsonResponse:
     if not raw_obs_id_input: return JsonResponse({'error': 'No observation ID provided.'}, status=400)
     
     obs_id = raw_obs_id_input.split(',')[0].strip()
-    all_files_qs = Item.objects.filter(path__startswith=os.path.join(obs_id, 'jspipe/'), name__contains=quality, type=Item.item_type[1][0])
+    # Note for Ethan: I am sticking to `path__startswith` string-matching rather than
+    # swapping entirely to the `obs_id` integer lookups. Many of my advanced routing 
+    # and UI features depend heavily on these path strings to function properly.
+    # Since Postgres has the `path_idx` index on this column, speed/performance 
+    # is still optimized for this approach. (Also `db_update.py` was tweaked to strip 
+    # the leading slash to ensure compatibility with this method).
+    all_files_qs = Item.objects.filter(path__startswith=os.path.join(obs_id, 'jspipe'), name__contains=quality, type=Item.item_type[1][0])
     first_file = all_files_qs.order_by('name').first()
     
     if not first_file: return JsonResponse({'error': f'No data found for ObsID {obs_id} with quality {quality}.'}, status=404)
@@ -703,7 +709,7 @@ def fetch_gtis(request: HttpRequest) -> JsonResponse:
 
     try:
         # Construct the path prefix for filtering
-        path_prefix = os.path.join(obs_id, 'jspipe/')
+        path_prefix = os.path.join(obs_id, 'jspipe')
         
         # Filter items by path prefix and quality, then get all file names
         files_with_gti_info = Item.objects.filter(
@@ -893,8 +899,8 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
     bg_x, bg_y, bg_obsids = [], [], []
 
     for obs_id in obs_ids_to_process:
-        abs_dir_path = os.path.join(settings.DATA_DIR, obs_id, 'jspipe/') 
-        rel_dir_path = os.path.join(obs_id, 'jspipe/')
+        abs_dir_path = os.path.join(settings.DATA_DIR, obs_id, 'jspipe') 
+        rel_dir_path = os.path.join(obs_id, 'jspipe')
         
         files = Item.objects.filter(
             name__contains=quality, path__startswith=rel_dir_path, type=Item.item_type[1][0]
@@ -1121,7 +1127,7 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
     curr_x, curr_y = [], []                   # Active obs_id
 
     for oid in obs_ids_to_process:
-        rel_dir_path = os.path.join(oid, 'jspipe/')
+        rel_dir_path = os.path.join(oid, 'jspipe')
         abs_dir_path = os.path.join(settings.DATA_DIR, rel_dir_path)
         
         files = Item.objects.filter(

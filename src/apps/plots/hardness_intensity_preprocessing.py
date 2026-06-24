@@ -131,8 +131,19 @@ def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_la
     all_intensity_counts: List[float] = []
     time_bin_width = None
 
-    for lc_path, gti_num in zip(data_paths, gti_numbers):
-        if not os.path.exists(lc_path): continue
+    # Build robust GTI->path mapping (Imported from Ethan's safety design)
+    path_by_gti: dict[int, str] = {}
+    for p in data_paths:
+        match = re.search(r'GTI(\d+)', p)
+        if match:
+            path_by_gti[int(match.group(1))] = p
+
+    for idx, gti_num in enumerate(gti_numbers):
+        lc_path = path_by_gti.get(gti_num)
+        if lc_path is None and len(data_paths) == len(gti_numbers):
+            lc_path = data_paths[idx]
+            
+        if lc_path is None or not os.path.exists(lc_path): continue
 
         time, soft, hard, intensity = process_lc_file(lc_path)
         if len(time) == 0: continue
@@ -229,8 +240,19 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
     valid_datasets = []
     time_bin_width = None
 
-    for i, (lc_path, gti_num) in enumerate(zip(data_paths, gti_numbers)):
-        if not os.path.exists(lc_path): continue
+    # Build robust GTI->path mapping (Imported from Ethan's safety design)
+    path_by_gti: dict[int, str] = {}
+    for p in data_paths:
+        match = re.search(r'GTI(\d+)', p)
+        if match:
+            path_by_gti[int(match.group(1))] = p
+
+    for i, gti_num in enumerate(gti_numbers):
+        lc_path = path_by_gti.get(gti_num)
+        if lc_path is None and len(data_paths) == len(gti_numbers):
+            lc_path = data_paths[i]
+            
+        if lc_path is None or not os.path.exists(lc_path): continue
         
         if gti_labels and i < len(gti_labels):
             current_oid = gti_labels[i]
