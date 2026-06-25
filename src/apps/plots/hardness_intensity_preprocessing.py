@@ -99,6 +99,29 @@ def calculate_convex_hull(x, y):
 # ==============================================================================
 # MAIN DISPATCHER FUNCTION
 # ==============================================================================
+# TODO (For Ethan):
+# Ethan, we have a major inconsistency in how the data is binned for the HID plots.
+# 
+# 1. YOUR ORIGINAL WAY (Currently used for Single Plots):
+#    You used strict **Time Binning**. If the UI passes a `min_value` of 25, your logic 
+#    groups exactly 25 continuous time samples into a single point. 
+#    (Code mechanism: taking `min_bins = np.arange(0, len(counts), bin_factor)`).
+#    This creates fewer dots that appear very scattered, but it is scientifically 
+#    risky for HIDs because dim periods with low counts cause the Hardness ratio 
+#    (Hard / Soft) to blow up with statistical noise.
+# 
+# 2. MY NEW WAY (Currently used for Combined Plots):
+#    I am using **Scientific Count Binning**. If the UI passes a `min_value` of 25, 
+#    my logic dynamically groups points until the actual X-ray counts reach 25 
+#    using the `min_bin` function from `src.utils.utils`. Because the sources are bright, 
+#    it often reaches 25 counts in just 1 or 2 time samples. 
+#    This guarantees strong signal-to-noise for the hardness ratio, which is why 
+#    my plot creates a dense, mathematically accurate cluster (perfect for drawing 
+#    Convex Hull Polygons).
+# 
+# Question: Do you want me to revert the combined plots back to your exact Time 
+# Binning (fixed number of rows), or should we upgrade the single plots to use 
+# my Count Binning (`min_bin`) so both plots are scientifically correct and consistent?
 def get_hid_data_and_plot(
     min_value: int,
     obs_id: Any,
@@ -131,17 +154,8 @@ def _single_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_la
     all_intensity_counts: List[float] = []
     time_bin_width = None
 
-    # Build robust GTI->path mapping (Imported from Ethan's safety design)
-    path_by_gti: dict[int, str] = {}
-    for p in data_paths:
-        match = re.search(r'GTI(\d+)', p)
-        if match:
-            path_by_gti[int(match.group(1))] = p
-
     for idx, gti_num in enumerate(gti_numbers):
-        lc_path = path_by_gti.get(gti_num)
-        if lc_path is None and len(data_paths) == len(gti_numbers):
-            lc_path = data_paths[idx]
+        lc_path = data_paths[idx] if idx < len(data_paths) else None
             
         if lc_path is None or not os.path.exists(lc_path): continue
 
@@ -240,17 +254,8 @@ def _combined_hid_plot_internal(min_value, obs_id, data_paths, gti_numbers, gti_
     valid_datasets = []
     time_bin_width = None
 
-    # Build robust GTI->path mapping (Imported from Ethan's safety design)
-    path_by_gti: dict[int, str] = {}
-    for p in data_paths:
-        match = re.search(r'GTI(\d+)', p)
-        if match:
-            path_by_gti[int(match.group(1))] = p
-
     for i, gti_num in enumerate(gti_numbers):
-        lc_path = path_by_gti.get(gti_num)
-        if lc_path is None and len(data_paths) == len(gti_numbers):
-            lc_path = data_paths[i]
+        lc_path = data_paths[i] if i < len(data_paths) else None
             
         if lc_path is None or not os.path.exists(lc_path): continue
         
