@@ -21,7 +21,6 @@
   const PLOT_COMBINED_URL = "{% url 'plots:plot_combined' %}"; 
   const SOURCE_SEARCH_URL = "{% url 'plots:source_search' %}"; 
   const FETCH_GTIS_URL = "{% url 'plots:fetch_gtis' %}"; 
-  const PLOT_THEATER_PNG_URL = "{% url 'plots:theater_png' %}";
   
 
   let quality = '{{ quality }}';
@@ -574,8 +573,9 @@
         </div>
 
         <!-- 3rd CONTAINER: GENERATE GIF BOX -->
-        <div id="theater-gif-box" style="margin-top: 15px; flex-shrink: 0; text-align: center;">
+        <div id="theater-gif-box" style="margin-top: 15px; flex-shrink: 0; text-align: center; display: flex; justify-content: center; gap: 10px;">
             <button id="theater-gif-btn" class="btn btn-sm btn-dark" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:5px; width:200px; display:inline-block;"> Generate GIF </button>
+            <button id="theater-play-btn" class="btn btn-sm btn-primary" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:5px; width:200px; display:inline-block;"> ▶ Play Animation </button>
         </div>
 
     </div>
