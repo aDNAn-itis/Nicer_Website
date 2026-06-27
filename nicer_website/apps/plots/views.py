@@ -94,9 +94,9 @@ def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output
         for fp in file_paths:
             if not os.path.exists(fp): continue
             try:
-                # 🟢 FIXED: Unpack 4 values
+                # Unpack 4 values (time, soft, hard, intensity)
                 t, s, h, i = process_lc_file(fp)
-                # 🟢 FIXED: Calculate Hardness Ratio (Hard / Soft)
+                # Calculate Hardness Ratio (Hard / Soft)
                 with np.errstate(divide='ignore', invalid='ignore'):
                     h_ratio = h / s
 
@@ -278,7 +278,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
     for oid in obs_id_list:
         rel_path = os.path.join(oid, 'jspipe')
         full_dir_path = os.path.join(settings.DATA_DIR, rel_path)
-        # 🟢 CORRECTED: Chain the filters and exclude BAND files to prevent duplicate legend entries
+        # Filter for quality/type and exclude BAND files to prevent duplicate legend entries
         plot_files_qs = Item.objects.filter(
             path=rel_path,
             name__contains=quality
@@ -301,7 +301,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
                     final_gti_numbers_for_plot_func.append(gti_num)
                     final_gti_labels_for_plot_func.append(oid)
         else:
-            # 🟢 Initial Load Behavior: If no specific GTI requested, include ALL files for this ObsID
+            # Initial Load Behavior: If no specific GTI is requested, include ALL files for this ObsID
             for item in plot_files_qs:
                 final_file_paths_to_plot.append(os.path.join(full_dir_path, item.name))
                 match = re.search(r'GTI(0*)(\d+)', item.name)
@@ -624,8 +624,21 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                     screening_summaries[plot_type_key]['all_failed'] = True
 
             try:
-                if plot_type_key in ['spectrum', 'summed_spectrum']:
+                is_theater = request.POST.get('is_theater') == 'true'
+                if plot_type_key == 'global_hid' and request.POST.get('playlist'):
+                    # FEATURE: Specialized Theater Context Plot
+                    # When 'playlist' is passed via the Theater UI, we route the generation to `get_global_hid_theater_figure`.
+                    # This specialized function fetches all historically related observations for the source
+                    # and plots them as a greyed-out context background, while highlighting the current 
+                    # observation in blue, allowing the user to visually identify where the current data sits 
+                    # within the broader scientific trend of the object.
+                    playlist = request.POST.get('playlist').split(',')
+                    fig = get_global_hid_theater_figure(obs_id_list[0], quality, playlist)
+                    plot_div = plot(fig, output_type='div', include_plotlyjs=False, config={'responsive': True})
+                elif plot_type_key in ['spectrum', 'summed_spectrum']:
                     plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash, gti_labels=all_gti_labels_combined)
+                elif plot_type_key == 'light_curve':
+                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined, is_theater=is_theater)
                 else:
                     plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined)
                 plot_divs.append(plot_div)
@@ -641,7 +654,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             'obsID': raw_obs_id_input,
             'defaultBinnings': default_binnings,
             'screeningSummaries': screening_summaries,
-            'gtiQuery': gti_query_str,  # 🟢 ADDED: Return the query used
+            'gtiQuery': gti_query_str,  # Return the query used for frontend tracking
         })
 
     if not raw_obs_id_input: return JsonResponse({'error': 'No observation ID provided.'}, status=400)
@@ -978,7 +991,7 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
     if not obs_id or not plot_type:
         return HttpResponse("Missing parameters", status=400)
 
-    # 1. 🟢 CACHE LOOKUP (v9 - Size reduced to 9) - TEMPORARILY DISABLED FOR DEVELOPMENT
+    # 1. CACHE LOOKUP (v9 - Size reduced to 9) - TEMPORARILY DISABLED FOR DEVELOPMENT
     cache_key = f"theater_v9_{obs_id}_{plot_type}_{quality}"
     if plot_type == 'global_hid' and playlist_str:
         playlist_hash = hashlib.md5(playlist_str.encode()).hexdigest()[:8]
@@ -1005,7 +1018,7 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
     full_paths = []
     gti_numbers = []
     if plot_type != 'global_hid':
-        # 🟢 ROBUST GTI DISCOVERY (Matches plot_data logic)
+        # Robust GTI discovery (Matches plot_data logic)
         rel_dir_fragment = os.path.join(obs_id, 'jspipe')
         query = Item.objects.filter(
             path__contains=rel_dir_fragment, 
@@ -1016,7 +1029,7 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
         if plot_type in ['light_curve', 'hardness_intensity_diagram']:
             query = query.exclude(name__contains='.bg-lc.gz').exclude(name__contains='.bg3c-lc.gz')
         
-        # 🟢 CRITICAL: Exclude sub-bands to prevent duplicate legend entries/lines
+        # CRITICAL: Exclude sub-bands to prevent duplicate legend entries/lines
         file_items = query.exclude(name__regex=r'_BAND\d+').order_by('name')
         if not file_items.exists():
             return HttpResponse(f"No data files found for {obs_id} ({plot_type})", status=404)
@@ -1054,17 +1067,17 @@ def plot_theater_png(request: HttpRequest) -> HttpResponse:
         img_data = None
 
         if plot_type == 'light_curve':
-            # 🟢 Pass ALL paths and GTI numbers
+            # Pass ALL paths and GTI numbers
             res = light_curve_plot(m_val, obs_id, full_paths, gti_numbers, gti_labels=[obs_id]*len(full_paths), output_type='dict')
             if isinstance(res, dict): img_data = fig_to_png(go_obj.Figure(res))
 
         elif plot_type == 'power_density_spectrum':
-            # 🟢 Pass ALL paths and GTI numbers
+            # Pass ALL paths and GTI numbers
             res = get_pds_data_and_plot(m_val, obs_id, full_paths, gti_numbers, gti_labels=[obs_id]*len(full_paths), output_type='dict')
             if isinstance(res, dict): img_data = fig_to_png(go_obj.Figure(res))
 
         elif plot_type == 'hardness_intensity_diagram':
-            # 🟢 Pass ALL paths and GTI numbers
+            # Pass ALL paths and GTI numbers
             res = get_hid_data_and_plot(m_val, obs_id, full_paths, gti_numbers, gti_labels=[obs_id]*len(full_paths), output_type='dict')
             if isinstance(res, dict): img_data = fig_to_png(go_obj.Figure(res))
             
@@ -1180,11 +1193,11 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
 
     fig.update_layout(
         title=f'Global HID: {source_name or "Unknown"}',
-        xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black'),
-        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black'),
+        xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False),
+        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False),
         template='plotly_white',
         showlegend=False,
-        margin=dict(l=50, r=20, t=50, b=50)
+        margin=dict(l=50, r=20, t=50, b=70)
     )
     
     return fig

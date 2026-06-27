@@ -1,9 +1,9 @@
 /**
  * Light Curve Theater
- * Handles the rapid-fire sequence viewer and GIF engine.
+ * Handles the rapid-fire sequence viewer and GIF engine with Plotly.
  */
 
-const theaterImageCache = new Map(); // In-memory cache for preloaded images
+const theaterImageCache = new Map(); // Keep for structure if needed, or remove later
 
 /**
  * Opens the theater and initializes the sequence
@@ -24,8 +24,6 @@ export async function openLCTheater() {
 
   try {
     updateTheaterFrame(0);
-
-    // Start pre-loading the entire sequence
     preloadSequence();
   } catch (err) {
     console.error("Failed to initialize theater:", err);
@@ -35,7 +33,6 @@ window.openLCTheater = openLCTheater;
 
 /**
  * Pre-load is disabled for smart loading. 
- * We now fetch images lazily on demand.
  */
 function preloadSequence() {
   console.log("Preloading disabled to prevent network jam.");
@@ -72,8 +69,7 @@ function populateObsIDList() {
 }
 
 /**
- * Main update function for image swapping.
- * Optimized to wait for all 4 images to load before showing them simultaneously.
+ * Main update function for Plotly data fetching.
  * @param {number} index Index in the playlist
  */
 export async function updateTheaterFrame(index) {
@@ -87,56 +83,73 @@ export async function updateTheaterFrame(index) {
   const $activeItem = $(`#theater-obsid-list div[data-index="${index}"]`);
   $activeItem.addClass("active").css({"background": "#3b82f6", "color": "#fff"});
 
-  // Update ALL 4 Images (FAST)
-  const q = quality || 'goddard';
-  const baseUrl = PLOT_THEATER_PNG_URL;
-  const playlistStr = window.lcTheaterPlaylist.join(',');
-
-  const plotTypes = ['global_hid', 'light_curve', 'power_density_spectrum', 'hardness_intensity_diagram'];
-  const imgIds = ['theater-global-hid-img', 'theater-lc-img', 'theater-pds-img', 'theater-hid-img'];
-
-
   // Show the loading text overlay
   $('#theater-loading-overlay').css('display', 'flex');
 
-  // Synced loading logic
-  // We create temporary images in the background and only update the DOM when all are ready
-  const loadPromises = plotTypes.map((type, i) => {
-    return new Promise((resolve) => {
-      let url = `${baseUrl}?obs_id=${obsId}&plot_type=${type}&quality=${q}`;
-      if (type === 'global_hid') {
-        url += `&playlist=${playlistStr}`;
-      }
+  const q = quality || 'goddard';
+  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 
-      // If it's already in our in-memory cache, resolve immediately
-      if (theaterImageCache.has(url)) {
-        resolve({ id: imgIds[i], src: theaterImageCache.get(url).src });
-        return;
-      }
+  const plotTypes = [
+    { type: 'global_hid', container: '#theater-global-hid-plot' },
+    { type: 'light_curve', container: '#theater-lc-plot' },
+    { type: 'power_density_spectrum', container: '#theater-pds-plot' },
+    { type: 'hardness_intensity_diagram', container: '#theater-hid-plot' }
+  ];
 
-      const tempImg = new Image();
-      tempImg.onload = () => resolve({ id: imgIds[i], src: url });
-      tempImg.onerror = () => resolve({ id: imgIds[i], src: url }); // Resolve anyway to avoid hanging
-      tempImg.src = url;
-    });
+  // Clear previous plots
+  plotTypes.forEach(pt => {
+    $(pt.container).html('<div style="display:flex; justify-content:center; align-items:center; height:100%; color:#888;">Loading...</div>');
   });
 
-  // Wait for all 4 images to be fully ready
-  const results = await Promise.all(loadPromises);
+  const loadPromises = plotTypes.map(async (pt) => {
+    const formData = new FormData();
+    formData.append('obs_id', obsId);
+    formData.append('quality', q);
+    formData.append('search_type', 'obs_id');
+    formData.append('plot_types', pt.type);
+    formData.append('is_theater', 'true');
+    if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken);
+    
+    // Pass the full playlist to the backend to generate the background context
+    if (pt.type === 'global_hid' && window.lcTheaterPlaylist) {
+      formData.append('playlist', window.lcTheaterPlaylist.join(','));
+    }
 
-  // Swap all 4 images in the DOM at the exact same time
-  results.forEach(res => {
-    const el = document.getElementById(res.id);
-    if (el) el.src = res.src;
+    try {
+      const response = await fetch(PLOT_GRAPH_URL, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+
+      if (data.plotDivs && data.plotDivs.length > 0) {
+        // Inject Plotly HTML
+        $(pt.container).html(data.plotDivs[0]);
+        // Force the wrapper div created by plotly to fill height
+        $(pt.container).children('div').first().css({ width: '100%', height: '100%' });
+      } else {
+        $(pt.container).html('<div style="display:flex; justify-content:center; align-items:center; height:100%; color:#888;">No Data Available</div>');
+      }
+    } catch (err) {
+      console.error(`Failed to fetch ${pt.type} for ${obsId}:`, err);
+      $(pt.container).html('<div style="display:flex; justify-content:center; align-items:center; height:100%; color:red;">Error Loading Plot</div>');
+    }
   });
 
-  // Hide the loading overlay
-  $('#theater-loading-overlay').fadeOut(200);
+  try {
+    await Promise.all(loadPromises);
+    if (window.MathJax) MathJax.typesetPromise();
+  } catch (err) {
+    console.error("Error loading theater frame:", err);
+  } finally {
+    // Hide the loading overlay
+    $('#theater-loading-overlay').fadeOut(200);
+  }
 }
 window.updateTheaterFrame = updateTheaterFrame;
 
 /**
- * GIF Generation using direct canvas stitching.
+ * GIF Generation using Plotly.toImage and direct canvas stitching.
  */
 async function generateGIF() {
   const $btn = $('#theater-gif-btn');
@@ -145,10 +158,23 @@ async function generateGIF() {
   const playlist = window.lcTheaterPlaylist;
   const frames = [];
 
-  // Helper to wait for image load
-  const waitLoad = (img) => new Promise(r => {
-    if (img.complete) r();
-    else img.onload = r;
+  const getPlotImage = async (wrapperId) => {
+    const el = document.querySelector(`#${wrapperId} .js-plotly-plot`);
+    if (!el) return null;
+    try {
+      return await Plotly.toImage(el, {format: 'png', width: 800, height: 600});
+    } catch (e) {
+      console.warn("Plotly toImage failed", e);
+      return null;
+    }
+  };
+
+  const waitLoad = (src) => new Promise(r => {
+    if (!src) return r(null);
+    const img = new Image();
+    img.onload = () => r(img);
+    img.onerror = () => r(null);
+    img.src = src;
   });
 
   try {
@@ -160,24 +186,28 @@ async function generateGIF() {
     for (let i = 0; i < playlist.length; i++) {
       await updateTheaterFrame(i);
 
-      // Get the 4 PNG images
-      const imgGHID = document.getElementById('theater-global-hid-img');
-      const imgLC = document.getElementById('theater-lc-img');
-      const imgPDS = document.getElementById('theater-pds-img');
-      const imgHID = document.getElementById('theater-hid-img');
+      // Wait a moment for Plotly animations/renders to settle
+      await new Promise(r => setTimeout(r, 600));
 
-      // Wait for them to actually load
-      await Promise.all([waitLoad(imgGHID), waitLoad(imgLC), waitLoad(imgPDS), waitLoad(imgHID)]);
+      const srcGHID = await getPlotImage('theater-global-hid-plot');
+      const srcLC = await getPlotImage('theater-lc-plot');
+      const srcPDS = await getPlotImage('theater-pds-plot');
+      const srcHID = await getPlotImage('theater-hid-plot');
+
+      const imgGHID = await waitLoad(srcGHID);
+      const imgLC = await waitLoad(srcLC);
+      const imgPDS = await waitLoad(srcPDS);
+      const imgHID = await waitLoad(srcHID);
 
       // Clear and Stitch onto Canvas
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // 2x2 Grid
-      ctx.drawImage(imgGHID, 0, 0, 800, 600);      // Top Left
-      ctx.drawImage(imgLC, 800, 0, 800, 600);      // Top Right
-      ctx.drawImage(imgPDS, 0, 600, 800, 600);     // Bottom Left
-      ctx.drawImage(imgHID, 800, 600, 800, 600);   // Bottom Right
+      if (imgGHID) ctx.drawImage(imgGHID, 0, 0, 800, 600);
+      if (imgLC) ctx.drawImage(imgLC, 800, 0, 800, 600);
+      if (imgPDS) ctx.drawImage(imgPDS, 0, 600, 800, 600);
+      if (imgHID) ctx.drawImage(imgHID, 800, 600, 800, 600);
 
       frames.push(canvas.toDataURL('image/png'));
       $btn.text(`CAPTURED ${i+1}/${playlist.length}`);

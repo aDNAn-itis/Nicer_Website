@@ -200,7 +200,8 @@ def light_curve_plot(
     is_combined_obs: bool = False,
     start_time: float = None,
     stop_time: float = None,
-    output_type: str = 'div') -> Any:
+    output_type: str = 'div',
+    is_theater: bool = False) -> Any:
     
     import re
     import numpy as np
@@ -292,7 +293,7 @@ def light_curve_plot(
         subplot_kwargs.append({'row': 1, 'col': subplot_kwargs[-1]['col'] + (1 if gap > 0.05 else 0)})
 
     # Apply Ethan's "Reset to Zero" ONLY for Theater PNGs right before plotting
-    if output_type == 'dict':
+    if output_type == 'dict' or is_theater:
         for i in range(len(x_data)):
             ref_t = x_data[i][0]
             x_data[i] = x_data[i] - ref_t
