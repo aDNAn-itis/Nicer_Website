@@ -85,7 +85,7 @@ class PlotRequest:
         )
 
 # --- YOUR HELPER FUNCTION FOR GLOBAL HID (Single Point) ---
-def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output_type='div'):
+def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output_type='div', **kwargs):
     try:
         all_hardness = []
         all_intensity = []
@@ -136,6 +136,58 @@ def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output
         return plot(fig, output_type='div', include_plotlyjs=False)
     except Exception as e:
         logger.error(f"Error generating global HID point: {e}")
+        return f"<div style='color:red'>Error: {str(e)}</div>"
+
+def get_global_lc_point_plot(min_value, obs_id, file_paths, gti_numbers, output_type='div', **kwargs):
+    try:
+        all_time = []
+        all_intensity = []
+        logger.info(f"--- Processing Global LC for {obs_id} ---")
+
+        for fp in file_paths:
+            if not os.path.exists(fp): continue
+            try:
+                # Unpack 4 values (time, soft, hard, intensity)
+                t, s, h, i = process_lc_file(fp)
+
+                valid_mask = np.isfinite(t) & np.isfinite(i) & (i > 0)
+                if np.any(valid_mask):
+                   all_time.extend(t[valid_mask])
+                   all_intensity.extend(i[valid_mask])
+
+            except Exception as e:
+                logger.warning(f"Skip file {fp} due to: {e}")
+                continue
+        
+        if not all_intensity:
+             return f"<div style='padding:20px; text-align:center; color: #666;'>No valid data extracted for Global LC.</div>"
+
+        avg_time = np.mean(all_time)
+        avg_intensity = np.mean(all_intensity)
+
+        trace = go.Scatter(
+            x=[avg_time], y=[avg_intensity], mode='markers+text',
+            text=[f"<b>{obs_id}</b>"], textposition="top center",
+            marker=dict(size=18, color='blue', symbol='circle', line=dict(width=2, color='black')),
+            hoverinfo='text+x+y',
+            hovertext=f"ObsID: {obs_id}<br>Avg Time: {avg_time:.2f}<br>Avg Intensity: {avg_intensity:.2f}",
+            name=f'{obs_id}'
+        )
+        layout = go.Layout(
+            title=dict(text=f'Global Average LC: {obs_id}', x=0.5),
+            xaxis=dict(title=r'$\text{Time (s)}$', zeroline=False),
+            yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$'),
+            hovermode='closest', width=600, height=500, template='plotly_white'
+        )
+        fig = go.Figure(data=[trace], layout=layout)
+        
+        if output_type == 'dict':
+            import json
+            return json.loads(fig.to_json())
+        return plot(fig, output_type='div', include_plotlyjs=False)
+        
+    except Exception as e:
+        logger.error(f"Error generating global LC point: {e}")
         return f"<div style='color:red'>Error: {str(e)}</div>"
     
 def calculate_default_binning(file_path, plot_type):
@@ -189,6 +241,7 @@ PLOTS: dict[str, dict[str, Any]] = {
    'power_density_spectrum': {'exists': False, 'min_value': 10, 'file_type': '-bin.pds', 'function': get_pds_data_and_plot},
    'hardness_intensity_diagram': {'exists': False, 'min_value': 25, 'file_type': '.lc.gz', 'function': get_hid_data_and_plot},
    'global_hid': {'exists': False, 'min_value': 1, 'file_type': '.lc.gz', 'function': get_global_hid_point_plot},
+   'global_lc': {'exists': False, 'min_value': 1, 'file_type': '.lc.gz', 'function': get_global_lc_point_plot},
 }
 
 def plot_gti(request: HttpRequest) -> JsonResponse:
@@ -565,7 +618,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                     gtis_to_process = gti_list_parsed
 
                 # Ensure this block is collecting files from ALL obs_ids in the list
-                if plot_type_key == 'summed_spectrum' or plot_type_key == 'global_hid':
+                if plot_type_key == 'summed_spectrum' or plot_type_key == 'global_hid' or plot_type_key == 'global_lc':
                     for file_item in file_names_qs.order_by('name'):
                        all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
                        all_gti_labels_combined.append(single_obs_id)
@@ -626,14 +679,12 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             try:
                 is_theater = request.POST.get('is_theater') == 'true'
                 if plot_type_key == 'global_hid' and request.POST.get('playlist'):
-                    # FEATURE: Specialized Theater Context Plot
-                    # When 'playlist' is passed via the Theater UI, we route the generation to `get_global_hid_theater_figure`.
-                    # This specialized function fetches all historically related observations for the source
-                    # and plots them as a greyed-out context background, while highlighting the current 
-                    # observation in blue, allowing the user to visually identify where the current data sits 
-                    # within the broader scientific trend of the object.
                     playlist = request.POST.get('playlist').split(',')
                     fig = get_global_hid_theater_figure(obs_id_list[0], quality, playlist)
+                    plot_div = plot(fig, output_type='div', include_plotlyjs=False, config={'responsive': True})
+                elif plot_type_key == 'global_lc' and request.POST.get('playlist'):
+                    playlist = request.POST.get('playlist').split(',')
+                    fig = get_global_lc_theater_figure(obs_id_list[0], quality, playlist)
                     plot_div = plot(fig, output_type='div', include_plotlyjs=False, config={'responsive': True})
                 elif plot_type_key in ['spectrum', 'summed_spectrum']:
                     plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash, gti_labels=all_gti_labels_combined)
@@ -1089,11 +1140,96 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
 
     fig.update_layout(
         title=f'Global HID: {source_name or "Unknown"}',
-        xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False),
-        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False),
+        xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
+        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
         template='plotly_white',
         showlegend=False,
-        margin=dict(l=50, r=20, t=50, b=70)
+        margin=dict(l=70, r=30, t=50, b=70)
     )
     
+    return fig
+
+def get_global_lc_theater_figure(obs_id, quality='goddard', playlist=None):
+    source_name = None
+    all_source_obs_ids = []
+    playlist = playlist or []
+    
+    discovery_ids = [obs_id] + playlist
+    try:
+        for oid in discovery_ids:
+            item = Item.objects.filter(path__startswith=oid, source__isnull=False).exclude(source='').first()
+            if item and item.source:
+                source_name = item.source
+                paths = Item.objects.filter(source=source_name).values_list('path', flat=True).distinct()
+                all_source_obs_ids = sorted(list(set(p.replace('\\', '/').split('/')[0] for p in paths if p and p.replace('\\', '/').split('/')[0].isdigit())))
+                break
+    except Exception as e:
+        logger.warning(f"Source discovery failed for {obs_id}: {e}")
+
+    obs_ids_to_process = list(set([obs_id] + playlist))
+    for oid in all_source_obs_ids:
+        if oid not in obs_ids_to_process:
+            obs_ids_to_process.append(oid)
+    
+    fig = go.Figure()
+    
+    bg_x, bg_y, bg_obsids = [], [], []
+    curr_x, curr_y = [], []
+
+    for oid in obs_ids_to_process:
+        rel_dir_path = os.path.join(oid, 'jspipe')
+        abs_dir_path = os.path.join(settings.DATA_DIR, rel_dir_path)
+        
+        files = Item.objects.filter(
+            name__contains=quality, path__startswith=rel_dir_path, type=Item.item_type[1][0]
+        ).filter(name__contains='.lc.gz').exclude(name__contains='.bg').exclude(name__contains='.keithbg')
+        
+        paths = [os.path.join(abs_dir_path, f.name) for f in files]
+        all_time, all_intensity = [], []
+
+        for fp in paths:
+            try:
+                t, s, h, i = process_lc_file(fp)
+                valid = np.isfinite(t) & np.isfinite(i) & (i > 0)
+                if np.any(valid):
+                    all_time.extend(t[valid])
+                    all_intensity.extend(i[valid])
+            except Exception: continue
+        
+        if all_time and all_intensity:
+            avg_t, avg_i = np.mean(all_time), np.mean(all_intensity)
+            
+            if oid == obs_id:
+                curr_x.append(avg_t)
+                curr_y.append(avg_i)
+            else:
+                bg_x.append(avg_t)
+                bg_y.append(avg_i)
+                bg_obsids.append(oid)
+
+    if bg_x:
+        fig.add_trace(go.Scatter(
+            x=bg_x, y=bg_y, mode='markers',
+            marker=dict(size=9, color='#6b7280', opacity=0.8),
+            text=bg_obsids,
+            name='Other Obs'
+        ))
+        
+    if curr_x:
+        fig.add_trace(go.Scatter(
+            x=curr_x, y=curr_y, mode='markers+text',
+            text=[obs_id], textposition='top center',
+            marker=dict(size=9, color='#3b82f6'),
+            textfont=dict(color='#1d4ed8', size=11, family='Arial Black'),
+            name='Current'
+        ))
+
+    fig.update_layout(
+        title=f'Global LC: {source_name or "Unknown"}',
+        xaxis=dict(title=r'$\text{Time (s)}$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
+        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
+        template='plotly_white',
+        showlegend=False,
+        margin=dict(l=70, r=30, t=50, b=70)
+    )
     return fig

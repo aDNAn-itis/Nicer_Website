@@ -91,8 +91,10 @@ export async function updateTheaterFrame(index) {
   const q = quality || 'goddard';
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 
-  const plotTypes = [
+    const plotTypes = [
     { type: 'global_hid', container: '#theater-global-hid-plot' },
+    { type: 'global_lc', container: '#theater-global-lc-plot' },
+    { type: 'spectrum', container: '#theater-spectrum-plot' },
     { type: 'light_curve', container: '#theater-lc-plot' },
     { type: 'power_density_spectrum', container: '#theater-pds-plot' },
     { type: 'hardness_intensity_diagram', container: '#theater-hid-plot' }
@@ -115,7 +117,7 @@ export async function updateTheaterFrame(index) {
     if (csrfToken) formData.append('csrfmiddlewaretoken', csrfToken);
     
     // Pass the full playlist to the backend to generate the background context
-    if (pt.type === 'global_hid' && window.lcTheaterPlaylist) {
+    if ((pt.type === 'global_hid' || pt.type === 'global_lc') && window.lcTheaterPlaylist) {
       formData.append('playlist', window.lcTheaterPlaylist.join(','));
     }
 
@@ -207,10 +209,10 @@ async function generateGIF() {
     img.src = src;
   });
 
-  try {
+    try {
     const canvas = document.createElement('canvas');
     canvas.width = 1600; 
-    canvas.height = 1200;
+    canvas.height = 1800; // Increased to fit the 5th plot
     const ctx = canvas.getContext('2d');
 
     for (let i = 0; i < playlist.length; i++) {
@@ -223,21 +225,27 @@ async function generateGIF() {
       const srcLC = await getPlotImage('theater-lc-plot');
       const srcPDS = await getPlotImage('theater-pds-plot');
       const srcHID = await getPlotImage('theater-hid-plot');
+      const srcGLC = await getPlotImage('theater-global-lc-plot');
+      const srcSPEC = await getPlotImage('theater-spectrum-plot');
 
       const imgGHID = await waitLoad(srcGHID);
       const imgLC = await waitLoad(srcLC);
       const imgPDS = await waitLoad(srcPDS);
       const imgHID = await waitLoad(srcHID);
+      const imgGLC = await waitLoad(srcGLC);
+      const imgSPEC = await waitLoad(srcSPEC);
 
       // Clear and Stitch onto Canvas
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 2x2 Grid
+      // Draw 6 plots on a 2x3 grid mapping to the HTML layout order
       if (imgGHID) ctx.drawImage(imgGHID, 0, 0, 800, 600);
-      if (imgLC) ctx.drawImage(imgLC, 800, 0, 800, 600);
-      if (imgPDS) ctx.drawImage(imgPDS, 0, 600, 800, 600);
-      if (imgHID) ctx.drawImage(imgHID, 800, 600, 800, 600);
+      if (imgGLC) ctx.drawImage(imgGLC, 800, 0, 800, 600);
+      if (imgSPEC) ctx.drawImage(imgSPEC, 0, 600, 800, 600);
+      if (imgLC) ctx.drawImage(imgLC, 800, 600, 800, 600);
+      if (imgPDS) ctx.drawImage(imgPDS, 0, 1200, 800, 600);
+      if (imgHID) ctx.drawImage(imgHID, 800, 1200, 800, 600);
 
       frames.push(canvas.toDataURL('image/png'));
       $btn.text(`CAPTURED ${i+1}/${playlist.length}`);
@@ -248,7 +256,7 @@ async function generateGIF() {
     gifshot.createGIF({
       images: frames,
       gifWidth: 1200,
-      gifHeight: 900,
+      gifHeight: 1350,
       interval: 0.5,
       numFrames: frames.length
     }, function(obj) {
