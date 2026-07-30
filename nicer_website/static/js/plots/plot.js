@@ -719,7 +719,25 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
 
                     // Attach listener to the newly injected button
-                    $(`#${safeContainerId}`).find('#btn-open-theater').on('click', openLCTheater);
+                    $(`#${safeContainerId}`).find('#btn-open-theater').on('click', () => {
+                        // Gather all obsids in the global plot and sort them by time
+                        let playlist = [...obsidsToPlot];
+                        
+                        playlist.sort((a, b) => {
+                            const obsA = (window.allObservationsData || []).find(o => o.obsid === a);
+                            const obsB = (window.allObservationsData || []).find(o => o.obsid === b);
+                            const timeA = obsA && !isNaN(parseFloat(obsA.start_time)) ? parseFloat(obsA.start_time) : 0;
+                            const timeB = obsB && !isNaN(parseFloat(obsB.start_time)) ? parseFloat(obsB.start_time) : 0;
+                            
+                            if (timeA && timeB && timeA !== timeB) return timeA - timeB;
+                            return a.localeCompare(b); // fallback to ID string sort
+                        });
+                        
+                        window.lcTheaterPlaylist = playlist;
+                        if (window.StatusBar) window.StatusBar.getInstance().show("Tracking all Global HID ObsIDs by time.", 2000);
+                        
+                        openLCTheater();
+                    });
                     
                     document.getElementById('plot-global-hid').checked = false;
 
