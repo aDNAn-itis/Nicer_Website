@@ -677,6 +677,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                     screening_summaries[plot_type_key]['all_failed'] = True
 
             try:
+                t0_plot = time.time()
                 is_theater = request.POST.get('is_theater') == 'true'
                 if plot_type_key == 'global_hid' and request.POST.get('playlist'):
                     playlist = request.POST.get('playlist').split(',')
@@ -693,6 +694,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                 else:
                     plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined)
                 plot_divs.append(plot_div)
+                logger.info(f"[TIMING] {plot_type_key} generated in {time.time() - t0_plot:.3f} seconds.")
             except Exception as e:
                 logger.exception(f"[plot_data] Error plotting {plot_type_key}: {e}")
                 return JsonResponse({'error': str(e)}, status=500)
@@ -963,6 +965,29 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
     bg_x, bg_y, bg_obsids = [], [], []
 
     for obs_id in obs_ids_to_process:
+        cache_key = f"theater_hid_{obs_id}_{quality}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is not None:
+            if cached_data:
+                avg_h, avg_i = cached_data
+                is_active = obs_id in playlist_obs_ids
+                raw_data.append({'obsid': obs_id, 'hardness': float(avg_h), 'intensity': float(avg_i)})
+                
+                if is_active:
+                    # Add individual trace for playlist items (Legend entry)
+                    fig.add_trace(go.Scatter(
+                        x=[avg_h], y=[avg_i], mode='markers',
+                        text=[obs_id], name=obs_id,
+                        marker=dict(size=12, line=dict(width=1, color='white')),
+                        hovertemplate=f"<b>{obs_id}</b><br>Hardness: %{{x:.3f}}<br>Intensity: %{{y:.2f}}<extra></extra>"
+                    ))
+                else:
+                    bg_x.append(avg_h)
+                    bg_y.append(avg_i)
+                    bg_obsids.append(obs_id)
+            continue
+
         abs_dir_path = os.path.join(settings.DATA_DIR, obs_id, 'jspipe') 
         rel_dir_path = os.path.join(obs_id, 'jspipe')
         
@@ -985,7 +1010,8 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
             except Exception: continue
         
         if all_hardness and all_intensity:
-            avg_h, avg_i = np.mean(all_hardness), np.mean(all_intensity)
+            avg_h, avg_i = float(np.mean(all_hardness)), float(np.mean(all_intensity))
+            cache.set(cache_key, (avg_h, avg_i), timeout=86400 * 7) # Cache for 7 days
             is_active = obs_id in playlist_obs_ids
             raw_data.append({'obsid': obs_id, 'hardness': float(avg_h), 'intensity': float(avg_i)})
             
@@ -1001,6 +1027,8 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
                 bg_x.append(avg_h)
                 bg_y.append(avg_i)
                 bg_obsids.append(obs_id)
+        else:
+            cache.set(cache_key, (), timeout=3600)
 
     # Add single background trace for context points
     if bg_x:
@@ -1087,6 +1115,21 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
     curr_x, curr_y = [], []                   # Active obs_id
 
     for oid in obs_ids_to_process:
+        cache_key = f"theater_hid_{oid}_{quality}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is not None:
+            if cached_data:
+                avg_h, avg_i = cached_data
+                if oid == obs_id:
+                    curr_x.append(avg_h)
+                    curr_y.append(avg_i)
+                else:
+                    bg_x.append(avg_h)
+                    bg_y.append(avg_i)
+                    bg_obsids.append(oid)
+            continue
+
         rel_dir_path = os.path.join(oid, 'jspipe')
         abs_dir_path = os.path.join(settings.DATA_DIR, rel_dir_path)
         
@@ -1109,7 +1152,8 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
             except Exception: continue
         
         if all_hardness and all_intensity:
-            avg_h, avg_i = np.mean(all_hardness), np.mean(all_intensity)
+            avg_h, avg_i = float(np.mean(all_hardness)), float(np.mean(all_intensity))
+            cache.set(cache_key, (avg_h, avg_i), timeout=86400 * 7) # Cache for 7 days
             
             if oid == obs_id:
                 curr_x.append(avg_h)
@@ -1118,6 +1162,8 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
                 bg_x.append(avg_h)
                 bg_y.append(avg_i)
                 bg_obsids.append(oid)
+        else:
+            cache.set(cache_key, (), timeout=3600)
 
     # Layer 1: Background History - Dark Grey, no labels
     if bg_x:
@@ -1177,6 +1223,21 @@ def get_global_lc_theater_figure(obs_id, quality='goddard', playlist=None):
     curr_x, curr_y = [], []
 
     for oid in obs_ids_to_process:
+        cache_key = f"theater_lc_{oid}_{quality}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is not None:
+            if cached_data:
+                avg_t, avg_i = cached_data
+                if oid == obs_id:
+                    curr_x.append(avg_t)
+                    curr_y.append(avg_i)
+                else:
+                    bg_x.append(avg_t)
+                    bg_y.append(avg_i)
+                    bg_obsids.append(oid)
+            continue
+
         rel_dir_path = os.path.join(oid, 'jspipe')
         abs_dir_path = os.path.join(settings.DATA_DIR, rel_dir_path)
         
@@ -1197,7 +1258,8 @@ def get_global_lc_theater_figure(obs_id, quality='goddard', playlist=None):
             except Exception: continue
         
         if all_time and all_intensity:
-            avg_t, avg_i = np.mean(all_time), np.mean(all_intensity)
+            avg_t, avg_i = float(np.mean(all_time)), float(np.mean(all_intensity))
+            cache.set(cache_key, (avg_t, avg_i), timeout=86400 * 7) # Cache for 7 days
             
             if oid == obs_id:
                 curr_x.append(avg_t)
@@ -1206,6 +1268,8 @@ def get_global_lc_theater_figure(obs_id, quality='goddard', playlist=None):
                 bg_x.append(avg_t)
                 bg_y.append(avg_i)
                 bg_obsids.append(oid)
+        else:
+            cache.set(cache_key, (), timeout=3600)
 
     if bg_x:
         fig.add_trace(go.Scatter(

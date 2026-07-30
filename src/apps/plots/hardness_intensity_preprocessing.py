@@ -44,9 +44,11 @@ def read_lc_file(filename: str) -> ndarray:
     import warnings
     try:
         # Columns: [time, band1, band2, band3, band4]
+        import pandas as pd
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            data: ndarray = np.loadtxt(normalized_path, usecols=[0, 5, 6, 7, 8])
+            df = pd.read_csv(normalized_path, sep=r'\s+', header=None, comment='#', usecols=[0, 5, 6, 7, 8])
+            data: ndarray = df.to_numpy()
         return data
     except Exception as e:
         print(f"Error reading {filename}: {e}")

@@ -52,14 +52,15 @@ def light_curve_data(
 
     try:
         # Load data columns (time, counts, detectors)
+        import pandas as pd
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            data = np.loadtxt(data_path, usecols=[1, 2, 3], unpack=True, dtype=float)
+            data = pd.read_csv(data_path, sep=r'\s+', header=None, comment='#', usecols=[1, 2, 3], dtype=float).to_numpy().T
         
         bg_path = data_path.replace('.lc.gz', '.bg-lc.gz')
         try:
             if os.path.exists(bg_path) and os.path.getsize(bg_path) > 0:
-                background = np.loadtxt(bg_path, usecols=2)
+                background = pd.read_csv(bg_path, sep=r'\s+', header=None, comment='#', usecols=[2]).to_numpy().flatten()
             else:
                 background = np.zeros(len(data[0]))
         except:

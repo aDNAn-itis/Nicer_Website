@@ -100,14 +100,18 @@ export async function updateTheaterFrame(index) {
     { type: 'hardness_intensity_diagram', container: '#theater-hid-plot' }
   ];
 
-  // Clear previous plots only if not animating
-  if (typeof isTheaterPlaying === 'undefined' || !isTheaterPlaying) {
-    plotTypes.forEach(pt => {
-      $(pt.container).html('<div style="display:flex; justify-content:center; align-items:center; height:100%; color:#888;">Loading...</div>');
-    });
-  }
+  // Remove local loading overlays based on user feedback
+  // We rely solely on the global #theater-loading-overlay which is activated above.
 
   const loadPromises = plotTypes.map(async (pt) => {
+    const cacheKey = `${obsId}_${pt.type}_${q}`;
+    const wrapperId = `theater_wrap_${cacheKey}`;
+    
+    // If it exists in DOM, we are done (True DOM caching)
+    if ($(`#${wrapperId}`).length > 0) {
+      return { container: pt.container, wrapperId: wrapperId, newlyCreated: false };
+    }
+
     const formData = new FormData();
     formData.append('obs_id', obsId);
     formData.append('quality', q);
@@ -128,32 +132,42 @@ export async function updateTheaterFrame(index) {
       });
       const data = await response.json();
 
+      let html = '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:#888;">No Data Available</div>';
       if (data.plotDivs && data.plotDivs.length > 0) {
-        return { container: pt.container, html: data.plotDivs[0] };
-      } else {
-        return { container: pt.container, html: '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:#888;">No Data Available</div>' };
+        html = data.plotDivs[0];
       }
+      return { container: pt.container, wrapperId: wrapperId, html: html, newlyCreated: true };
     } catch (err) {
       console.error(`Failed to fetch ${pt.type} for ${obsId}:`, err);
-      return { container: pt.container, html: '<div style="display:flex; justify-content:center; align-items:center; height:100%; color:red;">Failed to Load</div>' };
+      return { container: pt.container, wrapperId: wrapperId, html: '<div style="color:red;">Failed to Load</div>', newlyCreated: true };
     }
   });
 
   try {
     const results = await Promise.all(loadPromises);
     
-    // Inject all HTML simultaneously to prevent visual desync
+    // First, hide all wrappers in all containers
+    plotTypes.forEach(pt => {
+      $(pt.container).children('.theater-plot-wrapper').hide();
+    });
+    
+    // Inject or show HTML simultaneously
     results.forEach(res => {
-      if (res && res.html) {
-        $(res.container).html(res.html);
-        $(res.container).children('div').first().css({ width: '100%', height: '100%' });
+      if (res.newlyCreated) {
+        const wrapper = $(`<div id="${res.wrapperId}" class="theater-plot-wrapper" style="width:100%; height:100%;"></div>`);
+        wrapper.html(res.html);
+        $(res.container).append(wrapper);
+        wrapper.children('div').first().css({ width: '100%', height: '100%' });
+      } else {
+        // Instant visual switch via CSS display, no Plotly re-rendering
+        $(`#${res.wrapperId}`).show();
       }
     });
     if (window.MathJax) MathJax.typesetPromise();
   } catch (err) {
     console.error("Error loading theater frame:", err);
   } finally {
-    // Hide the loading overlay
+    // Hide the loading overlays
     if (typeof isTheaterPlaying === 'undefined' || !isTheaterPlaying) {
       $('#theater-loading-overlay').fadeOut(200);
     }
