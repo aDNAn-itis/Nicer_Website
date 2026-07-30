@@ -992,8 +992,8 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
             if is_active:
                 # Add individual trace for playlist items (Legend entry)
                 fig.add_trace(go.Scatter(
-                    x=[avg_h], y=[avg_i], mode='markers+text', text=[obs_id],
-                    textposition='top center', name=obs_id,
+                    x=[avg_h], y=[avg_i], mode='markers',
+                    text=[obs_id], name=obs_id,
                     marker=dict(size=12, line=dict(width=1, color='white')),
                     hovertemplate=f"<b>{obs_id}</b><br>Hardness: %{{x:.3f}}<br>Intensity: %{{y:.2f}}<extra></extra>"
                 ))
