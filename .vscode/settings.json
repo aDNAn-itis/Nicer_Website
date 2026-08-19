@@ -4,5 +4,21 @@
     },
     "eslint.validate": [
         "javascript"
-    ]
+    ],
+    "python.analysis.extraPaths": ["./src"],
+    "[html]": {
+        "editor.tabSize": 2,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.tabSize": 2
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.tabSize": 2
+    },
+    "[python]": {
+        "editor.tabSize": 4,
+    },
 }

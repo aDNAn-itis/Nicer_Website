@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import time
 import logging
@@ -604,12 +605,29 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             all_gti_labels_combined = []
             current_max_gti = 0
 
+            t0_db = time.time()
+            # BULK DB FIX: One query for ALL obs_ids instead of N separate queries
+            all_rel_paths = [os.path.join(oid, 'jspipe') for oid in obs_id_list]
+            all_files_bulk = Item.objects.filter(
+                path__in=all_rel_paths,
+                name__contains=quality,
+                type=Item.item_type[1][0]
+            ).filter(
+                name__contains=plot_info['file_type']
+            ).exclude(name__regex=r'_BAND\d+').order_by('name')
+            # Group by obs_id in Python — zero extra DB hits
+            files_by_obs = {}
+            for item in all_files_bulk:
+                obs_key = item.path.replace('\\', '/').split('/')[0]
+                files_by_obs.setdefault(obs_key, []).append(item)
+            logger.info(f"[TIMING] plot_data bulk DB ({plot_type_key}) for {len(obs_id_list)} obs_ids: {time.time()-t0_db:.3f}s")
+
             for single_obs_id in obs_id_list:
                 single_obs_dir = os.path.join(settings.DATA_DIR, single_obs_id, 'jspipe')
-                files = Item.objects.filter(name__contains=quality, path__startswith=os.path.join(single_obs_id, 'jspipe'), type=Item.item_type[1][0]).order_by('name')
-                file_names_qs = files.filter(name__contains=plot_info['file_type']).exclude(name__regex=r'_BAND\d+')
-                
-                if not file_names_qs.exists(): continue
+                file_items = files_by_obs.get(single_obs_id, [])
+
+                if not file_items:
+                    continue
 
                 gtis_to_process = []
                 if gti_specifiers:
@@ -619,7 +637,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
 
                 # Ensure this block is collecting files from ALL obs_ids in the list
                 if plot_type_key == 'summed_spectrum' or plot_type_key == 'global_hid' or plot_type_key == 'global_lc':
-                    for file_item in file_names_qs.order_by('name'):
+                    for file_item in sorted(file_items, key=lambda x: x.name):
                        all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
                        all_gti_labels_combined.append(single_obs_id)
                        gti_match = re.search(r'GTI(\d+)', file_item.name)
@@ -627,14 +645,16 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                           all_gti_numbers_combined.append(int(gti_match.group(1)))
                           
                 elif gtis_to_process: 
+                    # For specific GTI filtering, do a targeted in-memory match
                     for gti_num in gtis_to_process:
-                        file_match_item = file_names_qs.filter(name__regex=fr'GTI0*{gti_num}([^\\d]|$)').first()
+                        pattern = re.compile(fr'GTI0*{gti_num}([^\d]|$)')
+                        file_match_item = next((it for it in file_items if pattern.search(it.name)), None)
                         if file_match_item:
                             all_file_paths_combined.append(os.path.join(single_obs_dir, file_match_item.name))
                             all_gti_numbers_combined.append(gti_num)
                             all_gti_labels_combined.append(single_obs_id)
                 else: 
-                    for file_item in file_names_qs.order_by('name'):
+                    for file_item in sorted(file_items, key=lambda x: x.name):
                         all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
                         all_gti_labels_combined.append(single_obs_id)
                         gti_match = re.search(r'GTI(\d+)', file_item.name)
@@ -642,6 +662,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                             val = int(gti_match.group(1))
                             all_gti_numbers_combined.append(val)
                             if val > current_max_gti: current_max_gti = val
+
 
             max_gtis.append(current_max_gti)
 
@@ -998,16 +1019,28 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
         paths = [os.path.join(abs_dir_path, f.name) for f in files]
         all_hardness, all_intensity = [], []
 
-        for fp in paths:
+        t0_files = time.time()
+        def _read_hid_file(fp):
             try:
                 t, s, h, i = process_lc_file(fp)
                 with np.errstate(divide='ignore', invalid='ignore'):
                     h_ratio = h / s
                 valid = np.isfinite(h_ratio) & np.isfinite(i) & (h_ratio > 0) & (i > 0)
                 if np.any(valid):
-                    all_hardness.extend(h_ratio[valid])
-                    all_intensity.extend(i[valid])
-            except Exception: continue
+                    return h_ratio[valid], i[valid]
+            except Exception:
+                pass
+            return None, None
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(_read_hid_file, fp): fp for fp in paths}
+            for future in as_completed(futures):
+                h_vals, i_vals = future.result()
+                if h_vals is not None:
+                    all_hardness.extend(h_vals)
+                    all_intensity.extend(i_vals)
+        logger.info(f"[TIMING] plot_combined_global_hid file reads for {obs_id}: {time.time()-t0_files:.3f}s ({len(paths)} files)")
+
         
         if all_hardness and all_intensity:
             avg_h, avg_i = float(np.mean(all_hardness)), float(np.mean(all_intensity))
@@ -1140,16 +1173,28 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
         paths = [os.path.join(abs_dir_path, f.name) for f in files]
         all_hardness, all_intensity = [], []
 
-        for fp in paths:
+        t0_files = time.time()
+        def _read_theater_hid_file(fp):
             try:
                 t, s, h, i = process_lc_file(fp)
                 with np.errstate(divide='ignore', invalid='ignore'):
                     h_ratio = h / s
                 valid = np.isfinite(h_ratio) & np.isfinite(i) & (h_ratio > 0) & (i > 0)
                 if np.any(valid):
-                    all_hardness.extend(h_ratio[valid])
-                    all_intensity.extend(i[valid])
-            except Exception: continue
+                    return h_ratio[valid], i[valid]
+            except Exception:
+                pass
+            return None, None
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(_read_theater_hid_file, fp): fp for fp in paths}
+            for future in as_completed(futures):
+                h_vals, i_vals = future.result()
+                if h_vals is not None:
+                    all_hardness.extend(h_vals)
+                    all_intensity.extend(i_vals)
+        logger.info(f"[TIMING] theater_hid file reads for {oid}: {time.time()-t0_files:.3f}s ({len(paths)} files)")
+
         
         if all_hardness and all_intensity:
             avg_h, avg_i = float(np.mean(all_hardness)), float(np.mean(all_intensity))
@@ -1248,14 +1293,26 @@ def get_global_lc_theater_figure(obs_id, quality='goddard', playlist=None):
         paths = [os.path.join(abs_dir_path, f.name) for f in files]
         all_time, all_intensity = [], []
 
-        for fp in paths:
+        t0_files = time.time()
+        def _read_theater_lc_file(fp):
             try:
                 t, s, h, i = process_lc_file(fp)
                 valid = np.isfinite(t) & np.isfinite(i) & (i > 0)
                 if np.any(valid):
-                    all_time.extend(t[valid])
-                    all_intensity.extend(i[valid])
-            except Exception: continue
+                    return t[valid], i[valid]
+            except Exception:
+                pass
+            return None, None
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {executor.submit(_read_theater_lc_file, fp): fp for fp in paths}
+            for future in as_completed(futures):
+                t_vals, i_vals = future.result()
+                if t_vals is not None:
+                    all_time.extend(t_vals)
+                    all_intensity.extend(i_vals)
+        logger.info(f"[TIMING] theater_lc file reads for {oid}: {time.time()-t0_files:.3f}s ({len(paths)} files)")
+
         
         if all_time and all_intensity:
             avg_t, avg_i = float(np.mean(all_time)), float(np.mean(all_intensity))
