@@ -700,22 +700,35 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             try:
                 t0_plot = time.time()
                 is_theater = request.POST.get('is_theater') == 'true'
-                if plot_type_key == 'global_hid' and request.POST.get('playlist'):
-                    playlist = request.POST.get('playlist').split(',')
-                    fig = get_global_hid_theater_figure(obs_id_list[0], quality, playlist)
-                    plot_div = plot(fig, output_type='div', include_plotlyjs=False, config={'responsive': True})
-                elif plot_type_key == 'global_lc' and request.POST.get('playlist'):
-                    playlist = request.POST.get('playlist').split(',')
-                    fig = get_global_lc_theater_figure(obs_id_list[0], quality, playlist)
-                    plot_div = plot(fig, output_type='div', include_plotlyjs=False, config={'responsive': True})
-                elif plot_type_key in ['spectrum', 'summed_spectrum']:
-                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash, gti_labels=all_gti_labels_combined)
-                elif plot_type_key == 'light_curve':
-                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined, is_theater=is_theater)
+                playlist_str = request.POST.get('playlist', '')
+                
+                # Plotly HTML Cache Check
+                cache_key_raw = f"{plot_type_key}_{','.join(obs_id_list)}_{actual_min_value}_{quality}_{gti_query_str}_{apply_screening}_{playlist_str}_{is_theater}"
+                cache_key = 'plot_html_' + hashlib.md5(cache_key_raw.encode('utf-8')).hexdigest()
+                plot_div = cache.get(cache_key)
+
+                if plot_div is None:
+                    if plot_type_key == 'global_hid' and playlist_str:
+                        playlist = playlist_str.split(',')
+                        fig = get_global_hid_theater_figure(obs_id_list[0], quality, playlist)
+                        plot_div = plot(fig, output_type='div', include_plotlyjs=False, config={'responsive': True})
+                    elif plot_type_key == 'global_lc' and playlist_str:
+                        playlist = playlist_str.split(',')
+                        fig = get_global_lc_theater_figure(obs_id_list[0], quality, playlist)
+                        plot_div = plot(fig, output_type='div', include_plotlyjs=False, config={'responsive': True})
+                    elif plot_type_key in ['spectrum', 'summed_spectrum']:
+                        plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash, gti_labels=all_gti_labels_combined)
+                    elif plot_type_key == 'light_curve':
+                        plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined, is_theater=is_theater)
+                    else:
+                        plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined)
+                    
+                    cache.set(cache_key, plot_div, timeout=86400 * 7) # Cache for 7 days
+                    logger.info(f"[TIMING] {plot_type_key} generated & cached in {time.time() - t0_plot:.3f} seconds.")
                 else:
-                    plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined)
+                    logger.info(f"[TIMING] {plot_type_key} loaded from cache in {time.time() - t0_plot:.3f} seconds.")
+                
                 plot_divs.append(plot_div)
-                logger.info(f"[TIMING] {plot_type_key} generated in {time.time() - t0_plot:.3f} seconds.")
             except Exception as e:
                 logger.exception(f"[plot_data] Error plotting {plot_type_key}: {e}")
                 return JsonResponse({'error': str(e)}, status=500)
