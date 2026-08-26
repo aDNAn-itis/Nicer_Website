@@ -128,7 +128,7 @@ def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output
             title=dict(text=f'Global Average HID: {obs_id}', x=0.5),
             xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', zeroline=False),
             yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log'),
-            hovermode='closest', width=600, height=500, template='plotly_white'
+            hovermode='closest', width=420, height=350, template='plotly_white', font=dict(size=9)
         )
         fig = go.Figure(data=[trace], layout=layout)
         if output_type == 'dict':
@@ -178,7 +178,7 @@ def get_global_lc_point_plot(min_value, obs_id, file_paths, gti_numbers, output_
             title=dict(text=f'Global Average LC: {obs_id}', x=0.5),
             xaxis=dict(title=r'$\text{Time (s)}$', zeroline=False),
             yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$'),
-            hovermode='closest', width=600, height=500, template='plotly_white'
+            hovermode='closest', width=420, height=350, template='plotly_white', font=dict(size=9)
         )
         fig = go.Figure(data=[trace], layout=layout)
         
@@ -1094,7 +1094,7 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
         title=f'Global HID: {source_name or "Multi-Observation"}',  
         xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', showgrid=False),
         yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', showgrid=False),
-        height=600, template='plotly_white', plot_bgcolor='white', paper_bgcolor='white', font=dict(color='black'),
+        height=420, template='plotly_white', plot_bgcolor='white', paper_bgcolor='white', font=dict(color='black', size=9),
         showlegend=True, hovermode='closest'
     )
 
@@ -1238,7 +1238,7 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
             x=curr_x, y=curr_y, mode='markers+text',
             text=[obs_id], textposition='top center',
             marker=dict(size=9, color='#3b82f6'),
-            textfont=dict(color='#1d4ed8', size=11, family='Arial Black'),
+            textfont=dict(color='#1d4ed8', size=8, family='Arial Black'),
             name='Current'
         ))
 
@@ -1246,7 +1246,7 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
         title=f'Global HID: {source_name or "Unknown"}',
         xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
         yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
-        template='plotly_white',
+        template='plotly_white', font=dict(size=9),
         showlegend=False,
         margin=dict(l=70, r=30, t=50, b=70)
     )
@@ -1354,7 +1354,7 @@ def get_global_lc_theater_figure(obs_id, quality='goddard', playlist=None):
             x=curr_x, y=curr_y, mode='markers+text',
             text=[obs_id], textposition='top center',
             marker=dict(size=9, color='#3b82f6'),
-            textfont=dict(color='#1d4ed8', size=11, family='Arial Black'),
+            textfont=dict(color='#1d4ed8', size=8, family='Arial Black'),
             name='Current'
         ))
 
@@ -1362,7 +1362,7 @@ def get_global_lc_theater_figure(obs_id, quality='goddard', playlist=None):
         title=f'Global LC: {source_name or "Unknown"}',
         xaxis=dict(title=r'$\text{Time (s)}$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
         yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
-        template='plotly_white',
+        template='plotly_white', font=dict(size=9),
         showlegend=False,
         margin=dict(l=70, r=30, t=50, b=70)
     )

@@ -39,14 +39,14 @@ function injectDynamicStyles() {
                 display: flex;
                 flex-wrap: wrap;
                 justify-content: center;
-                gap: 0.75rem;
+                gap: 0.52rem;
             }
             .selected-gti-item {
                 display: inline-flex;
                 align-items: center;
                 border: 1px solid #d1d5db;
                 border-radius: 4px;
-                font-size: 0.9rem;
+                font-size: 0.63rem;
                 font-family: inherit;
                 cursor: default;
                 user-select: none;
@@ -56,17 +56,17 @@ function injectDynamicStyles() {
                 border-color: #9ca3af;
             }
             .gti-card-text {
-                padding: 0.4rem 0.75rem;
+                padding: 0.28rem 0.52rem;
                 color: var(--text-primary, #333);
             }
             .gti-card-remove {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                padding: 0.4rem 0.6rem;
+                padding: 0.28rem 0.42rem;
                 border-left: 1px solid #d1d5db;
                 color: #ef4444;
-                font-size: 0.85rem;
+                font-size: 0.6rem;
                 font-weight: bold;
                 cursor: pointer;
                 transition: background 0.15s ease;
@@ -78,12 +78,12 @@ function injectDynamicStyles() {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                width: 45px;
-                height: 45px;
+                width: 31px;
+                height: 31px;
                 border-radius: 50%;
                 background-color: #e0e0e0;
                 color: #333;
-                font-size: 0.85rem;
+                font-size: 0.6rem;
                 font-weight: 500;
                 cursor: pointer;
                 margin: 5px;
@@ -703,8 +703,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class="plot-type-section">
                             <h3>GLOBAL HID</h3>
                             <div id="combined-hid-plot">${data.plotDiv}</div>
-                            <div style="text-align:center; padding:15px; background:#fff; border-top:1px solid #eee; margin-top:-10px; border-bottom-left-radius:0.75rem; border-bottom-right-radius:0.75rem;">
-                                <button id="btn-open-theater" class="btn btn-sm btn-dark" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:5px; width:200px; display:inline-block;"> Track ObsIDs </button>
+                            <div style="text-align:center; padding:10.5px; background:#fff; border-top:1px solid #eee; margin-top:-7px; border-bottom-left-radius:0.525rem; border-bottom-right-radius:0.525rem;">
+                                <button id="btn-open-theater" class="btn btn-sm btn-dark" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:3.5px; width:140px; height:40px; font-size:14px !important; display:inline-block;"> Track ObsIDs </button>
                             </div>
                         </div>
                     `);

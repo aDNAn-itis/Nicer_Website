@@ -292,7 +292,7 @@ export function fetchGraphPlots(refresh = false, event) {
             $PLOT_SECTION = $('<div>', { id: `${TYPE}-section`, class: 'plot-type-section' });
             
             // Dynamic title renaming for Combined views
-            let titleText = TYPE.replace(/_/g, ' ').replace(/-/g, ' ').toUpperCase();
+            let titleText = TYPE.replace(/_/g, ' ').replace(/-/g, ' ').toUpperCase().replace(/\bFOR\b/g, '').trim();
             if (rawTitle && (rawTitle.match(/\d{10}/g) || []).length > 1) {
               if (titleText.includes("SPECTRUM")) titleText = "COMPARING ENERGY SPECTRUM";
               else if (titleText.includes("LIGHT")) titleText = "COMBINED LIGHT CURVE";

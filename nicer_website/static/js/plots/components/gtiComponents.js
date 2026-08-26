@@ -102,7 +102,7 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
   }
 
   const $CONTROLS_CONTAINER = $('<div>', {
-    style: 'display: flex; align-items: center; justify-content: center; margin-top: 5px; gap: 5px;',
+    style: 'display: flex; align-items: center; justify-content: center; margin-top: 3.5px; gap: 3.5px;',
   });
 
   const $BINNING_LABEL = $('<label>', {
@@ -119,7 +119,7 @@ export function GTISelection(maxGTI, obsID, plotType, defaultBinning = 1, curren
     step: displayMultiplier,
     value: initialDisplayValue,
     title: binningDescription,
-    style: 'width: 80px; padding: 2px 5px;',
+    style: 'width: 56px; padding: 1.4px 3.5px; font-size: 0.65rem;',
   });
 
   const $UNIT_LABEL = $('<span>', {

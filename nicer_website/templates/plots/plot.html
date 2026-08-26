@@ -28,27 +28,68 @@
 </script>
 
 <style>
+  /* --- 🎨 70% Scale Override for all inputs and selects on this page 🎨 --- */
+  .page-layout-container input,
+  .page-layout-container select {
+    font-size: 11.2px !important;
+    padding: 4.2px 8.4px !important;
+    height: 26.6px !important;
+  }
+  .layout-right-column {
+    font-size: 0.7rem;
+  }
+
+  /* --- 🎨 70% Scale Override for Buttons on this page 🎨 --- */
+  .btn, .btn-outline, .btn-primary, .btn-dark, #btn-open-theater {
+      font-size: 0.7rem !important;
+      padding: 0.35rem 0.7rem !important;
+      border-radius: 4px !important;
+  }
+  .btn.btn-sm {
+      font-size: 0.61rem !important;
+      padding: 0.175rem 0.35rem !important;
+  }
+
+  .btn-outline i, .btn-primary i {
+      font-size: 0.7rem !important;
+  }
+
+  /* --- 🎨 70% Scale Override for Notifications on this page 🎨 --- */
+  .notification {
+    padding: 0.7rem 1.05rem !important;
+    max-width: 280px !important;
+    border-left-width: 3px !important;
+    border-radius: 0.5rem !important;
+  }
+  .notification-content {
+    font-size: 0.7rem !important;
+    gap: 0.5rem !important;
+  }
+  .notification i {
+    font-size: 0.85rem !important;
+  }
+
   /* --- 🎨 Page Layout 🎨 --- */
   .page-layout-container {
     display: flex;
     flex-wrap: wrap;
     width: 100%;
-    padding: 1rem;
-    gap: 2rem;
+    padding: 0.7rem;
+    gap: 1.4rem;
   }
   .layout-left-column {
     flex: 1 1 40%;
-    min-width: 400px;
+    min-width: 280px;
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.4rem;
   }
   .layout-right-column {
     flex: 1 1 55%;
-    min-width: 500px;
+    min-width: 350px;
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.4rem;
   }
   .layout-left-column .section,
   .layout-right-column .section {
@@ -63,20 +104,20 @@
   .search-form-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem 1.5rem; 
+    gap: 0.7rem 1.05rem; 
     align-items: end; 
   }
   .search-group { display: flex; flex-direction: column; }
   .search-group label {
-    font-size: 0.85rem;
+    font-size: 0.6rem;
     font-weight: 500;
     color: var(--text-secondary, #6b7280);
     margin-bottom: 0.25rem;
   }
   .search-form-container input,
   .search-form-container select {
-    font-size: 0.95rem !important;
-    padding: 0.6rem 0.75rem !important;
+    font-size: 11.2px !important;
+    padding: 4.2px 8.4px !important;
     border: 1px solid var(--border-color, #ccc) !important;
     border-radius: 6px !important;
     background: #fff !important;
@@ -84,7 +125,7 @@
     box-sizing: border-box !important; 
     margin-bottom: 0 !important; 
     transition: all 0.2s ease !important;
-    height: 38px;
+    height: 27px;
     font-family: inherit;
     color: var(--text-primary);
   }
@@ -102,13 +143,12 @@
 
   .btn-search {
     width: 100%;
-    font-size: 0.95rem !important;
-    padding: 0.6rem 1rem !important;
+    font-size: 11.2px !important;
+    padding: 0.4rem 0.7rem !important;
     border-radius: 6px !important;
-    height: 38px !important;
+    height: 26.6px !important;
     line-height: 1.3;
     font-weight: 600;
-    background-color: #fff !important;
     border: 1px solid var(--nicer-light-blue, #3b82f6) !important;
     color: var(--nicer-light-blue, #3b82f6) !important;
     transition: all 0.2s ease;
@@ -120,7 +160,7 @@
   }
 
   /* --- 🎨 Results Area 🎨 --- */
-  .results-container { margin-top: 2rem; padding-top: 1rem; }
+  .results-container { margin-top: 1.4rem; padding-top: 0.7rem; }
 
   #lc-theater-panel { 
       position: fixed !important; 
@@ -136,10 +176,10 @@
       background: rgba(0,0,0,0.8) !important;
   }
 
-  .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-  .results-left, .results-right { display: flex; flex-direction: column; gap: 1rem; }
+  .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; }
+  .results-left, .results-right { display: flex; flex-direction: column; gap: 0.7rem; }
   .results-container h3 {
-    font-size: 1.1rem;
+    font-size: 0.77rem;
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 0.5rem;
@@ -151,19 +191,19 @@
     background: #fff; 
     border-radius: 8px; 
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    padding: 1.5rem;
+    padding: 1.05rem;
     width: 100%; 
     box-sizing: border-box; 
-    min-height: 250px;
-    max-height: 250px;
+    min-height: 175px;
+    max-height: 175px;
     overflow-y: auto;
   }
   .info-box ul { list-style: none; padding: 0; margin: 0; }
   .info-box li {
     display: flex;
     justify-content: space-between;
-    font-size: 0.95rem;
-    padding: 0.5rem 0;
+    font-size: 0.65rem;
+    padding: 0.35rem 0;
     border-bottom: 1px solid var(--border-color, #e5e7eb);
   }
   .info-box li:last-child { border-bottom: none; }
@@ -171,18 +211,18 @@
   .info-box li span { color: var(--text-secondary); text-align: right; }
 
   /* --- 🎨 Plot Selection Styling 🎨 --- */
-  .plot-selection-box { display: flex; flex-direction: column; gap: 0.75rem; }
-  .plot-checkbox { display: flex; align-items: center; gap: 0.5rem; }
-  .plot-checkbox input { width: 1.1rem; height: 1.1rem; }
-  .plot-checkbox label { font-size: 0.95rem; color: var(--text-secondary); }
+  .plot-selection-box { display: flex; flex-direction: column; gap: 0rem; padding: 0.3rem !important; overflow-y: hidden !important; }
+  .plot-checkbox { display: flex; align-items: center; gap: 0.35rem; }
+  .plot-checkbox input { transform: scale(1.15, 0.85); transform-origin: left center; margin-right: 0.1rem; }
+  .plot-checkbox label { font-size: 0.65rem; color: var(--text-secondary); }
 
   /* --- 🎨 Buttons 🎨 --- */
   .btn-sketch {
-    font-size: 0.9rem !important;
+    font-size: 0.63rem !important;
     font-weight: 600 !important;
-    padding: 0.75rem 1rem !important;
+    padding: 0.5rem 0.7rem !important;
     border-radius: 6px !important;
-    height: 38px !important; 
+    height: 26.6px !important; 
     line-height: 1.3 !important; 
     text-transform: none !important;
     text-align: center;
@@ -194,10 +234,10 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   }
   .btn-sketch:hover { background: var(--bg-secondary, #f8fafc) !important; }
-  .stacked-btn { margin-top: 1rem; }
+  .stacked-btn { margin-top: 0.7rem; }
 
   /* --- 🎨 Plot Container 🎨 --- */
-  #plots { min-height: 400px; margin-bottom: 2rem; }
+  #plots { min-height: 280px; margin-bottom: 1.4rem; }
 
   /* --- 🎨 Modal 🎨 --- */
   .modal-overlay {
@@ -206,7 +246,7 @@
   }
   .modal-content {
     background-color: var(--bg-secondary, #fefefe); color: var(--text-primary, #333);
-    margin: 10vh auto; padding: 20px; border: 1px solid var(--border-color, #888);
+    margin: 10vh auto; padding: 14px; border: 1px solid var(--border-color, #888);
     border-radius: 1rem; width: 90%; max-width: 1200px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   }
   .modal-header {
@@ -227,14 +267,14 @@
 
   /* --- 🎨 List Styling 🎨 --- */
   #obsid-search-input {
-    font-size: 0.95rem !important;
-    padding: 0.6rem 0.75rem !important;
+    font-size: 11.2px !important;
+    padding: 4.2px 8.4px !important;
     border: 1px solid var(--border-color, #ccc) !important;
     border-radius: 6px !important;
     background: #fff !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    height: 38px;
+    height: 27px;
     font-family: inherit;
     color: var(--text-primary);
   }
@@ -256,22 +296,22 @@
   }
   
   #all-obsids-list, #selected-obsids-list {
-    min-height: 250px;
-    max-height: 250px; 
+    min-height: 175px;
+    max-height: 175px; 
   }
   
   .list-group-scrollable li {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.7rem;
     border-bottom: 1px solid var(--border-color, #e5e7eb);
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.63rem;
     color: var(--text-secondary);
   }
   .list-group-scrollable li:last-child { border-bottom: none; }
   .list-group-scrollable li:hover { background: var(--bg-secondary, #f8fafc); color: var(--text-primary); }
 
   #selected-obsids-list li { display: flex; justify-content: space-between; align-items: center; }
-  .remove-btn { color: #ef4444; font-weight: bold; font-size: 1rem; cursor: pointer; padding: 2px 5px; }
+  .remove-btn { color: #ef4444; font-weight: bold; font-size: 0.7rem; cursor: pointer; padding: 2px 5px; }
   .remove-btn:hover { color: #b91c1c; }
 
   /* --- 🎨 ObsID Separator 🎨 --- */
@@ -284,11 +324,74 @@
   .obsid-separator:not(:empty)::after { margin-left: 1rem; }
 
   .obsid-text {
-    font-size: 1.4rem; font-weight: 800; color: #4b5563;       
+    font-size: 0.98rem; font-weight: 800; color: #4b5563;       
     text-transform: uppercase; letter-spacing: 0.5px;
     font-family: system-ui, -apple-system, sans-serif;
   }
   .obsid-value-red { color: #dc2626; font-family: 'Courier New', monospace; margin-left: 0.5rem; }
+
+
+  /* --- 🎨 70% Scale Override for Right Column Dynamic Content 🎨 --- */
+  .layout-right-column h3 {
+    font-size: 0.98rem !important;
+    margin-bottom: 0.75rem !important;
+    display: flex !important; 
+    align-items: center !important; 
+    text-align: center !important;
+    width: 100% !important;
+    color: #4b5563 !important;       
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    font-weight: 800 !important;
+    font-family: system-ui, -apple-system, sans-serif !important;
+  }
+  .layout-right-column h3::before, .layout-right-column h3::after {
+    content: '' !important; 
+    flex: 1 !important; 
+    border-bottom: 2px solid #e5e7eb !important;
+  }
+  .layout-right-column h3:not(:empty)::before { margin-right: 1rem !important; }
+  .layout-right-column h3:not(:empty)::after { margin-left: 1rem !important; }
+  .layout-right-column h4 {
+    font-size: 0.7rem !important;
+    margin-bottom: 0.35rem !important;
+  }
+  .remove-observation-btn {
+    font-size: 0.7rem !important;
+    padding: 0.35rem 0.7rem !important;
+    border-radius: 4px !important;
+  }
+  .fetch-gti label, .fetch-gti span {
+    font-size: 0.65rem !important;
+  }
+  .fetch-gti button, .gti-cross-link-toggle {
+    font-size: 0.7rem !important;
+    padding: 0.35rem 0.7rem !important;
+    border-radius: 4px !important;
+  }
+
+
+  /* --- 🎨 70% Scale Override for Navbar on this page 🎨 --- */
+  .navbar {
+    padding: 0.7rem 0 !important;
+  }
+  .nav-logo {
+    font-size: 0.875rem !important;
+  }
+  .nav-logo i {
+    font-size: 0.875rem !important;
+  }
+  .nav-link {
+    font-size: 0.7rem !important;
+    padding: 0.35rem 0.7rem !important;
+  }
+  .nav-link i {
+    font-size: 0.7rem !important;
+  }
+  .nav-search-btn {
+    font-size: 0.875rem !important;
+    padding: 0.35rem 0.7rem !important;
+  }
 
 </style>
 {% endblock %} 
@@ -383,18 +486,18 @@
               </span>
             </div>
 
-            <div class="results-grid" style="margin-top: 1rem;">
+            <div class="results-grid" style="margin-top: 0.7rem;">
               
               <div class="results-left">
                 <h3>Selected ObsIDs for: <span id="selected-source-label">---</span></h3>
-                <ul id="selected-obsids-list" class="list-group-scrollable" style="min-height: 180px; max-height: 180px; margin-bottom: 1rem;">
+                <ul id="selected-obsids-list" class="list-group-scrollable" style="min-height: 126px; max-height: 126px; margin-bottom: 0.7rem;">
                 </ul>
 
                 <h3>Available GTIs for: <span id="selected-obsid-label" class="obsid-value-red">---</span></h3>
-                <div id="gti-selector-box" class="info-box" style="min-height: 125px; max-height: 125px; padding: 0;">
+                <div id="gti-selector-box" class="info-box" style="min-height: 100px; max-height: 100px; padding: 0;">
 
-                      <ul id="gti-list" class="list-group-scrollable" style="min-height: 125px; max-height: 125px; border: none; box-shadow: none;">
-                          <li class="disabled-message" style="padding: 0.75rem 1rem; color: var(--text-secondary); cursor: default;">Select an ObsID to see available GTIs</li>
+                      <ul id="gti-list" class="list-group-scrollable" style="min-height: 100px; max-height: 100px; border: none; box-shadow: none;">
+                          <li class="disabled-message" style="padding: 0.5rem 0.7rem; color: var(--text-secondary); cursor: default;">Select an ObsID to see available GTIs</li>
                       </ul>
                   </div>
               </div>
@@ -404,7 +507,7 @@
                 <form id="plot-selection-form" method="post">
                   {% csrf_token %}
                   <h3 id="plot-selection-title">Select Plot Types for...</h3>
-                  <div class="plot-selection-box info-box" style="min-height: 220px; margin-bottom: 1.5rem;">
+                  <div class="plot-selection-box info-box" style="min-height: 154px; margin-bottom: 1.05rem;">
                     <div class="plot-checkbox">
                       <input type="checkbox" id="plot-spectrum" name="plot_types" value="spectrum">
                       <label for="plot-spectrum">Spectrum</label>
@@ -429,7 +532,7 @@
 
                   <div id="global-tools-section" class="hide">
                     <h3>Generic View of Source</h3>
-                    <div class="plot-selection-box info-box" style="min-height: auto; padding: 1rem; border: 1px solid #e5e7eb; background-color: #fff;">
+                    <div class="plot-selection-box info-box" style="min-height: auto; padding: 0.7rem; border: 1px solid #e5e7eb; background-color: #fff;">
                       <div class="plot-checkbox">
                         <input type="checkbox" id="plot-global-hid" name="plot_types" value="global-hid">
                         <label for="plot-global-hid">
@@ -440,8 +543,8 @@
                   </div>
 
                   
-                  <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
-                    <div style="display: flex; gap: 0.5rem;">
+                  <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                    <div style="display: flex; gap: 0.35rem;">
                       <button type="button" id="download-obs-btn" class="btn-sketch download-data" data-type="obs" style="flex: 1;">Download</button>
                       <button type="button" id="show-gti-btn" class="btn-sketch" style="flex: 1;" disabled>GTI Details</button>
                     </div>
@@ -462,18 +565,18 @@
   <div class="layout-right-column">
     <section class="section">
       <div class="container">
-        <div id="selected-gtis-display" style="text-align: center; margin-bottom: 1rem;"></div>
+        <div id="selected-gtis-display" style="text-align: center; margin-bottom: 0.7rem;"></div>
         <div id="plots"></div> 
 
-        <div id="remove-obs" style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center"></div>
+        <div id="remove-obs" style="display: flex; gap: 0.7rem; flex-wrap: wrap; justify-content: center"></div>
 
-        <form id="add-obs" method="post" class="hide" style="text-align: center; margin-top: 2rem">
+        <form id="add-obs" method="post" class="hide" style="text-align: center; margin-top: 1.4rem">
           {% csrf_token %}
           <button id="add-obs-btn" type="button" class="btn-outline">
             <i class="fas fa-plus"></i>
             Add Another Observation
           </button>
-          <div id="add-obs-dropdown" class="hide dropdown" style="max-width: 400px; margin: 1rem auto 0">
+          <div id="add-obs-dropdown" class="hide dropdown" style="max-width: 280px; margin: 0.7rem auto 0">
             <input
               id="additional-observation-search"
               class="dropdown-field"
@@ -484,7 +587,7 @@
               style="color: #dc2626; font-weight: bold;"
             />
             <div id="additional-observation-options" class="dropdown-content"></div>
-            <button type="submit" class="btn-primary" style="margin-top: 1rem">
+            <button type="submit" class="btn-primary" style="margin-top: 0.7rem">
               <i class="fas fa-check"></i>
               Add
             </button>
@@ -508,74 +611,74 @@
 
 
 <div id="theater-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9998;"></div>
-<div id="lc-theater-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width: 95vw; height: 95vh; background:transparent; z-index:9999; font-family: 'Times New Roman', serif; overflow: hidden; padding: 20px; box-sizing: border-box;">
+<div id="lc-theater-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width: 95vw; height: 95vh; background:transparent; z-index:9999; font-family: 'Times New Roman', serif; overflow: hidden; padding: 14px; box-sizing: border-box;">
     
     <!-- Independent Close Button -->
     <button onclick="$('#lc-theater-panel, #theater-overlay').fadeOut(200)" 
-            style="position: absolute; right: 10px; top: 10px; border: 1px solid #ddd; background: #fff; color: #333; font-size: 30px; font-weight: normal; width: 50px; height: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10005; transition: all 0.1s; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+            style="position: absolute; right: 7px; top: 7px; border: 1px solid #ddd; background: #fff; color: #333; font-size: 21px; font-weight: normal; width: 35px; height: 35px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10005; transition: all 0.1s; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
         &times;
     </button>
 
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 15px; height: 100%; box-sizing: border-box;">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; height: 100%; box-sizing: border-box;">
         
-        <div id="theater-page-content" style="display: flex; gap: 15px; background: transparent; align-items: stretch; width: 100%; flex: 1; min-height: 0;">
+        <div id="theater-page-content" style="display: flex; gap: 10px; background: transparent; align-items: stretch; width: 100%; flex: 1; min-height: 0;">
             
             <!-- 1st CONTAINER: PLOTS BOX -->
-            <div id="theater-plot-box" style="flex: 1; border: 1px solid #ddd; padding: 15px; background: #fff; position: relative; display: flex; flex-direction: column; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 0;">
+            <div id="theater-plot-box" style="flex: 1; border: 1px solid #ddd; padding: 10px; background: #fff; position: relative; display: flex; flex-direction: column; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-width: 0;">
                 
                 <!-- Header: obsid | source -->
-                <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 5px;">
-                    <div style="font-family: monospace; font-size: 20px; font-weight: normal; text-transform: uppercase; color: #333;">
+                <div style="text-align: center; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 3.5px;">
+                    <div style="font-family: monospace; font-size: 16px; font-weight: normal; text-transform: uppercase; color: #333;">
                         obsid - <span id="theater-obs-id-label">xxxxxx</span> | source - <span id="theater-source-label">xxxx</span>
                     </div>
                 </div>
 
                 <!-- Scrollable Plot Grid -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 40vh; gap: 15px; flex: 1; min-height: 0; position: relative; overflow-y: auto; padding-right: 10px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 40vh; gap: 10px; flex: 1; min-height: 0; position: relative; overflow-y: auto; padding-right: 10px;">
                     
                     <!-- LOADING OVERLAY -->
                     <div id="theater-loading-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); z-index: 10; align-items: center; justify-content: center; border-radius: 4px;">
-                        <div style="font-family: monospace; font-size: 22px; font-weight: bold; color: #333; background: #fff; padding: 15px 30px; border: 2px solid #333; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                        <div style="font-family: monospace; font-size: 15px; font-weight: bold; color: #333; background: #fff; padding: 10.5px 21px; border: 2px solid #333; border-radius: 5.6px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
                             GENERATING PLOTS...
                         </div>
                     </div>
                     <!-- Row 1 Left: Global HID -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 6px; background: #f9f9f9; color: black;">GLOBAL HID-DIAGRAM</div>
+                        <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">GLOBAL HID-DIAGRAM</div>
                         <div id="theater-global-hid-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 1 Right: Global LC -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 6px; background: #f9f9f9; color: black;">GLOBAL LC</div>
+                        <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">GLOBAL LC</div>
                         <div id="theater-global-lc-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 2 Left: Spectrum -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 6px; background: #f9f9f9; color: black;">SPECTRUM</div>
+                        <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">SPECTRUM</div>
                         <div id="theater-spectrum-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 2 Right: Light Curve -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 6px; background: #f9f9f9; color: black;">LIGHT-CURVE</div>
+                        <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">LIGHT-CURVE</div>
                         <div id="theater-lc-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 3 Left: PDS -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 6px; background: #f9f9f9; color: black;">PDS</div>
+                        <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">PDS</div>
                         <div id="theater-pds-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 3 Right: Local HID -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
-                        <div style="text-align: center; font-family: monospace; font-size: 14px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 6px; background: #f9f9f9; color: black;">HID-DIAGRAM</div>
+                        <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">HID-DIAGRAM</div>
                         <div id="theater-hid-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                 </div>
             </div>
 
             <!-- 2nd CONTAINER: OBSID LIST BOX -->
-            <div id="theater-obsid-box" style="width: 200px; border: 1px solid #ddd; padding: 15px; background: #fff; display: flex; flex-direction: column; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-height: 0;">
-                <div style="font-family: monospace; font-size: 18px; font-weight: normal; text-align: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 5px; color: #333;">OBSID'S</div>
-                <div id="theater-obsid-list" style="overflow-y: auto; flex: 1; font-family: monospace; font-size: 14px; display: flex; flex-direction: column; gap: 5px; color: #444;">
+            <div id="theater-obsid-box" style="width: 140px; border: 1px solid #ddd; padding: 10px; background: #fff; display: flex; flex-direction: column; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); min-height: 0;">
+                <div style="font-family: monospace; font-size: 12.6px; font-weight: normal; text-align: center; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 3.5px; color: #333;">OBSID'S</div>
+                <div id="theater-obsid-list" style="overflow-y: auto; flex: 1; font-family: monospace; font-size: 10px; display: flex; flex-direction: column; gap: 5px; color: #444;">
                     <!-- Populated by JS -->
                 </div>
             </div>
@@ -583,9 +686,9 @@
         </div>
 
         <!-- 3rd CONTAINER: GENERATE GIF BOX -->
-        <div id="theater-gif-box" style="margin-top: 15px; flex-shrink: 0; text-align: center; display: flex; justify-content: center; gap: 10px;">
-            <button id="theater-gif-btn" class="btn btn-sm btn-dark" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:5px; width:200px; display:inline-block;"> Generate GIF </button>
-            <button id="theater-play-btn" class="btn btn-sm btn-primary" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:5px; width:200px; display:inline-block;"> ▶ Play Animation </button>
+        <div id="theater-gif-box" style="margin-top: 10.5px; flex-shrink: 0; text-align: center; display: flex; justify-content: center; gap: 7px;">
+            <button id="theater-gif-btn" class="btn btn-sm btn-dark" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:3.5px; height: 40px; width:140px; font-size: 14px !important; display:inline-block;"> Generate GIF </button>
+            <button id="theater-play-btn" class="btn btn-sm btn-primary" style="box-shadow: 0 4px 10px rgba(0,0,0,0.2); border-radius:3.5px; height: 40px; width:140px; font-size: 14px !important; display:inline-block;"> ▶ Play Animation </button>
         </div>
 
     </div>

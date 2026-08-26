@@ -50,7 +50,7 @@ function populateObsIDList() {
       .text(obsId)
       .attr("data-index", idx)
       .css({
-        "padding": "10px 15px",
+        "padding": "7px 10.5px",
         "cursor": "pointer",
         "border-bottom": "1px solid #eee",
         "transition": "all 0.1s",
