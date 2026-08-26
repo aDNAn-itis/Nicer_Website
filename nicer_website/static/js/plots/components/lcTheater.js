@@ -72,7 +72,10 @@ function populateObsIDList() {
  * Main update function for Plotly data fetching.
  * @param {number} index Index in the playlist
  */
+let currentTheaterReqId = 0;
+
 export async function updateTheaterFrame(index) {
+  const reqId = ++currentTheaterReqId;
   const obsId = window.lcTheaterPlaylist[index];
   if (!obsId) return;
 
@@ -146,6 +149,12 @@ export async function updateTheaterFrame(index) {
   try {
     const results = await Promise.all(loadPromises);
     
+    // Check if a new request was started while we were fetching.
+    // If so, discard these results to prevent DOM collisions and race conditions.
+    if (reqId !== currentTheaterReqId) {
+        return;
+    }
+    
     // First, hide all wrappers in all containers
     plotTypes.forEach(pt => {
       $(pt.container).children('.theater-plot-wrapper').hide();
@@ -155,8 +164,11 @@ export async function updateTheaterFrame(index) {
     results.forEach(res => {
       if (res.newlyCreated) {
         const wrapper = $(`<div id="${res.wrapperId}" class="theater-plot-wrapper" style="width:100%; height:100%;"></div>`);
-        wrapper.html(res.html);
+        
+        // Append to DOM first so embedded scripts can resolve document.getElementById successfully
         $(res.container).append(wrapper);
+        wrapper.html(res.html);
+        
         wrapper.children('div').first().css({ width: '100%', height: '100%' });
       } else {
         // Instant visual switch via CSS display, no Plotly re-rendering
@@ -167,9 +179,11 @@ export async function updateTheaterFrame(index) {
   } catch (err) {
     console.error("Error loading theater frame:", err);
   } finally {
-    // Hide the loading overlays
-    if (typeof isTheaterPlaying === 'undefined' || !isTheaterPlaying) {
-      $('#theater-loading-overlay').fadeOut(200);
+    if (reqId === currentTheaterReqId) {
+      // Hide the loading overlays only if this is the active request
+      if (typeof isTheaterPlaying === 'undefined' || !isTheaterPlaying) {
+        $('#theater-loading-overlay').fadeOut(200);
+      }
     }
   }
 }
@@ -351,5 +365,9 @@ $(document).ready(function() {
   $(document).on('click', '#close-theater-btn, #theater-overlay', function() {
     isTheaterPlaying = false;
     $('#theater-play-btn').html('▶ Play Animation').removeClass('btn-danger').addClass('btn-primary');
+  });
+
+  $(document).on('click', '#close-theater-btn', function() {
+    $('#lc-theater-panel, #theater-overlay').fadeOut(200);
   });
 });
