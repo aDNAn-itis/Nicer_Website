@@ -163,11 +163,12 @@ export async function updateTheaterFrame(index) {
     // Inject or show HTML simultaneously
     results.forEach(res => {
       if (res.newlyCreated) {
-        const wrapper = $(`<div id="${res.wrapperId}" class="theater-plot-wrapper" style="width:100%; height:100%;"></div>`);
+        const wrapper = $(`<div id="${res.wrapperId}" class="theater-plot-wrapper" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>`);
         
         // Append to DOM first so embedded scripts can resolve document.getElementById successfully
         $(res.container).append(wrapper);
-        wrapper.html(res.html);
+        let flexHtml = res.html.replace(/height:\\s*\\d+px/gi, "height: 100%").replace(/"height":\\s*420/g, "\"height\": null").replace(/"height":\\s*350/g, "\"height\": null");
+        wrapper.html(flexHtml);
         
         wrapper.children('div').first().css({ width: '100%', height: '100%' });
       } else {

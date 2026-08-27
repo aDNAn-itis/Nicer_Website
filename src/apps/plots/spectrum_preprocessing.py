@@ -127,7 +127,8 @@ def spectrum_plot(
         cut_off: list = None,
         gti_labels: list[str] | None = None,
         bg_dash: str = 'solid',
-        output_type: str = 'div') -> Any:
+        output_type: str = 'div',
+        is_theater: bool = False) -> Any:
     """
     Gets and plots the binned and corrected spectra.
     Preserves your label logic and Sensible Y-Axis fix.

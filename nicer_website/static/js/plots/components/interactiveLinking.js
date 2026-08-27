@@ -352,7 +352,7 @@ function handleGtiDoubleClick(data, plot) {
       
       const newPlotId = `standalone-gti-plot-${gtiNum}-${Date.now()}`;
       $detailedPlotsContainer.append(`<h2>Selected GTI: ${obsId} (GTI ${gtiNum})</h2>`);
-      $detailedPlotsContainer.append(`<div id="${newPlotId}" class="plotly-graph-div js-plotly-plot" style="width:100%; height:400px;"></div>`);
+      $detailedPlotsContainer.append(`<div id="${newPlotId}" class="plotly-graph-div js-plotly-plot" style="width:100%; height:420px;"></div>`);
       
       // Inject strictly below the native plot wrapper logic
       const $parentSection = $(plot).closest('.plot-type-section');

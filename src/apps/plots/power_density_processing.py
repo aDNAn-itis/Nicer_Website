@@ -88,7 +88,8 @@ def get_pds_data_and_plot(
     data_paths: List[str],
     gti_numbers: List[int],
     gti_labels: List[str] = None,
-    output_type: str = 'div') -> Any:
+    output_type: str = 'div',
+    is_theater: bool = False) -> Any:
     """
     Processes and plots PDS data. Handles both Single and Combined observations.
     """

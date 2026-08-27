@@ -130,7 +130,8 @@ def get_hid_data_and_plot(
     data_paths: List[str],
     gti_numbers: List[int],
     gti_labels: list[str] | None = None,
-    output_type: str = 'div'
+    output_type: str = 'div',
+    is_theater: bool = False
 ) -> Any:
     """
     Main entry point for HID plotting.

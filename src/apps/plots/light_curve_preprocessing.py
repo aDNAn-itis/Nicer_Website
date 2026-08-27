@@ -358,25 +358,17 @@ def light_curve_plot(
         seen_oids.add(oid)
         fig.data[-1].showlegend = False # Hide BG trace
 
-    layout_update = {"title": f"Light Curve {obs_id}", "legend": dict(groupclick="toggleitem")}
+    layout_update = {"title": f"Light Curve {obs_id}", "legend": dict(groupclick="toggleitem"), "margin": dict(t=30, b=65, l=60, r=20), "xaxis": dict(title=x_axis_label, showline=True, linewidth=1, linecolor="black", showgrid=False, zeroline=False), "yaxis": dict(showline=True, linewidth=1, linecolor="black", showgrid=False, zeroline=False)}
     if output_type == 'dict':
-        layout_update["margin"] = dict(b=60)
+        layout_update["margin"]["b"] = 60
+    if not is_theater:
+        layout_update["height"] = 420
+    else:
+        layout_update["autosize"] = True
     fig.update_layout(**layout_update)
-    y_coord = -0.06 if output_type == 'dict' else -0.15
-    fig.add_annotation(
-        text=x_axis_label,
-        xref='paper',
-        yref='paper',
-        x=0.5,
-        y=y_coord,
-        showarrow=False,
-        xanchor='center',
-        yanchor='top',
-        font=dict(size=14)
-    )
 
     if output_type == 'div': 
-        return plot(fig, output_type='div', include_plotlyjs=False)
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displaylogo': False, 'responsive': True})
     elif output_type == 'dict':
         import json
         return json.loads(fig.to_json())

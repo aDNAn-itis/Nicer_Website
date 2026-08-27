@@ -460,7 +460,8 @@ def summed_spectrum_plot(
     cut_off: Optional[Tuple[float, float]] = None,
     gti_labels: Optional[List[str]] = None,
     bg_dash: str = 'solid',
-    output_type: str = 'div'
+    output_type: str = 'div',
+    is_theater: bool = False
 ) -> Any:
     """
     Create a summed spectrum plot across multiple GTIs.

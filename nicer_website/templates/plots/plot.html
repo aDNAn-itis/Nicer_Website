@@ -55,19 +55,6 @@
   }
 
   /* --- 🎨 70% Scale Override for Notifications on this page 🎨 --- */
-  .notification {
-    padding: 0.7rem 1.05rem !important;
-    max-width: 280px !important;
-    border-left-width: 3px !important;
-    border-radius: 0.5rem !important;
-  }
-  .notification-content {
-    font-size: 0.7rem !important;
-    gap: 0.5rem !important;
-  }
-  .notification i {
-    font-size: 0.85rem !important;
-  }
 
   /* --- 🎨 Page Layout 🎨 --- */
   .page-layout-container {
@@ -634,7 +621,7 @@
                 </div>
 
                 <!-- Scrollable Plot Grid -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 40vh; gap: 10px; flex: 1; min-height: 0; position: relative; overflow-y: auto; padding-right: 10px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 45vh; gap: 10px; flex: 1; min-height: 0; position: relative; overflow-y: auto; padding-right: 10px;">
                     
                     <!-- LOADING OVERLAY -->
                     <div id="theater-loading-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(3px); z-index: 10; align-items: center; justify-content: center; border-radius: 4px;">
@@ -645,32 +632,32 @@
                     <!-- Row 1 Left: Global HID -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">GLOBAL HID-DIAGRAM</div>
-                        <div id="theater-global-hid-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
+                        <div id="theater-global-hid-plot" style="position: relative; width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 1 Right: Global LC -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">GLOBAL LC</div>
-                        <div id="theater-global-lc-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
+                        <div id="theater-global-lc-plot" style="position: relative; width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 2 Left: Spectrum -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">SPECTRUM</div>
-                        <div id="theater-spectrum-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
+                        <div id="theater-spectrum-plot" style="position: relative; width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 2 Right: Light Curve -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">LIGHT-CURVE</div>
-                        <div id="theater-lc-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
+                        <div id="theater-lc-plot" style="position: relative; width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 3 Left: PDS -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">PDS</div>
-                        <div id="theater-pds-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
+                        <div id="theater-pds-plot" style="position: relative; width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                     <!-- Row 3 Right: Local HID -->
                     <div style="border: 1px solid #eee; background: #fff; display: flex; flex-direction: column; border-radius: 4px; min-height: 0; overflow: hidden;">
                         <div style="text-align: center; font-family: monospace; font-size: 10px; font-weight: bold; border-bottom: 2px solid #ccc; padding: 4px; font-size: 10px; background: #f9f9f9; color: black;">HID-DIAGRAM</div>
-                        <div id="theater-hid-plot" style="width: 100%; flex: 1; min-height: 0;"></div>
+                        <div id="theater-hid-plot" style="position: relative; width: 100%; flex: 1; min-height: 0;"></div>
                     </div>
                 </div>
             </div>

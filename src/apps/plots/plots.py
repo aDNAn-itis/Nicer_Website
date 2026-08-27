@@ -169,10 +169,16 @@ def data_plot(
         arange = compute_adaptive_log_y_range(data_lists[1], data_lists[5])
         if arange: layout_kwargs.setdefault('yaxis', {})['range'] = arange
 
+    layout_kwargs["height"] = 420
+    layout_kwargs["margin"] = dict(t=30, b=65, l=60, r=20)
+    layout_kwargs.update({
+        "xaxis_showline": True, "xaxis_linewidth": 1, "xaxis_linecolor": "black", "xaxis_showgrid": False, "xaxis_zeroline": False,
+        "yaxis_showline": True, "yaxis_linewidth": 1, "yaxis_linecolor": "black", "yaxis_showgrid": False, "yaxis_zeroline": False
+    })
     fig.update_layout(**layout_kwargs)
     
     if out_format == 'dict':
         import json
         return json.loads(fig.to_json())
         
-    return plot(fig, output_type='div', include_plotlyjs=False, config={'displaylogo': False})
+    return plot(fig, output_type='div', include_plotlyjs=False, config={'displaylogo': False, 'responsive': True})

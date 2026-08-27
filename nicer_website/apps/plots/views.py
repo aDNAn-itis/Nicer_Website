@@ -134,7 +134,7 @@ def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output
         if output_type == 'dict':
             import json
             return json.loads(fig.to_json())
-        return plot(fig, output_type='div', include_plotlyjs=False)
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displaylogo': False, 'responsive': True})
     except Exception as e:
         logger.error(f"Error generating global HID point: {e}")
         return f"<div style='color:red'>Error: {str(e)}</div>"
@@ -185,7 +185,7 @@ def get_global_lc_point_plot(min_value, obs_id, file_paths, gti_numbers, output_
         if output_type == 'dict':
             import json
             return json.loads(fig.to_json())
-        return plot(fig, output_type='div', include_plotlyjs=False)
+        return plot(fig, output_type='div', include_plotlyjs=False, config={'displaylogo': False, 'responsive': True})
         
     except Exception as e:
         logger.error(f"Error generating global LC point: {e}")
@@ -717,11 +717,11 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                         fig = get_global_lc_theater_figure(obs_id_list[0], quality, playlist)
                         plot_div = plot(fig, output_type='div', include_plotlyjs=False, config={'responsive': True})
                     elif plot_type_key in ['spectrum', 'summed_spectrum']:
-                        plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash, gti_labels=all_gti_labels_combined)
+                        plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, bg_dash=bg_dash, gti_labels=all_gti_labels_combined, is_theater=is_theater)
                     elif plot_type_key == 'light_curve':
                         plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined, is_theater=is_theater)
                     else:
-                        plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined)
+                        plot_div = plot_info['function'](actual_min_value, ",".join(obs_id_list), all_file_paths_combined, all_gti_numbers_combined, gti_labels=all_gti_labels_combined, is_theater=is_theater)
                     
                     cache.set(cache_key, plot_div, timeout=86400 * 7) # Cache for 7 days
                     logger.info(f"[TIMING] {plot_type_key} generated & cached in {time.time() - t0_plot:.3f} seconds.")
@@ -1094,11 +1094,11 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
         title=f'Global HID: {source_name or "Multi-Observation"}',  
         xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', showgrid=False),
         yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', showgrid=False),
-        height=420, template='plotly_white', plot_bgcolor='white', paper_bgcolor='white', font=dict(color='black', size=9),
+        height=420, template='plotly_white', plot_bgcolor='white', paper_bgcolor='white', font=dict(color='black', size=9), margin=dict(t=30, b=65, l=60, r=20),
         showlegend=True, hovermode='closest'
     )
 
-    div = plot(fig, output_type='div', include_plotlyjs=False)
+    div = plot(fig, output_type='div', include_plotlyjs=False, config={'displaylogo': False, 'responsive': True})
     return JsonResponse({'plotDiv': div, 'rawData': raw_data})
 
 
@@ -1244,11 +1244,11 @@ def get_global_hid_theater_figure(obs_id, quality='goddard', playlist=None):
 
     fig.update_layout(
         title=f'Global HID: {source_name or "Unknown"}',
-        xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
-        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
+        xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=False),
+        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=False),
         template='plotly_white', font=dict(size=9),
         showlegend=False,
-        margin=dict(l=70, r=30, t=50, b=70)
+        margin=dict(t=30, b=65, l=60, r=20)
     )
     
     return fig
@@ -1360,10 +1360,10 @@ def get_global_lc_theater_figure(obs_id, quality='goddard', playlist=None):
 
     fig.update_layout(
         title=f'Global LC: {source_name or "Unknown"}',
-        xaxis=dict(title=r'$\text{Time (s)}$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
-        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=True),
+        xaxis=dict(title=r'$\text{Time (s)}$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=False),
+        yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', showline=True, linewidth=1, linecolor='black', zeroline=False, showgrid=False, automargin=False),
         template='plotly_white', font=dict(size=9),
         showlegend=False,
-        margin=dict(l=70, r=30, t=50, b=70)
+        margin=dict(t=30, b=65, l=60, r=20)
     )
     return fig

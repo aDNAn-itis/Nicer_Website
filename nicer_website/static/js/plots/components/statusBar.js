@@ -30,13 +30,13 @@ export class StatusBar {
     const styles = `
       .status-bar {
         position: fixed;
-        top: 20px;
-        right: 20px;
+        top: 14px;
+        right: 14px;
         z-index: 9999;
         display: flex;
         flex-direction: column;
         gap: 8px;
-        max-width: 350px;
+        max-width: 280px;
         opacity: 0;
         transform: translateX(100%);
         transition: all 0.3s ease-in-out;
@@ -50,13 +50,13 @@ export class StatusBar {
       .status-operation {
         background: white;
         border: 1px solid #e0e0e0;
-        border-radius: 6px;
-        padding: 12px 16px;
+        border-radius: 4px;
+        padding: 8px 11px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         display: flex;
         align-items: center;
         gap: 10px;
-        font-size: 14px;
+        font-size: 10px;
         line-height: 1.4;
         transition: all 0.3s ease;
         position: relative;
@@ -76,12 +76,12 @@ export class StatusBar {
       .status-operation.removing {
         opacity: 0;
         transform: translateX(100%);
-        margin-bottom: -60px;
+        margin-bottom: -40px;
       }
 
       .status-spinner {
-        width: 16px;
-        height: 16px;
+        width: 11px;
+        height: 11px;
         border: 2px solid #f0f0f0;
         border-top: 2px solid #666;
         border-radius: 50%;
@@ -90,13 +90,13 @@ export class StatusBar {
       }
 
       .status-icon {
-        width: 16px;
-        height: 16px;
+        width: 11px;
+        height: 11px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: bold;
-        font-size: 12px;
+        font-size: 9px;
         flex-shrink: 0;
       }
 
@@ -116,12 +116,12 @@ export class StatusBar {
 
       .status-close {
         position: absolute;
-        top: 4px;
-        right: 4px;
+        top: 3px;
+        right: 3px;
         background: none;
         border: none;
         color: #999;
-        font-size: 14px;
+        font-size: 10px;
         cursor: pointer;
         padding: 2px 4px;
         border-radius: 2px;

@@ -262,17 +262,17 @@ function showNotification(message, type = 'info', duration = 3000) {
 
   notification.style.cssText = `
     position: fixed;
-    top: 20px;
-    right: 20px;
+    top: 14px;
+    right: 14px;
     background: white;
-    border-radius: 0.75rem;
+    border-radius: 0.5rem;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    padding: 1rem 1.5rem;
+    padding: 0.7rem 1.05rem;
     max-width: 400px;
     z-index: 10000;
     transform: translateX(100%);
     transition: transform 0.3s ease;
-    border-left: 4px solid ${getNotificationColor(type)};
+    border-left: 3px solid ${getNotificationColor(type)};
   `;
 
   document.body.appendChild(notification);
@@ -334,12 +334,20 @@ style.textContent = `
     }
   }
   
+  .notification {
+    max-width: 280px;
+  }
   .notification-content {
+    font-size: 0.7rem;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
   
+  .notification i, .notification-close i, .notification-close {
+    font-size: 0.7rem;
+  }
+
   .notification-close {
     background: none;
     border: none;
