@@ -85,6 +85,26 @@ class PlotRequest:
             screening_min_bad_channels=int(post.get('screening_min_bad_channels', 2))
         )
 
+
+def _sort_plot_inputs_by_gti(file_paths, gti_numbers, gti_labels):
+    """Keep plot inputs aligned while ordering GTIs numerically per observation."""
+    if not (len(file_paths) == len(gti_numbers) == len(gti_labels)):
+        return file_paths, gti_numbers, gti_labels
+
+    observation_order = {
+        label: index for index, label in enumerate(dict.fromkeys(gti_labels))
+    }
+    rows = zip(file_paths, gti_numbers, gti_labels)
+    ordered_rows = sorted(
+        rows,
+        key=lambda row: (observation_order[row[2]], int(row[1])),
+    )
+    if not ordered_rows:
+        return [], [], []
+
+    paths, numbers, labels = zip(*ordered_rows)
+    return list(paths), list(numbers), list(labels)
+
 # --- YOUR HELPER FUNCTION FOR GLOBAL HID (Single Point) ---
 def get_global_hid_point_plot(min_value, obs_id, file_paths, gti_numbers, output_type='div', **kwargs):
     try:
@@ -364,6 +384,14 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
     if not final_file_paths_to_plot:
         return JsonResponse({'error': f'No data files found for {obs_id_raw}'}, status=404)
+
+    final_file_paths_to_plot, final_gti_numbers_for_plot_func, final_gti_labels_for_plot_func = (
+        _sort_plot_inputs_by_gti(
+            final_file_paths_to_plot,
+            final_gti_numbers_for_plot_func,
+            final_gti_labels_for_plot_func,
+        )
+    )
 
     # 7. Apply Background Screening (Optional)
     screening_summary = None
@@ -669,6 +697,14 @@ def plot_data(request: HttpRequest) -> JsonResponse:
             if not all_file_paths_combined:
                 continue
 
+            all_file_paths_combined, all_gti_numbers_combined, all_gti_labels_combined = (
+                _sort_plot_inputs_by_gti(
+                    all_file_paths_combined,
+                    all_gti_numbers_combined,
+                    all_gti_labels_combined,
+                )
+            )
+
             calc_min = calculate_default_binning(all_file_paths_combined[0], plot_type_key)
             actual_min_value = req.min_value if req.min_value else (calc_min if calc_min is not None else plot_info['min_value'])
             default_binnings[plot_type_key] = actual_min_value
@@ -703,7 +739,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                 playlist_str = request.POST.get('playlist', '')
                 
                 # Plotly HTML Cache Check
-                cache_key_raw = f"{plot_type_key}_{','.join(obs_id_list)}_{actual_min_value}_{quality}_{gti_query_str}_{apply_screening}_{playlist_str}_{is_theater}"
+                cache_key_raw = f"legend_order_v2_{plot_type_key}_{','.join(obs_id_list)}_{actual_min_value}_{quality}_{gti_query_str}_{apply_screening}_{playlist_str}_{is_theater}"
                 cache_key = 'plot_html_' + hashlib.md5(cache_key_raw.encode('utf-8')).hexdigest()
                 plot_div = cache.get(cache_key)
 
@@ -1013,7 +1049,7 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
                     fig.add_trace(go.Scatter(
                         x=[avg_h], y=[avg_i], mode='markers',
                         text=[obs_id], name=obs_id,
-                        marker=dict(size=12, line=dict(width=1, color='white')),
+                        marker=dict(size=7, line=dict(width=0.7, color='white')),
                         hovertemplate=f"<b>{obs_id}</b><br>Hardness: %{{x:.3f}}<br>Intensity: %{{y:.2f}}<extra></extra>"
                     ))
                 else:
@@ -1080,7 +1116,7 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
                 fig.add_trace(go.Scatter(
                     x=[avg_h], y=[avg_i], mode='markers',
                     text=[obs_id], name=obs_id,
-                    marker=dict(size=12, line=dict(width=1, color='white')),
+                    marker=dict(size=7, line=dict(width=0.7, color='white')),
                     hovertemplate=f"<b>{obs_id}</b><br>Hardness: %{{x:.3f}}<br>Intensity: %{{y:.2f}}<extra></extra>"
                 ))
             else:
@@ -1097,7 +1133,7 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
     if bg_x:
         fig.add_trace(go.Scatter(
             x=bg_x, y=bg_y, mode='markers',
-            marker=dict(size=8, color='#e5e7eb', opacity=0.4),
+            marker=dict(size=5, color='#e5e7eb', opacity=0.4),
             name='Other Observations',
             text=bg_obsids,
             hoverinfo='text+x+y',
@@ -1111,7 +1147,7 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
         title=f'Global HID: {source_name or "Multi-Observation"}',  
         xaxis=dict(title=r'$\text{Hardness}\ (4-12\ keV / 2-4\ keV)$', showline=True, linewidth=1, linecolor='black', showgrid=False),
         yaxis=dict(title=r'$\text{Intensity}\ (counts/s)$', type='log', showline=True, linewidth=1, linecolor='black', showgrid=False),
-        height=420, template='plotly_white', plot_bgcolor='white', paper_bgcolor='white', font=dict(color='black', size=9), margin=dict(t=30, b=65, l=60, r=20),
+        height=350, template='plotly_white', plot_bgcolor='white', paper_bgcolor='white', font=dict(color='black', size=9), margin=dict(t=30, b=55, l=58, r=18),
         showlegend=True, hovermode='closest'
     )
 

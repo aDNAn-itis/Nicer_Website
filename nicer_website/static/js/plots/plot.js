@@ -356,8 +356,8 @@ function setActiveObsID(obsId) {
         fetchObsIDDataForGTI(obsId);
         loadGTIsForObsID(obsId);
     }
-    // Disable button until new data is fetched by fetchObsIDDataForGTI
-    $('#show-gti-btn').prop('disabled', true).text("GTI Details (Loading...)");
+    // Keep the control available; its handler safely waits for GTI data.
+    $('#show-gti-btn').text("GTI Details (Loading...)");
 }
 
 function addToTheaterPlaylist(obsid) {
@@ -746,7 +746,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (data.plotDiv) {
                     const safeContainerId = 'global-safe-container';
                     if ($(`#${safeContainerId}`).length === 0) {
-                        $('#plots').before(`<div id="${safeContainerId}" style="margin-bottom: 2rem; border-bottom: 1px solid #ddd;"></div>`);
+                        $('#plots').before(`<div id="${safeContainerId}"></div>`);
                     }
                     $(`#${safeContainerId}`).html(`
                         <div class="plot-type-section">

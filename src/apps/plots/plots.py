@@ -169,8 +169,10 @@ def data_plot(
         arange = compute_adaptive_log_y_range(data_lists[1], data_lists[5])
         if arange: layout_kwargs.setdefault('yaxis', {})['range'] = arange
 
-    layout_kwargs["height"] = 420
-    layout_kwargs["margin"] = dict(t=30, b=65, l=60, r=20)
+    # Keep the regular analysis dashboard compact. Theater mode replaces this
+    # fixed height with its own responsive sizing when plots are mounted there.
+    layout_kwargs["height"] = 350
+    layout_kwargs["margin"] = dict(t=30, b=55, l=58, r=18)
     layout_kwargs.update({
         "xaxis_showline": True, "xaxis_linewidth": 1, "xaxis_linecolor": "black", "xaxis_showgrid": False, "xaxis_zeroline": False,
         "yaxis_showline": True, "yaxis_linewidth": 1, "yaxis_linecolor": "black", "yaxis_showgrid": False, "yaxis_zeroline": False

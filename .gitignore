@@ -6,6 +6,10 @@
 /nicer_website/static/*
 !/nicer_website/static/js
 !/nicer_website/static/css
+!/nicer_website/static/images/
+!/nicer_website/static/images/home/
+!/nicer_website/static/images/home/xray_smooth_flow.png
+!/nicer_website/static/images/home/perfect_nicer_spritesheet.png
 /data/
 **/__pycache__
 **/*[Tt][Ee][Ss][Tt]*

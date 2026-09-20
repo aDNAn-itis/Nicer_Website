@@ -71,13 +71,12 @@ export function displayInfo(info) {
     
     console.log(`Saved ${currentGTIData.length} rows for ObsID ${obsID}. Enabling button.`);
 
-    // Enable button using jQuery for convenience (visuals only)
-    $('#show-gti-btn').prop('disabled', false).text("Show GTI's");
+    $('#show-gti-btn').text("Show GTI's");
     $('#observation-details').removeClass('hide').show();
 
   } else {
     console.warn("⚠️ No info data received.");
-    $('#show-gti-btn').prop('disabled', true).text("Show GTI's (No Data)");
+    $('#show-gti-btn').text("Show GTI's (No Data)");
   }
 }
 

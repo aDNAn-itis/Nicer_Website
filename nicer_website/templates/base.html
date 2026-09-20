@@ -81,12 +81,14 @@
     <!-- Loading Screen Script (load immediately) -->
     <!-- <script src="{% static 'js/loading-screen.js' %}"></script> -->
 
-    {% include 'navbar.html' %}
+    {% block navbar %}{% include 'navbar.html' %}{% endblock %}
 
     <main>{% block content %}{% endblock %}</main>
 
     <!-- Conditionally include footer -->
-    {% if not request.path|slice:":7" == "/plots/" %} {% include 'footer.html' %} {% endif %}
+    {% block footer %}
+      {% if not request.path|slice:":7" == "/plots/" %} {% include 'footer.html' %} {% endif %}
+    {% endblock %}
 
     <!-- Scripts -->
     <script src="{% static 'js/performance.js' %}"></script>
