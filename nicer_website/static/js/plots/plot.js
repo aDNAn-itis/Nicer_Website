@@ -466,6 +466,51 @@ document.addEventListener("DOMContentLoaded", () => {
   StatusBar.getInstance();
   injectDynamicStyles(); 
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const requestKeys = Array.from(urlParams.keys())
+    .filter((key) => /^req\d+$/.test(key))
+    .sort((a, b) => Number(a.slice(3)) - Number(b.slice(3)));
+
+  if (requestKeys.length > 0) {
+    const decodeBase64Url = (value) => {
+      let normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+      while (normalized.length % 4) normalized += '=';
+      return atob(normalized);
+    };
+
+    requestKeys.forEach((key, index) => {
+      const storedRequest = urlParams.get(key);
+      const separator = storedRequest ? storedRequest.indexOf('|') : -1;
+      if (separator < 0) return;
+
+      const requestType = storedRequest.slice(0, separator);
+      let query = storedRequest.slice(separator + 1);
+      if (query.startsWith('b64:')) {
+        try {
+          query = decodeBase64Url(query.slice(4));
+        } catch (error) {
+          console.error('Unable to restore plot request from URL', error);
+          return;
+        }
+      }
+
+      const form = document.createElement('form');
+      new URLSearchParams(query).forEach((value, name) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      });
+
+      const mockEvent = { preventDefault() {}, target: form };
+      window.setTimeout(() => {
+        if (requestType === 'graph') fetchGraphPlots(index === 0, mockEvent);
+        if (requestType === 'gti') fetchGTIPlot(mockEvent);
+      }, index * 600);
+    });
+  }
+
   const gtiList = document.getElementById('gti-list');
   if (gtiList) {
       gtiList.addEventListener('click', (e) => {

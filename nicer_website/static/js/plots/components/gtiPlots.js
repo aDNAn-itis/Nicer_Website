@@ -7,6 +7,7 @@ import {
 } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js';
 import { initGTICrossLinking } from './gtiCrossLinking.js'; 
+import { addPlotRequest } from './urlState.js';
 import { 
   startOperation, 
   completeOperation, 
@@ -29,9 +30,9 @@ export function flagScreenedGTIs(obsID, failedGTIs) {
   if ($table.length === 0) return;
 
   $table.find('.gti-row').removeClass('screening-failed');
-  $table.find('.screening-badge').remove();11
+  $table.find('.screening-badge').remove();
 
-  failedGTIs.forEach((gtiNum) => {int
+  failedGTIs.forEach((gtiNum) => {
     const $row = $table.find(`.gti-row[data-gti="GTI${gtiNum}"]`);
     if ($row.length) {
       $row.addClass('screening-failed');
@@ -470,6 +471,8 @@ export async function fetchGTIPlot(e) {
 
   if (!formData.includes('csrfmiddlewaretoken')) formData += `&csrfmiddlewaretoken=${token}`;
   if (!formData.includes('quality')) formData += `&quality=${quality}`;
+
+  addPlotRequest('gti', formData);
 
   $.ajax({
     type: 'POST', url: PLOT_GTI_URL, data: formData,

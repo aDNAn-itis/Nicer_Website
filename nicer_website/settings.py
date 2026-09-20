@@ -36,6 +36,13 @@ with open(os.path.join(BASE_DIR, 'db_user.json'), mode='r', encoding='utf8') as 
 with open(os.path.join(BASE_DIR, 'config.json'), mode='r', encoding='utf8') as file:
     CONFIG = json.load(file)
 
+_configured_data_dir = Path(CONFIG['data_dir']).expanduser()
+DATA_DIR = str(
+    _configured_data_dir
+    if _configured_data_dir.is_absolute()
+    else (BASE_DIR / _configured_data_dir).resolve()
+)
+
 ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0']
 
 
@@ -129,8 +136,6 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
-
-DATA_DIR = CONFIG['data_dir']
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [

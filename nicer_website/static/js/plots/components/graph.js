@@ -7,6 +7,11 @@ import { initInteractiveLinking } from './interactiveLinking.js';
 import { fetchGTIPlot } from './gtiPlots.js';
 import { startOperation, completeOperation, errorOperation } from './statusBar.js';
 import { updateTheaterFrame } from './lcTheater.js';
+import {
+  addPlotRequest,
+  clearPlotRequests,
+  removePlotRequestByObsId,
+} from './urlState.js';
 
 // Initialize LC Theater Playlist
 window.lcTheaterPlaylist = window.lcTheaterPlaylist || [];
@@ -245,7 +250,10 @@ export function fetchGraphPlots(refresh = false, event) {
     url: PLOT_GRAPH_URL,
     data: serializedData,
     success: function (response) {
-      if (refresh) removePlots();
+      if (refresh) {
+        clearPlotRequests();
+        removePlots();
+      }
       
       if (response.error) {
         errorOperation(operationId, 'Error: ' + response.error);
@@ -270,6 +278,7 @@ export function fetchGraphPlots(refresh = false, event) {
       const hasPlotTypes = serializedData.includes('plot_types=') || serializedData.includes('spectrum=') || serializedData.includes('global_hid=');
 
       if (hasPlotTypes && response.plotDivs && response.plotDivs.length > 0) {
+        addPlotRequest('graph', serializedData);
         response.plotDivs.forEach((plotDiv, i) => {
           let PLOT_ID, TYPE, rawTitle;
           try {
@@ -438,6 +447,7 @@ export function removePlots(response, removeButton) {
 
     // Remove from metadata tracking
     $(`[data-obs-id="${response.obsID}"]`).remove();
+    removePlotRequestByObsId(response.obsID);
     
     // Hide info panel if empty
     if ($('#obs-info-table').find('tr').length <= 1) { 
