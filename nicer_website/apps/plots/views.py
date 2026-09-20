@@ -1020,10 +1020,24 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
                     bg_x.append(avg_h)
                     bg_y.append(avg_i)
                     bg_obsids.append(obs_id)
-            continue
+                continue
+
+            # Older versions cached failed reads as an empty tuple. Discard
+            # those entries and retry instead of hiding newly available data.
+            cache.delete(cache_key)
 
         abs_dir_path = os.path.join(settings.DATA_DIR, obs_id, 'jspipe') 
         rel_dir_path = os.path.join(obs_id, 'jspipe')
+
+        # Do not turn a temporarily unavailable data mount into a cached
+        # "no data" result. The next request should retry once storage returns.
+        if not os.path.isdir(abs_dir_path):
+            logger.warning(
+                "[plot_combined_global_hid] Data directory unavailable for %s: %s",
+                obs_id,
+                abs_dir_path,
+            )
+            continue
         
         files = Item.objects.filter(
             name__contains=quality, path__startswith=rel_dir_path, type=Item.item_type[1][0]
@@ -1074,7 +1088,10 @@ def plot_combined_global_hid(request: HttpRequest) -> JsonResponse:
                 bg_y.append(avg_i)
                 bg_obsids.append(obs_id)
         else:
-            cache.set(cache_key, (), timeout=3600)
+            logger.warning(
+                "[plot_combined_global_hid] No readable HID data for %s; result not cached",
+                obs_id,
+            )
 
     # Add single background trace for context points
     if bg_x:

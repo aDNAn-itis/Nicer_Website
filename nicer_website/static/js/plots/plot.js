@@ -739,6 +739,10 @@ document.addEventListener("DOMContentLoaded", () => {
             fetch(PLOT_COMBINED_URL, { method: 'POST', body: formData })
             .then(response => response.json())
             .then(data => {
+                if (data.error) {
+                    StatusBar.getInstance().show(data.error, 5000, true);
+                    return;
+                }
                 if (data.plotDiv) {
                     const safeContainerId = 'global-safe-container';
                     if ($(`#${safeContainerId}`).length === 0) {
