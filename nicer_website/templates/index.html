@@ -5,10 +5,11 @@
 
 {% block head %}
 <link rel="stylesheet" href="{% static 'css/home.css' %}" />
+<link rel="stylesheet" href="{% static 'css/home-footer.css' %}" />
 {% endblock %}
 
 {% block content %}
-<section class="home-hero" aria-labelledby="home-hero-title">
+<section class="home-hero" id="top" aria-labelledby="home-hero-title">
   <canvas id="fabric" aria-hidden="true"></canvas>
 
   <div class="home-hero__animation xray-binary" aria-hidden="true">
@@ -34,7 +35,7 @@
       <a href="{{ file_mgr_url }}" class="home-hero__button home-hero__button--secondary">Browse Archive</a>
     </div>
 
-    <a class="home-hero__discover" href="#" aria-label="Discover more">
+    <a class="home-hero__discover" href="#explore-footer" aria-label="Discover more">
       <span>Discover more</span>
       <i class="fas fa-arrow-down" aria-hidden="true"></i>
     </a>
@@ -42,7 +43,7 @@
 </section>
 {% endblock %}
 
-{% block footer %}{% endblock %}
+{% block footer %}{% include 'home-footer.html' %}{% endblock %}
 
 {% block scripts %}
 <script src="{% static 'js/home-gravity-fabric.js' %}" defer></script>

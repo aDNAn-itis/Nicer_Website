@@ -1,0 +1,71 @@
+.orbital-footer {
+  box-sizing: border-box;
+  width: 100%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 760px;
+  height: min(880px, 64vw);
+  color: #17202c;
+  background: #fff;
+  scroll-margin-top: 70px;
+}
+.orbital-footer__scene { position: absolute; inset: 0; z-index: -2; overflow: hidden; }
+.orbital-footer__scene img {
+  display: block;
+  width: 100%; height: 100%; object-fit: cover; object-position: center 65%;
+  animation: orbital-drift 12s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+.orbital-footer__scene::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(#fff 0%, #ffffffb3 12%, transparent 40%, transparent 85%, #fffffff0 100%);
+}
+.orbital-footer__grid {
+  position: absolute; inset: 0 0 auto; height: 200px; pointer-events: none; z-index: -1;
+  background-image: linear-gradient(#11182712 1px, transparent 1px), linear-gradient(90deg, #11182712 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: linear-gradient(#0009, transparent);
+}
+.orbital-footer__content {
+  display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 48px;
+  max-width: 1440px; margin: auto; padding: 75px 64px 0;
+}
+.orbital-footer a { color: #293341; text-decoration: none; }
+.orbital-footer a:hover { color: #000; text-decoration: underline; text-underline-offset: 5px; }
+.orbital-footer a:focus-visible { outline: 2px solid #425f7d; outline-offset: 5px; border-radius: 2px; }
+.orbital-footer__brand { display: inline-flex; align-items: center; gap: 9px; font-size: 25px; font-weight: 800; letter-spacing: -0.055em; }
+.orbital-footer__identity p { margin: 16px 0 22px; font-size: 14px; line-height: 1.65; color: #4b5563; }
+.orbital-footer__label { font: 9px 'Fira Code', monospace; letter-spacing: 0.12em; color: #626d78; }
+.orbital-footer nav h2 { font-size: 12px; font-weight: 700; letter-spacing: 0; color: #17202c; margin: 7px 0 22px; }
+.orbital-footer nav a { display: block; width: fit-content; margin: 0 0 14px; font-size: 12px; line-height: 1.5; }
+.orbital-footer__caption { position: absolute; top: 43%; left: 64px; right: 64px; display: flex; justify-content: space-between; gap: 20px; color: #536577; font: 8px 'Fira Code', monospace; letter-spacing: 0.16em; }
+.orbital-footer__bottom { position: absolute; bottom: 0; left: 0; right: 0; padding: 24px 80px 24px 64px; display: flex; align-items: center; justify-content: space-between; gap: 20px; font-size: 10px; color: #354455; }
+.orbital-footer__bottom p { margin: 0; }
+.orbital-footer__bottom a { white-space: nowrap; }
+/* Keep the artwork larger than its frame throughout the movement so no edge opens up. */
+@keyframes orbital-drift {
+  from { transform: translate3d(-0.5%, 0.3%, 0) scale(1.025); }
+  to { transform: translate3d(0.5%, -0.3%, 0) scale(1.075); }
+}
+@media (min-width: 1700px) { .orbital-footer__content { padding-top: 90px; } }
+@media (max-width: 900px) {
+  .orbital-footer__content { padding: 55px 32px 0; gap: 26px; }
+  .orbital-footer__caption { left: 32px; right: 32px; top: 45%; }
+  .orbital-footer__caption span:last-child { display: none; }
+  .orbital-footer__bottom { padding-left: 32px; }
+}
+@media (max-width: 600px) {
+  .orbital-footer { min-height: 850px; height: auto; }
+  .orbital-footer__content { padding: 40px 24px 0; grid-template-columns: 1fr 1fr; gap: 28px 24px; }
+  .orbital-footer__identity p { font-size: 12px; margin: 10px 0 14px; }
+  .orbital-footer nav h2 { margin-bottom: 17px; }
+  .orbital-footer nav a { font-size: 12px; margin-bottom: 12px; }
+  .orbital-footer__scene { top: 240px; }
+  .orbital-footer__scene img { object-position: 72% center; }
+  .orbital-footer__scene::after { background: linear-gradient(#fff, #ffffff80 22%, transparent 45%, transparent 83%, #fffffff5); }
+  .orbital-footer__caption { top: 440px; left: 24px; font-size: 7px; }
+  .orbital-footer__bottom { padding: 22px 78px 22px 24px; gap: 12px; font-size: 9px; }
+  .orbital-footer__bottom p:nth-child(2) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .orbital-footer__scene img { animation: none; } }

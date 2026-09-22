@@ -1,0 +1,40 @@
+{% load static %}
+<footer class="orbital-footer" id="explore-footer" aria-label="NICER Explorer footer">
+  <div class="orbital-footer__scene" aria-hidden="true">
+    <img src="{% static 'images/home/footer-orbital.png' %}" alt="" width="1536" height="1024" loading="lazy" decoding="async" />
+  </div>
+  <div class="orbital-footer__grid" aria-hidden="true"></div>
+  <div class="orbital-footer__content">
+    <div class="orbital-footer__identity">
+      <a class="orbital-footer__brand" href="#top"><svg viewBox="0 0 40 40" width="30" height="30" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.3"><ellipse cx="20" cy="20" rx="17" ry="7" transform="rotate(-35 20 20)"/><ellipse cx="20" cy="20" rx="17" ry="7" transform="rotate(35 20 20)"/><circle cx="20" cy="20" r="4"/></g></svg> NICER</a>
+      <p>Our universe.<br />A little closer.</p>
+      <span class="orbital-footer__label">ARCHIVE EXPLORER</span>
+    </div>
+    {% url 'file_mgr:directory' '/' as archive_url %}
+    {% url 'plots:plots' as analysis_url %}
+    <nav aria-label="Explore NICER">
+      <h2>Explore</h2>
+      <a href="{% url 'index' %}">Home</a>
+      <a href="{{ archive_url }}">Data browser</a>
+      <a href="{{ analysis_url }}">Interactive plots</a>
+    </nav>
+    <nav aria-label="NICER mission">
+      <h2>The mission</h2>
+      <a href="https://heasarc.gsfc.nasa.gov/docs/nicer/">About NICER ↗</a>
+      <a href="https://www.nasa.gov/">NASA ↗</a>
+      <a href="https://www.nasa.gov/international-space-station/">Space station ↗</a>
+    </nav>
+    <nav aria-label="Scientific resources">
+      <h2>Resources</h2>
+      <a href="https://heasarc.gsfc.nasa.gov/">HEASARC ↗</a>
+      <a href="https://heasarc.gsfc.nasa.gov/docs/nicer/nicer_analysis.html">Analysis guides ↗</a>
+      <a href="{{ archive_url }}">Browse archive ↗</a>
+    </nav>
+  </div>
+  <div class="orbital-footer__caption" aria-hidden="true"><span>01 / A VIEW FROM ORBIT</span><span>NEUTRON STAR INTERIOR COMPOSITION EXPLORER</span></div>
+  <div class="orbital-footer__bottom">
+    <p>© {% now "Y" %} NICER Archive Explorer</p>
+    <p>Made for the science. And the curiosity.</p>
+    <a href="#top">Back to top ↑</a>
+  </div>
+</footer>
