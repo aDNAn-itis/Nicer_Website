@@ -212,7 +212,7 @@ function populateGtiSelector(activeObsId) {
     gtiList.innerHTML = '';
 
     if (!activeObsId) {
-        gtiList.innerHTML = '<li class="disabled-message">Select an ObsID to see available GTIs</li>';
+        gtiList.innerHTML = '<li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI 1</li><li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI 2</li><li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI n</li>';
         return;
     }
 
@@ -312,6 +312,7 @@ function toggleMultiSelect(obsId) {
     let li = document.getElementById(`selected-${sanitizeId(obsId)}`);
     if (!li) {
         li = createListItem(obsId);
+        document.querySelector('#selected-obsids-list > .plot-placeholder')?.remove();
         document.getElementById('selected-obsids-list').appendChild(li);
     }
     li.classList.toggle('multi-selected');
@@ -388,6 +389,7 @@ function handleGlobalPointClick(obsId) {
     let li = document.getElementById(`selected-${sanitizeId(obsId)}`);
     if (!li) {
         li = createListItem(obsId);
+        document.querySelector('#selected-obsids-list > .plot-placeholder')?.remove();
         document.getElementById('selected-obsids-list').appendChild(li);
     }
     setActiveObsID(obsId);
@@ -514,7 +516,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const gtiList = document.getElementById('gti-list');
   if (gtiList) {
       gtiList.addEventListener('click', (e) => {
-          if (e.target.tagName === 'LI' && !e.target.classList.contains('disabled-message')) {
+          if (e.target.tagName === 'LI' && e.target.dataset.gti && !e.target.classList.contains('disabled-message')) {
               e.target.classList.toggle('selected');
               handleGtiSelectionChange();
           }
@@ -568,7 +570,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const selectedList = document.getElementById('selected-obsids-list');
             const allItems = allList.querySelectorAll('li');
 
-            if (allItems.length === 0 || (allItems.length === 1 && allItems[0].textContent.includes("No observations"))) {
+            if (!allList.querySelector('li[data-obsid]')) {
                 alert("No observations found. Please search for a Source first.");
                 this.checked = false; 
                 return;
@@ -654,7 +656,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const allObsidsList = document.getElementById("all-obsids-list");
   if (allObsidsList) {
     allObsidsList.addEventListener("click", (e) => {
-      if (e.target.tagName === "LI") {
+      if (e.target.tagName === "LI" && e.target.dataset.obsid) {
           const obsid = e.target.getAttribute("data-obsid");
           const selectedList = document.getElementById("selected-obsids-list");
           if (!document.getElementById(`selected-${sanitizeId(obsid)}`)) {
@@ -686,7 +688,7 @@ document.addEventListener("DOMContentLoaded", () => {
              if(currentObsDisplay) currentObsDisplay.innerHTML = `Current ObsID: <span class="obsid-value-red">---</span>`;
              const infoBoxUl = document.querySelector("#general-info-box ul");
              if(infoBoxUl) infoBoxUl.innerHTML = "";
-             document.getElementById('gti-list').innerHTML = '<li class="disabled-message">Select an ObsID to see available GTIs</li>';
+             document.getElementById('gti-list').innerHTML = '<li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI 1</li><li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI 2</li><li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI n</li>';
         } else {
             const firstRemainingLi = selectedObsidsList.querySelector('li');
             if(firstRemainingLi) setActiveObsID(firstRemainingLi.dataset.obsid);
@@ -694,7 +696,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       const li = e.target.closest('li');
-      if (li) {
+      if (li && li.dataset.obsid) {
           const obsid = li.getAttribute("data-obsid");
           setActiveObsID(obsid);
 
@@ -705,7 +707,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     selectedObsidsList.addEventListener("dblclick", (e) => {
         const li = e.target.closest('li');
-        if (li) {
+        if (li && li.dataset.obsid) {
             e.preventDefault(); 
             toggleMultiSelect(li.getAttribute("data-obsid"));
         }
@@ -722,7 +724,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (isGlobalHID) {
         
-            selectedList.querySelectorAll('li').forEach(li => obsidsToPlot.push(li.getAttribute('data-obsid')));
+            selectedList.querySelectorAll('li[data-obsid]').forEach(li => obsidsToPlot.push(li.getAttribute('data-obsid')));
             
             if (obsidsToPlot.length === 0) {
                 StatusBar.getInstance().show("Please add items to list for Global HID.", 4000, true);

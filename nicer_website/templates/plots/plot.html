@@ -2,6 +2,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="{% static '/css/plot.css' %}" />
+<link rel="stylesheet" href="{% static 'css/plot-empty-states.css' %}" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/dist/gifshot.min.js"></script>
@@ -544,7 +545,13 @@
               <div class="results-left">
                 <h3>Observation Metadata:</h3>
                 <div class="info-box" id="general-info-box">
-                  <ul></ul>
+                  <ul>
+                    <li class="plot-placeholder"><strong>source:</strong><span>---</span></li>
+                    <li class="plot-placeholder"><strong>OBSID:</strong><span>---</span></li>
+                    <li class="plot-placeholder"><strong>Total no. of GTI's:</strong><span>---</span></li>
+                    <li class="plot-placeholder"><strong>RA(°):</strong><span>---</span></li>
+                    <li class="plot-placeholder"><strong>DEC(°):</strong><span>---</span></li>
+                  </ul>
                 </div>
               </div>
               
@@ -552,7 +559,13 @@
                 <h3 id="all-obsids-title">All ObsIDs for...</h3>
                 <input type="text" id="obsid-search-input" class="form-control" placeholder="Search ObsID in list...">
                 <ul id="all-obsids-list" class="list-group-scrollable">
-                  </ul>
+                  <li class="plot-placeholder" aria-disabled="true">ObsID 1</li>
+                  <li class="plot-placeholder" aria-disabled="true">ObsID 2</li>
+                  <li class="plot-placeholder" aria-disabled="true">ObsID 3</li>
+                  <li class="plot-placeholder" aria-disabled="true">ObsID 4</li>
+                  <li class="plot-placeholder" aria-disabled="true">ObsID 5</li>
+                  <li class="plot-placeholder" aria-disabled="true">ObsID n</li>
+                </ul>
               </div>
             </div>
 
@@ -567,13 +580,16 @@
               <div class="results-left">
                 <h3>Selected ObsIDs for: <span id="selected-source-label">---</span></h3>
                 <ul id="selected-obsids-list" class="list-group-scrollable" style="min-height: 126px; max-height: 126px; margin-bottom: 0.7rem;">
+                  <li class="plot-placeholder plot-placeholder--selected active-item" aria-disabled="true">obsid<span class="plot-placeholder__remove" aria-hidden="true">&times;</span></li>
                 </ul>
 
                 <h3>Available GTIs for: <span id="selected-obsid-label" class="obsid-value-red">---</span></h3>
-                <div id="gti-selector-box" class="info-box" style="min-height: 100px; max-height: 100px; padding: 0;">
+                <div id="gti-selector-box" class="info-box" style="height: 126px; min-height: 126px; max-height: 126px; padding: 0;">
 
-                      <ul id="gti-list" class="list-group-scrollable" style="min-height: 100px; max-height: 100px; border: none; box-shadow: none;">
-                          <li class="disabled-message" style="padding: 0.5rem 0.7rem; color: var(--text-secondary); cursor: default;">Select an ObsID to see available GTIs</li>
+                      <ul id="gti-list" class="list-group-scrollable" style="height: 100%; min-height: 0; max-height: none; border: none; box-shadow: none;">
+                          <li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI 1</li>
+                          <li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI 2</li>
+                          <li class="plot-placeholder plot-placeholder--gti" aria-disabled="true">GTI n</li>
                       </ul>
                   </div>
               </div>

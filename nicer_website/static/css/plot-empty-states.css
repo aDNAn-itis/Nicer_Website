@@ -1,0 +1,31 @@
+#all-obsids-list > .plot-placeholder,
+#selected-obsids-list > .plot-placeholder {
+  cursor: default;
+}
+#all-obsids-list > .plot-placeholder:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+#selected-obsids-list > .plot-placeholder--selected,
+#selected-obsids-list > .plot-placeholder--selected:hover {
+  color: var(--text-secondary);
+  border-left: 5px solid #d9534f;
+  background: #fff5f5;
+}
+.plot-placeholder__remove {
+  color: #ef4444;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 5px;
+}
+.plot-placeholder--gti,
+#gti-list > .plot-placeholder--gti:hover {
+  color: var(--text-secondary);
+  background: #fff;
+  cursor: default;
+}
+#gti-selector-box > #gti-list {
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: inherit;
+}
