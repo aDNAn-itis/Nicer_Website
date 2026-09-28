@@ -1,5 +1,6 @@
 {% extends 'base.html' %} {% block title %}Directory{% endblock %} {% load static %} {% block head %}
 <link rel="stylesheet" href="{% static 'css/file_mgr/directory.css' %}" />
+<link rel="stylesheet" href="{% static 'css/home-footer.css' %}?v=7" />
 
 <script>
   const CURRENT_DIR = '{{ current_dir }}';
@@ -10,7 +11,7 @@
 <script src="{% static 'js/file_mgr/file_mgr.js' %}" type="module"></script>
 
 {% endblock %} {% block content %}
-<div id="current-dir"></div>
+<div id="top"><div id="current-dir"></div></div>
 
 <div>
   {% url 'file_mgr:directory' parent_path as parent_url %}
@@ -19,3 +20,5 @@
 
 <div id="contents" class="row"></div>
 {% endblock %}
+
+{% block footer %}{% include 'home-footer.html' %}{% endblock %}

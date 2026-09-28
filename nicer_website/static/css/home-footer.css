@@ -110,3 +110,11 @@
   .orbital-footer__action-links::before { display: none; }
   .orbital-footer .orbital-footer__action-links a { font-size: 12px; }
 }
+
+.orbital-footer__content > div,
+.orbital-footer__content > nav {
+  border-image-source: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2218%22%20height%3D%2218%22%20viewBox%3D%220%200%2018%2018%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%238795a6%22%20stroke-width%3D%221%22%3E%3Cpath%20d%3D%22M0%203L3%201L6%203L9%205L12%203L15%201L18%203M0%2015L3%2013L6%2015L9%2017L12%2015L15%2013L18%2015M3%200L1%203L3%206L5%209L3%2012L1%2015L3%2018M15%200L13%203L15%206L17%209L15%2012L13%2015L15%2018%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  border-image-slice: 6;
+  border-image-width: 3;
+  border-image-repeat: round;
+}
