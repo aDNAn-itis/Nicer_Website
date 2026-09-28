@@ -1,0 +1,49 @@
+/* Shared text-link signature. Buttons and brand marks retain their own styling. */
+a[href]:not(.btn):not(.about-pill):not(.home-hero__button):not(.header-brand):not(.orbital-footer__brand):not([role='button']):not(.home-hero__discover):not(.about-resource-strip a) {
+  text-decoration: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='4' viewBox='0 0 10 4'%3E%3Cpath d='M0 3L5 1L10 3' fill='none' stroke='%23566576' stroke-width='1'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: left bottom;
+  background-size: 10px 4px;
+  position: relative;
+  padding-bottom: 7px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* Keep large clickable resource cells open; underline only their labels. */
+.about-resource-strip a[href] { background-image: none; padding-bottom: 28px; }
+.about-resource-strip a[href] > span { text-decoration: none !important; }
+.orbital-footer nav a:hover { color: #293341; }
+.about-page .about-text-link:hover { color: #111827; }
+.footer-section a { width: fit-content; }
+@media (max-width: 680px) { .about-resource-strip a[href] { padding-bottom: 24px; } }
+
+/* A short drawing motion signals interaction without delaying navigation. */
+
+.about-resource-strip a[href] > span {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='4' viewBox='0 0 10 4'%3E%3Cpath d='M0 3L5 1L10 3' fill='none' stroke='%23566576' stroke-width='1'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: left bottom;
+  background-size: 10px 4px;
+  position: relative;
+}
+/* Reveal a second identical zigzag without stretching its teeth. */
+a[href]:not(.btn):not(.about-pill):not(.home-hero__button):not(.header-brand):not(.orbital-footer__brand):not([role='button']):not(.home-hero__discover):not(.about-resource-strip a)::after,
+.about-resource-strip a[href] > span::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5px;
+  height: 4px;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='4' viewBox='0 0 10 4'%3E%3Cpath d='M0 3L5 1L10 3' fill='none' stroke='%23566576' stroke-width='1'/%3E%3C/svg%3E") repeat-x left bottom / 10px 4px;
+  clip-path: inset(0 var(--zigzag-hidden, 100%) 0 0);
+  transition: clip-path 180ms ease;
+}
+a[href]:hover, a[href]:focus-visible, a[href]:active {
+  --zigzag-hidden: 0%;
+}
+@media (prefers-reduced-motion: reduce) {
+  a[href]::after, .about-resource-strip a[href] > span::after { transition: none !important; }
+}
