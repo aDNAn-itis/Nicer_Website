@@ -203,6 +203,8 @@ def get_pds_data_and_plot(
             'yaxis_title': 'f x PDS Power (rms)',
             'xaxis_type': 'log',
             'yaxis_type': 'log',
+            'yaxis_dtick': 1,
+            'yaxis_exponentformat': 'power',
             'showlegend': True,
             'xaxis_range': xaxis_range,
             'yaxis_range': yaxis_range,

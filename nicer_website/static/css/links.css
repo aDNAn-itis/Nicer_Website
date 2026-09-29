@@ -15,7 +15,6 @@ a[href]:not(.btn):not(.about-pill):not(.home-hero__button):not(.header-brand):no
 .about-resource-strip a[href] > span { text-decoration: none !important; }
 .orbital-footer nav a:hover { color: #293341; }
 .about-page .about-text-link:hover { color: #111827; }
-.footer-section a { width: fit-content; }
 @media (max-width: 680px) { .about-resource-strip a[href] { padding-bottom: 24px; } }
 
 /* A short drawing motion signals interaction without delaying navigation. */

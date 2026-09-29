@@ -1,6 +1,7 @@
-{% extends 'base.html' %} {% block title %}Directory{% endblock %} {% load static %} {% block head %}
+{% extends 'base.html' %} {% block title %}Data Browser - NASA NICER{% endblock %} {% load static %} {% block head %}
+<link rel="stylesheet" href="{% static 'css/about.css' %}?v=21" />
+<link rel="stylesheet" href="{% static 'css/detail-pages.css' %}?v=1" />
 <link rel="stylesheet" href="{% static 'css/file_mgr/directory.css' %}" />
-<link rel="stylesheet" href="{% static 'css/home-footer.css' %}?v=7" />
 
 <script>
   const CURRENT_DIR = '{{ current_dir }}';
@@ -11,14 +12,15 @@
 <script src="{% static 'js/file_mgr/file_mgr.js' %}" type="module"></script>
 
 {% endblock %} {% block content %}
-<div id="top"><div id="current-dir"></div></div>
-
-<div>
-  {% url 'file_mgr:directory' parent_path as parent_url %}
-  <a href="{{ parent_url }}"> Parent Directory </a>
+<div class="about-page detail-page archive-page" id="top">
+  <svg class="about-fabric" aria-hidden="true" focusable="false"></svg>
+  <div class="about-shell">
+    {% url 'file_mgr:directory' parent_path as parent_url %}
+    <nav class="detail-breadcrumb" aria-label="Breadcrumb"><a href="{% url 'index' %}">Home</a><span aria-hidden="true">/</span><a href="{% url 'file_mgr:directory' '/' %}">Data browser</a></nav>
+    <section class="archive-intro" aria-labelledby="archive-title"><p class="about-eyebrow">NASA NICER / DATA ARCHIVE</p><div id="current-dir"></div><p class="about-lead">Browse observation directories and files.</p><div class="about-actions"><a class="about-pill" href="{{ parent_url }}">← Parent directory</a><a class="about-text-link" href="{% url 'plots:plots' %}">Interactive plots</a></div></section>
+    <section class="archive-listing" aria-labelledby="archive-listing-title"><div class="detail-preview__heading"><span id="archive-listing-title">01 / CONTENTS</span><span>NICER ARCHIVE</span></div><div id="contents" class="archive-columns"></div></section>
+  </div>
 </div>
-
-<div id="contents" class="row"></div>
 {% endblock %}
 
-{% block footer %}{% include 'home-footer.html' %}{% endblock %}
+{% block scripts %}<script src="{% static 'js/about-fabric.js' %}?v=9" defer></script>{% endblock %}

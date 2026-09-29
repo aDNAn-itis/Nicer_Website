@@ -5,7 +5,7 @@ window.gtiMap = window.gtiMap || {};
 window.selectedGtis = window.selectedGtis || [];
 window.allObservationsData = window.allObservationsData || [];
 
-import { fetchGTIPlot } from './components/gtiPlots.js';
+import { fetchGTIPlot } from './components/gtiPlots.js?v=gti-fixes-2';
 import { displayInfo } from './components/observationInfo.js';
 import { fetchGraphPlots } from './components/graph.js';
 import { downloadData } from './components/download.js';
@@ -184,7 +184,7 @@ function populateGtiSelector(activeObsId) {
             li.dataset.gti = gtiNum;
             li.textContent = `GTI(${gtiNum})`;
 
-            if (selectedGtis.some(item => item.obsId === activeObsId && item.gti === gtiNum)) {
+            if (selectedGtis.some(item => item.obsId === activeObsId && Number(item.gti) === Number(gtiNum))) {
                 li.classList.add('selected');
             }
             gtiList.appendChild(li);
@@ -203,7 +203,7 @@ function handleGtiSelectionChange() {
         const obsId = li.dataset.obsid;
         const gtiNum = parseInt(li.dataset.gti, 10);
         const isSelectedInUI = li.classList.contains('selected');
-        const indexInState = selectedGtis.findIndex(item => item.obsId === obsId && item.gti === gtiNum);
+        const indexInState = selectedGtis.findIndex(item => item.obsId === obsId && Number(item.gti) === gtiNum);
 
         if (isSelectedInUI && indexInState === -1) {
             // It's selected in the UI but not in our state array, so add it.
@@ -215,6 +215,19 @@ function handleGtiSelectionChange() {
     });
 
     console.log('selectedGtis after reconciliation:', JSON.parse(JSON.stringify(selectedGtis)));
+
+    const activeObsId = listItems[0]?.dataset.obsid;
+    if (!activeObsId) return;
+    document.querySelectorAll('.plot-container[data-obs-id] form.fetch-gti').forEach(form => {
+        const obsIds = form.closest('.plot-container').dataset.obsId.split(',').map(id => id.trim());
+        if (!obsIds.includes(activeObsId)) return;
+        const search = form.querySelector('input[name="gti-search"]');
+        if (!search) return;
+        const selection = selectedGtis.filter(item => obsIds.includes(item.obsId));
+        search.value = obsIds.length > 1
+            ? selection.map(item => `${item.obsId}-${item.gti}`).join(',')
+            : selection.map(item => item.gti).join(',');
+    });
 }
 
 function toggleMultiSelect(obsId) {
@@ -277,9 +290,9 @@ function addToTheaterPlaylist(obsid) {
     // Add to playlist (unique entries for cleaner sequence)
     if (!window.lcTheaterPlaylist.includes(obsid)) {
         window.lcTheaterPlaylist.push(obsid);
-        if (window.StatusBar) window.StatusBar.getInstance().show(`Added ${obsid} to Theater Sequence.`, 1500);
+        StatusBar.getInstance().show(`Added ${obsid} to Theater Sequence.`, 1500);
     } else {
-        if (window.StatusBar) window.StatusBar.getInstance().show(`${obsid} already in Sequence.`, 1000);
+        StatusBar.getInstance().show(`${obsid} already in Sequence.`, 1000);
     }
 
     // If theater is open, sync the slider and view
@@ -425,8 +438,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const gtiList = document.getElementById('gti-list');
   if (gtiList) {
       gtiList.addEventListener('click', (e) => {
-          if (e.target.tagName === 'LI' && e.target.dataset.gti && !e.target.classList.contains('disabled-message')) {
-              e.target.classList.toggle('selected');
+          const row = e.target.closest('li[data-obsid][data-gti]');
+          if (row && gtiList.contains(row) && !row.classList.contains('disabled-message')) {
+              row.classList.toggle('selected');
               handleGtiSelectionChange();
           }
       });
@@ -595,6 +609,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if(plotForm) {
     plotForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+        handleGtiSelectionChange();
         
         const selectedList = document.getElementById("selected-obsids-list");
         const obsidsToPlot = [];
@@ -663,7 +678,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         });
                         
                         window.lcTheaterPlaylist = playlist;
-                        if (window.StatusBar) window.StatusBar.getInstance().show("Tracking all Global HID ObsIDs by time.", 2000);
+                        StatusBar.getInstance().show("Tracking all Global HID ObsIDs by time.", 2000);
                         
                         openLCTheater();
                     });
@@ -711,7 +726,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 multiSelectedItems.forEach(li => obsidsToPlot.push(li.getAttribute('data-obsid')));
                 StatusBar.getInstance().show(`Comparing ${obsidsToPlot.length} highlighted observations...`, -1);
             } else {
-                const allListItems = selectedList.querySelectorAll('li');
+                const allListItems = selectedList.querySelectorAll('li[data-obsid]');
                 
                 if (allListItems.length > 0) {
                      allListItems.forEach(li => obsidsToPlot.push(li.getAttribute('data-obsid')));

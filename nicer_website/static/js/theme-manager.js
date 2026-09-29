@@ -115,10 +115,6 @@ class ThemeManager {
         border-bottom-color: var(--border-color);
       }
 
-      .dark .footer {
-        background: var(--bg-primary);
-      }
-
       .dark .stats-section {
         background: var(--bg-primary);
       }

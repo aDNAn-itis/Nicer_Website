@@ -1,19 +1,16 @@
-{% extends 'base.html' %} {% load static %} {% block head %}
-<link rel="stylesheet" href="{% static 'css/file_mgr/file.css' %}" />
-{% endblock %} {% block title %}Directory{% endblock %} {% block content %}
-<h1>{{ file.path }}{{ file.name }}</h1>
-
-{% url 'file_mgr:directory' parent_path as parent_url %}
-<a href="{{ parent_url }}"> Parent Directory </a>
-
-<div>
-  {% with file.path|add:file.name as file_path %}
-  <image
-    alt="No Image"
-    class="responsive"
-    onError="this.onerror=null; this.remove()"
-    src="{% static 'nicer_data/'|add:file_path %}"
-  />
-  {% endwith %}
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ file.name }} - NASA NICER Archive{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/about.css' %}?v=21" /><link rel="stylesheet" href="{% static 'css/detail-pages.css' %}?v=1" />{% endblock %}
+{% block content %}
+<div class="about-page detail-page" id="top">
+  <svg class="about-fabric" aria-hidden="true" focusable="false"></svg>
+  <div class="about-shell detail-file">
+    {% url 'file_mgr:directory' parent_path as parent_url %}
+    <nav class="detail-breadcrumb" aria-label="Breadcrumb"><a href="{% url 'file_mgr:directory' '/' %}">Data browser</a><span aria-hidden="true">/</span><a href="{{ parent_url }}">Parent directory</a><span aria-hidden="true">/</span><span aria-current="page">File</span></nav>
+    <section class="detail-file__intro" aria-labelledby="file-title"><p class="about-eyebrow">NASA NICER / ARCHIVE FILE</p><h1 id="file-title">File<br />preview<span class="about-period">.</span></h1><p class="about-lead">{{ file.name }}</p><p class="detail-file__path">{{ file.path }}</p><div class="about-actions"><a class="about-pill" href="{{ parent_url }}">← Parent directory</a><a class="about-text-link" href="{% url 'plots:plots' %}">Interactive plots</a></div></section>
+    <section class="detail-preview" aria-label="File preview"><div class="detail-preview__heading"><span>01 / PREVIEW</span><span>{{ file.name }}</span></div>{% with file.path|add:file.name as file_path %}<img alt="Preview of {{ file.name }}" class="detail-preview__image" onerror="this.hidden=true; this.nextElementSibling.hidden=false" src="{% static 'nicer_data/'|add:file_path %}" /><p class="detail-preview__fallback" hidden>A visual preview is unavailable for this file. Return to the parent directory to continue browsing.</p>{% endwith %}</section>
+  </div>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/about-fabric.js' %}?v=9" defer></script>{% endblock %}

@@ -3,7 +3,7 @@
  * Provides offline functionality and caching
  */
 
-const CACHE_NAME = 'nicer-website-v1';
+const CACHE_NAME = 'nicer-website-v2';
 const urlsToCache = [
   '/',
   '/static/css/main.css',
@@ -28,6 +28,12 @@ self.addEventListener('install', (event) => {
 
 // Fetch event - serve from cache when offline
 self.addEventListener('fetch', (event) => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request)),
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((response) => {
       // Return cached version or fetch from network

@@ -4,7 +4,7 @@ import { displayInfo, handleMultipleObservations } from './observationInfo.js';
 import { GTISelection } from './gtiComponents.js';
 import { updateAllSelections, initSynchronizedSelection } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js'; 
-import { fetchGTIPlot } from './gtiPlots.js';
+import { fetchGTIPlot } from './gtiPlots.js?v=gti-fixes-2';
 import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=notification-chip-2';
 import { updateTheaterFrame } from './lcTheater.js';
 import {

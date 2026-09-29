@@ -16,7 +16,8 @@
     <!-- Styles -->
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/main.css' %}" />
-    <link rel="stylesheet" href="{% static 'css/plot.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/plot.css' %}?v=notification-chip-3" />
+    <link rel="stylesheet" href="{% static 'css/home-footer.css' %}?v=7" />
 
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
@@ -86,15 +87,15 @@
 
     <main>{% block content %}{% endblock %}</main>
 
-    <!-- Conditionally include footer -->
+    <!-- Shared footer for content pages; plots keep their compact layout. -->
     {% block footer %}
-      {% if not request.path|slice:":7" == "/plots/" %} {% include 'footer.html' %} {% endif %}
+      {% if not request.path|slice:":7" == "/plots/" %} {% include 'home-footer.html' %} {% endif %}
     {% endblock %}
 
     <!-- Scripts -->
     <script src="{% static 'js/header-stellar-wind.js' %}" defer></script>
     <script src="{% static 'js/performance.js' %}"></script>
-    <script src="{% static 'js/ui-enhancements.js' %}?v=notification-chip-2"></script>
+    <script src="{% static 'js/ui-enhancements.js' %}?v=notification-chip-3"></script>
     <script src="{% static 'js/theme-manager.js' %}"></script>
     <script src="{% static 'js/global-search.js' %}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>

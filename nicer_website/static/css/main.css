@@ -404,42 +404,6 @@ a:hover {
   font-size: 2rem;
 }
 
-/* Footer */
-.footer {
-  background: var(--space-black);
-  color: white;
-  padding: var(--spacing-3xl) 0 var(--spacing-xl);
-}
-
-.footer-content {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--spacing-xl);
-  margin-bottom: var(--spacing-xl);
-}
-
-.footer-section h3 {
-  color: var(--nicer-gold);
-  margin-bottom: var(--spacing-md);
-}
-
-.footer-section a {
-  color: var(--star-silver);
-  display: block;
-  margin-bottom: var(--spacing-sm);
-}
-
-.footer-section a:hover {
-  color: var(--nicer-gold);
-}
-
-.footer-bottom {
-  border-top: 1px solid #333;
-  padding-top: var(--spacing-lg);
-  text-align: center;
-  color: var(--text-secondary);
-}
-
 /* Responsive Design */
 @media (max-width: 768px) {
   .hero {

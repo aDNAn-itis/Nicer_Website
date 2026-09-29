@@ -11,6 +11,7 @@
 .plot-notification {
   display: inline-flex;
   align-items: center;
+  width: max-content;
   max-width: 100%;
   border: 1px solid #d1d5db;
   border-radius: 4px;

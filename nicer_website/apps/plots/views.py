@@ -369,7 +369,7 @@ def plot_gti(request: HttpRequest) -> JsonResponse:
 
         if gtis_to_process:
             for gti_num in gtis_to_process:
-                file_match = plot_files_qs.filter(name__regex=fr'GTI0*{gti_num}([^\\d]|$)').first()
+                file_match = plot_files_qs.filter(name__regex=fr'GTI0*{gti_num}([^\d]|$)').first()
                 if file_match:
                     final_file_paths_to_plot.append(os.path.join(full_dir_path, file_match.name))
                     final_gti_numbers_for_plot_func.append(gti_num)
@@ -664,7 +664,7 @@ def plot_data(request: HttpRequest) -> JsonResponse:
                     gtis_to_process = gti_list_parsed
 
                 # Ensure this block is collecting files from ALL obs_ids in the list
-                if plot_type_key == 'summed_spectrum' or plot_type_key == 'global_hid' or plot_type_key == 'global_lc':
+                if plot_type_key in ('global_hid', 'global_lc'):
                     for file_item in sorted(file_items, key=lambda x: x.name):
                        all_file_paths_combined.append(os.path.join(single_obs_dir, file_item.name))
                        all_gti_labels_combined.append(single_obs_id)

@@ -1,14 +1,12 @@
 {% extends 'base.html' %} {% load static %} 
 
 {% block head %}
-<link rel="stylesheet" href="{% static '/css/plot.css' %}" />
 <link rel="stylesheet" href="{% static 'css/plot-empty-states.css' %}" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 <script src="https://cdn.plot.ly/plotly-2.18.2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gifshot@0.4.5/dist/gifshot.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-<script type="module" src="{% static 'js/plots/plot.js' %}?v=notification-chip-2"></script>
+<script type="module" src="{% static 'js/plots/plot.js' %}?v=gti-fixes-2"></script>
 <script
   id="MathJax-script"
   src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"

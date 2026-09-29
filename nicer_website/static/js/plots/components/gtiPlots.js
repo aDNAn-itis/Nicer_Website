@@ -367,7 +367,7 @@ export async function fetchGTIPlot(e) {
   const $searchBox = $form.closest(".plot-container, .plot-type-section").find('input[name="gti-search"]');
   let gtiSearch = $searchBox.length ? $searchBox.val() : undefined;
   
-  if (gtiSearch === undefined && window.selectedGtis && window.selectedGtis.length > 0) {
+  if (!String(gtiSearch ?? '').trim() && window.selectedGtis && window.selectedGtis.length > 0) {
     const obsIdArray = currentObsID.split(',').map(id => id.trim());
     if (obsIdArray.length > 1) {
         gtiSearch = window.selectedGtis
