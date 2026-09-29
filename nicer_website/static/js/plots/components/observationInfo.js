@@ -1,7 +1,7 @@
 
 import { showPlotSelectionPopup, fetchGraphPlots } from './graph.js';
 import { showGTIPlotSelectionPopup, fetchGTIPlot } from './gtiPlots.js';
-import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=notification-chip-2';
 import { mjdToDate } from '../utils/dateUtils.js';
 
 

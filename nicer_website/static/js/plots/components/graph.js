@@ -5,7 +5,7 @@ import { GTISelection } from './gtiComponents.js';
 import { updateAllSelections, initSynchronizedSelection } from './syncSelection.js';
 import { initInteractiveLinking } from './interactiveLinking.js'; 
 import { fetchGTIPlot } from './gtiPlots.js';
-import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=notification-chip-2';
 import { updateTheaterFrame } from './lcTheater.js';
 import {
   addPlotRequest,
@@ -195,7 +195,7 @@ export function showPlotSelectionPopup(obsID, gti = null) {
     if (gtiValue) {
       const selectedPlotTypes = [];
       $(this).find('input[type="checkbox"]:checked').each(function() { selectedPlotTypes.push($(this).attr('name')); });
-      if (selectedPlotTypes.length === 0) { alert('Please select at least one plot type.'); return; }
+      if (selectedPlotTypes.length === 0) { window.NICEREnhancements.showNotification('Please select at least one plot type.', 'warning', 4000); return; }
       
       selectedPlotTypes.forEach(plotType => {
         const $gtiForm = $('<form>');
@@ -257,7 +257,6 @@ export function fetchGraphPlots(refresh = false, event) {
       
       if (response.error) {
         errorOperation(operationId, 'Error: ' + response.error);
-        alert(`${response.error}`);
         return;
       }
 
@@ -407,7 +406,6 @@ export function fetchGraphPlots(refresh = false, event) {
     error: function (_, textStatus, errorThrown) {
       console.error('AJAX error:', textStatus, errorThrown);
       errorOperation(operationId, 'Network error: Failed to communicate with server.');
-      alert('An error occurred while fetching data. Please try again.');
     }
   });
 }

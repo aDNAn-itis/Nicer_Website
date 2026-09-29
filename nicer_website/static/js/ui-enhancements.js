@@ -248,6 +248,44 @@ function setupKeyboardShortcuts() {
  * Utility function to show notifications
  */
 function showNotification(message, type = 'info', duration = 3000) {
+  const plotNotifications = document.getElementById('plot-notifications');
+  if (plotNotifications) {
+    // Keep the chip layout correct even when the plot stylesheet is still cached.
+    plotNotifications.style.display = 'flex';
+    plotNotifications.style.flexWrap = 'wrap';
+    plotNotifications.style.justifyContent = 'center';
+    plotNotifications.style.gap = '0.52rem';
+    plotNotifications.style.marginBottom = '0.7rem';
+
+    const notification = document.createElement('div');
+    notification.className = `plot-notification plot-notification-${type}`;
+    notification.style.cssText = 'display:inline-flex;align-items:center;width:max-content;max-width:100%;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-family:inherit;font-size:0.63rem;user-select:none;';
+
+    const text = document.createElement('span');
+    text.className = 'plot-notification-text';
+    text.textContent = message;
+    text.style.cssText = 'padding:0.28rem 0.52rem;color:#333;';
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'plot-notification-close';
+    close.textContent = '✕';
+    close.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:auto;flex:none;padding:0.28rem 0.42rem;border:0;border-left:1px solid #d1d5db;border-radius:0;background:transparent;box-shadow:none;color:#ef4444;font:inherit;font-weight:bold;cursor:pointer;transform:none;';
+    close.setAttribute('aria-label', 'Dismiss notification');
+    const dismiss = () => {
+      notification.remove();
+      if (!plotNotifications.querySelector('.plot-notification, .status-operation')) {
+        plotNotifications.style.marginBottom = '';
+      }
+    };
+    close.addEventListener('click', dismiss);
+
+    notification.append(text, close);
+    plotNotifications.appendChild(notification);
+    if (duration >= 0) setTimeout(dismiss, duration);
+    return notification;
+  }
+
   const notification = document.createElement('div');
   notification.className = `notification notification-${type}`;
   notification.innerHTML = `

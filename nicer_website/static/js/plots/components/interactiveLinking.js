@@ -426,14 +426,14 @@ function handleGtiDoubleClick(data, plot) {
     contentType: false,
     success: function (response) {
       if (response.error) {
-        alert('Error generating single GTI plot: ' + response.error);
+        window.NICEREnhancements.showNotification('Error generating single GTI plot: ' + response.error, 'error', 5000);
         return;
       }
 
       // Plot_data endpoint returns an array of plotDiv html strings
       if (!response.plotDivs || response.plotDivs.length === 0) {
         console.error("No plotted HTML structure was returned from the natively driven server route");
-        alert("Backend processing returned no plot structures.");
+        window.NICEREnhancements.showNotification("Backend processing returned no plot structures.", 'error', 5000);
         return;
       }
 
@@ -482,7 +482,7 @@ function handleGtiDoubleClick(data, plot) {
     },
     error: function (jqXHR, textStatus, errorThrown) {
       console.error("AJAX error internally fetching backend clone:", textStatus, errorThrown);
-      alert('Failed to clone backend GTI parameters.');
+      window.NICEREnhancements.showNotification('Failed to clone backend GTI parameters.', 'error', 5000);
     }
   });
 }

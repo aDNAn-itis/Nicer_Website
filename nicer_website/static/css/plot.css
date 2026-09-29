@@ -1,5 +1,119 @@
 /* NICER Data Analysis Platform - Plot Styles */
 
+#plot-notifications:has(.plot-notification, .status-operation) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.52rem;
+  margin-bottom: 0.7rem;
+}
+
+.plot-notification {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.63rem;
+  user-select: none;
+}
+
+.plot-notification-text {
+  padding: 0.28rem 0.52rem;
+  color: var(--text-primary, #333);
+}
+
+.plot-notification-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  flex: none;
+  padding: 0.28rem 0.42rem;
+  border: 0;
+  border-left: 1px solid #d1d5db;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #ef4444;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.plot-notification-close:hover {
+  background: #fef2f2;
+  color: #ef4444;
+  box-shadow: none;
+  transform: none;
+}
+
+#plot-notifications .status-bar {
+  position: static;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: auto;
+  max-width: 100%;
+  opacity: 1;
+  transform: none;
+}
+
+#plot-notifications .status-bar:empty {
+  display: none;
+}
+
+#plot-notifications .status-operation {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  padding: 0;
+  gap: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: 0.63rem;
+}
+
+#plot-notifications .status-message {
+  padding: 0.28rem 0.52rem;
+  flex: none;
+}
+
+#plot-notifications .status-spinner,
+#plot-notifications .status-icon {
+  margin-left: 0.52rem;
+}
+
+#plot-notifications .status-close {
+  position: static;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  flex: none;
+  padding: 0.28rem 0.42rem;
+  border: 0;
+  border-left: 1px solid #d1d5db;
+  border-radius: 0;
+  background: transparent;
+  color: #ef4444;
+  font: inherit;
+  font-weight: bold;
+  opacity: 1;
+}
+
+#plot-notifications .status-close:hover {
+  background: #fef2f2;
+  color: #ef4444;
+  box-shadow: none;
+  transform: none;
+}
+
 :root {
   --header-bg: #0b3d91;
   --header-text: #ffffff;

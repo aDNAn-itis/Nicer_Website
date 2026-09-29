@@ -1,4 +1,4 @@
-import { startOperation, completeOperation, errorOperation } from './statusBar.js';
+import { startOperation, completeOperation, errorOperation } from './statusBar.js?v=notification-chip-2';
 
 export async function downloadData(
   dataType,
@@ -73,6 +73,5 @@ export async function downloadData(
   } catch (error) {
     console.error('Download failed:', error);
     errorOperation(operationId, 'Download failed: ' + error.message);
-    alert(`Failed to download data: ${error.message}`);
   }
 }

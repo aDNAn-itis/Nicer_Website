@@ -6,7 +6,7 @@ import {
   updateOperationMessage,
   clearOperationsByPattern,
   completeOperationsByPattern,
-} from './statusBar.js';
+} from './statusBar.js?v=notification-chip-2';
 import { setGTICrossLinking, clearGTIHighlighting } from './gtiCrossLinking.js';
 
 /**

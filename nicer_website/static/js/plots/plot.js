@@ -10,7 +10,7 @@ import { displayInfo } from './components/observationInfo.js';
 import { fetchGraphPlots } from './components/graph.js';
 import { downloadData } from './components/download.js';
 import { fetchOptions } from './components/dropdowns.js';
-import { StatusBar } from './components/statusBar.js';
+import { StatusBar } from './components/statusBar.js?v=notification-chip-2';
 import { updateTheaterFrame, openLCTheater } from './components/lcTheater.js';
 
 window.fetchGTIPlot = fetchGTIPlot; // Global bridge for ESM modules and dynamic form listeners
@@ -34,46 +34,6 @@ function injectDynamicStyles() {
             #gti-list li:hover { background: var(--bg-secondary, #f8fafc); }
             #gti-list li.selected { background-color: #e8f5e9; font-weight: bold; }
             #gti-list li.disabled-message { color: var(--text-secondary); cursor: default; background: transparent; }
-            /* --- Selected GTI Cards --- */
-            .selected-gtis-pills {
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: center;
-                gap: 0.52rem;
-            }
-            .selected-gti-item {
-                display: inline-flex;
-                align-items: center;
-                border: 1px solid #d1d5db;
-                border-radius: 4px;
-                font-size: 0.63rem;
-                font-family: inherit;
-                cursor: default;
-                user-select: none;
-                background: #fff;
-            }
-            .selected-gti-item:hover {
-                border-color: #9ca3af;
-            }
-            .gti-card-text {
-                padding: 0.28rem 0.52rem;
-                color: var(--text-primary, #333);
-            }
-            .gti-card-remove {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                padding: 0.28rem 0.42rem;
-                border-left: 1px solid #d1d5db;
-                color: #ef4444;
-                font-size: 0.6rem;
-                font-weight: bold;
-                cursor: pointer;
-                transition: background 0.15s ease;
-            }
-            .gti-card-remove:hover {
-                background: #fef2f2;
-            }
             .gti-circle {
                 display: inline-flex;
                 align-items: center;
@@ -255,57 +215,6 @@ function handleGtiSelectionChange() {
     });
 
     console.log('selectedGtis after reconciliation:', JSON.parse(JSON.stringify(selectedGtis)));
-    updateSelectedGtisDisplay();
-}
-
-// Plotly default color palette - used to visually match GTI pills to their plot trace colors
-const PLOTLY_COLORS = [
-    '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
-    '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
-];
-
-function updateSelectedGtisDisplay() {
-    const selectedGtisDisplay = document.getElementById('selected-gtis-display');
-    if (!selectedGtisDisplay) return;
-
-    selectedGtisDisplay.innerHTML = '';
-
-    if (selectedGtis.length === 0) {
-        return;
-    }
-
-    // Card container
-    const cardContainer = document.createElement('div');
-    cardContainer.className = 'selected-gtis-pills';
-
-    const sortedSelectedGtis = [...selectedGtis].sort((a, b) => {
-        if (a.obsId < b.obsId) return -1;
-        if (a.obsId > b.obsId) return 1;
-        return a.gti - b.gti;
-    });
-
-    sortedSelectedGtis.forEach((item) => {
-        const card = document.createElement('span');
-        card.className = 'selected-gti-item';
-        card.dataset.obsid = item.obsId;
-        card.dataset.gti = item.gti;
-
-        const textSpan = document.createElement('span');
-        textSpan.className = 'gti-card-text';
-        textSpan.textContent = `GTI(${item.gti}) (${item.obsId})`;
-
-
-        const removeBtn = document.createElement('span');
-        removeBtn.className = 'gti-card-remove';
-        removeBtn.textContent = '✕';
-        removeBtn.title = 'Click to remove';
-
-        card.appendChild(textSpan);
-        card.appendChild(removeBtn);
-        cardContainer.appendChild(card);
-    });
-
-    selectedGtisDisplay.appendChild(cardContainer);
 }
 
 function toggleMultiSelect(obsId) {
@@ -523,36 +432,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  // New listener for the selected GTIs display for deselection
-  const selectedGtisDisplay = document.getElementById('selected-gtis-display');
-  if (selectedGtisDisplay) {
-      selectedGtisDisplay.addEventListener('click', (e) => {
-          const card = e.target.closest('.selected-gti-item');
-          if (card) {
-              console.log('selected-gti-item clicked. current selectedGtis:', JSON.parse(JSON.stringify(selectedGtis)));
-              const obsId = card.dataset.obsid;
-              const gti = parseInt(card.dataset.gti, 10);
-              console.log('Deselecting obsId:', obsId, 'gti:', gti);
-
-              // Remove from selectedGtis array
-              const filteredPills = selectedGtis.filter(item => !(item.obsId === obsId && item.gti === gti));
-              selectedGtis.length = 0; // Clears without losing reference
-              selectedGtis.push(...filteredPills);
-              
-              console.log('selectedGtis after deselection:', JSON.parse(JSON.stringify(selectedGtis)));
-
-              // Update the display
-              updateSelectedGtisDisplay();
-
-              // Un-select from the gti-list if it's currently displayed
-              const gtiListItem = document.querySelector(`#gti-list li[data-obsid='${obsId}'][data-gti='${gti}']`);
-              if (gtiListItem) {
-                  gtiListItem.classList.remove('selected');
-              }
-          }
-      });
-  }
-
   // Listener to close the modal
   const closeModalBtn = document.querySelector('.modal-close-btn');
   if(closeModalBtn) {
@@ -571,7 +450,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const allItems = allList.querySelectorAll('li');
 
             if (!allList.querySelector('li[data-obsid]')) {
-                alert("No observations found. Please search for a Source first.");
+                window.NICEREnhancements.showNotification("No observations found. Please search for a Source first.", 'warning', 4000);
                 this.checked = false; 
                 return;
             }
@@ -680,7 +559,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const filteredObs = selectedGtis.filter(gti => gti.obsId !== obsIdToRemove);
         selectedGtis.length = 0;
         selectedGtis.push(...filteredObs);
-        updateSelectedGtisDisplay();
         e.target.parentElement.remove();
 
         if (selectedObsidsList.children.length === 0) {
@@ -904,7 +782,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const currentObsIdText = document.getElementById('current-obsid-display').textContent;
         if (currentObsIdText && !currentObsIdText.includes("---")) obsId = currentObsIdText.replace('Current ObsID: ', '');
     }
-    if (!obsId) { alert("Please select an ObsID first."); return; }
+    if (!obsId) { window.NICEREnhancements.showNotification("Please select an ObsID first.", 'warning', 4000); return; }
     
     let gtiNum = $(this).data('gti');
     const quality = $('#quality-select').val();

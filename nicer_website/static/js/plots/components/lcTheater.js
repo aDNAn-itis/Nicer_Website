@@ -10,7 +10,7 @@ const theaterImageCache = new Map(); // Keep for structure if needed, or remove 
  */
 export async function openLCTheater() {
   if (!window.lcTheaterPlaylist || window.lcTheaterPlaylist.length === 0) {
-    alert("Please select some observations first (click points on the Global HID plot)!");
+    window.NICEREnhancements.showNotification("Please select some observations first (click points on the Global HID plot)!", 'warning', 5000);
     return;
   }
 

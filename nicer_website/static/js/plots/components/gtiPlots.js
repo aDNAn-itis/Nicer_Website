@@ -12,7 +12,7 @@ import {
   startOperation, 
   completeOperation, 
   errorOperation, 
-} from './statusBar.js';
+} from './statusBar.js?v=notification-chip-2';
 
 
 /**
@@ -56,6 +56,16 @@ export function flagScreenedGTIs(obsID, failedGTIs) {
  */
 function showScreeningToast(obsID, summary) {
   if (!summary || summary.failed_gtis === 0) return;
+  const allFailed = !!summary.all_failed;
+  if (document.getElementById('plot-notifications') && window.NICEREnhancements) {
+    window.NICEREnhancements.showNotification(
+      `Screening Applied: ${summary.passed_gtis}/${summary.total_gtis} GTIs passed. Excluded: ${summary.failed_gti_numbers.join(', ')}`,
+      allFailed ? 'error' : 'warning',
+      allFailed ? 8000 : 5000
+    );
+    flagScreenedGTIs(obsID, summary.failed_gti_numbers);
+    return;
+  }
   let $notification = $('#screening-notification');
   if ($notification.length === 0) {
     $notification = $('<div>', { 
@@ -63,7 +73,6 @@ function showScreeningToast(obsID, summary) {
       css: { position: 'fixed', bottom: '20px', right: '20px', padding: '15px 20px', borderRadius: '5px', color: '#fff', zIndex: 9999, fontSize: '14px', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' } 
     }).appendTo('body');
   }
-  const allFailed = !!summary.all_failed;
   $notification.css('background', allFailed ? '#d9534f' : '#f0ad4e')
                .html(`<strong>Screening Applied</strong><br>${summary.passed_gtis}/${summary.total_gtis} GTIs passed.<br><small>Excluded: ${summary.failed_gti_numbers.join(', ')}</small>`)
                .fadeIn(300);
@@ -297,7 +306,7 @@ export function showGTIPlotSelectionPopup(obsID, selectedGTIs) {
       selected.push($(this).attr('id').replace('gti-', '').replace('-checkbox', ''));
     });
 
-    if (selected.length === 0) { alert('Please select at least one plot type'); return; }
+    if (selected.length === 0) { window.NICEREnhancements.showNotification('Please select at least one plot type', 'warning', 4000); return; }
 
     const opIds = selected.map(type => {
       const opId = 'gti-plot-' + type + '-' + Date.now();

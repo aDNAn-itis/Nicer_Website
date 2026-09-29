@@ -179,7 +179,13 @@ export class StatusBar {
       class: 'status-bar'
     });
 
-    $('body').append(this.container);
+    const plotNotifications = document.getElementById('plot-notifications');
+    if (plotNotifications) {
+      this.container[0].style.cssText = 'position:static;top:auto;right:auto;left:auto;display:none;flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;width:auto;max-width:100%;opacity:1;transform:none;';
+      $(plotNotifications).append(this.container);
+    } else {
+      $('body').append(this.container);
+    }
   }
 
   startOperation(id, message) {
@@ -240,6 +246,7 @@ export class StatusBar {
       
       // Remove after animation completes
       setTimeout(() => {
+        if (this.operations.get(id) !== operation) return;
         this.operations.delete(id);
         this.updateDisplay();
 
@@ -270,6 +277,9 @@ export class StatusBar {
       const operationEl = this.createOperationElement(operation);
       this.container.append(operationEl);
     });
+    if (this.container.parent().is('#plot-notifications')) {
+      this.container.css('display', this.operations.size ? 'flex' : 'none');
+    }
   }
 
   createOperationElement(operation) {
@@ -318,9 +328,33 @@ export class StatusBar {
     return element;
   }
 
-  show() {
+  show(message, duration = 3000, isError = false) {
     if (!this.container) return;
-    
+    if (message !== undefined) {
+      if (document.getElementById('plot-notifications') && window.NICEREnhancements) {
+        this.transientNotification?.remove();
+        this.transientNotification = window.NICEREnhancements.showNotification(
+          message,
+          isError ? 'error' : 'info',
+          duration
+        );
+        return;
+      }
+      const id = 'status-message';
+      this.messageSequence = (this.messageSequence || 0) + 1;
+      const sequence = this.messageSequence;
+      this.operations.set(id, {
+        id,
+        message,
+        status: duration < 0 ? 'loading' : (isError ? 'error' : 'completed')
+      });
+      this.updateDisplay();
+      if (duration >= 0) {
+        setTimeout(() => {
+          if (this.messageSequence === sequence) this.removeOperation(id);
+        }, duration);
+      }
+    }
     this.container.addClass('visible');
   }
 
